@@ -1,0 +1,131 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "philips.ibe.service.webagent.client": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss",
+          "standalone": false
+        },
+        "@schematics/angular:directive": {
+          "standalone": false
+        },
+        "@schematics/angular:pipe": {
+          "standalone": false
+        }
+      },
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist/philips.ibe.service.webagent.client",
+            "index": "src/index.html",
+            "browser": "src/main.ts",
+            "polyfills": [
+              "zone.js"
+            ],
+            "tsConfig": "tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "src/favicon.ico",
+              "src/assets"
+            ],
+            "styles": [
+              "node_modules/@filament/fonts/index.css",
+              "node_modules/@filament/css/foundation.css",
+              "node_modules/@filament/css/styles/color/blue-light.css",
+              "node_modules/@filament/css/styles/size/medium.css",
+              "node_modules/@filament/css/components/notification.css",
+              "src/styles.scss",
+              "node_modules/quill/dist/quill.snow.css",
+              "node_modules/quill/dist/quill.core.css",
+              "node_modules/primeicons/primeicons.css"
+            ],
+            "scripts": [],
+            "stylePreprocessorOptions": {
+              "sass": {
+                "silenceDeprecations": ["color-functions", "global-builtin", "import"]
+              }
+            },
+            "loader": {
+              ".woff": "file",
+              ".woff2": "file"
+            }
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "3mb",
+                  "maximumError": "5mb"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "2kb",
+                  "maximumError": "4kb"
+                }
+              ],
+              "outputHashing": "all"
+            },
+            "development": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "philips.ibe.service.webagent.client:build:production"
+            },
+            "development": {
+              "buildTarget": "philips.ibe.service.webagent.client:build:development"
+            }
+          },
+          "defaultConfiguration": "development",
+          "options": {
+            "proxyConfig": "src/proxy.conf.js"
+          }
+        },
+        "extract-i18n": {
+          "builder": "@angular/build:extract-i18n",
+          "options": {
+            "buildTarget": "philips.ibe.service.webagent.client:build"
+          }
+        },
+        "test": {
+          "builder": "@angular/build:karma",
+          "options": {
+            "polyfills": [
+              "zone.js",
+              "zone.js/testing"
+            ],
+            "tsConfig": "tsconfig.spec.json",
+            "assets": [
+              "src/favicon.ico",
+              "src/assets"
+            ],
+            "styles": [
+              "src/styles.scss"
+            ],
+            "scripts": [],
+            "karmaConfig": "karma.conf.js"
+          }
+        }
+      }
+    }
+  },
+  "cli": {
+    "analytics": "0574563f-3814-4392-84e4-10c510d5c703"
+  }
+}

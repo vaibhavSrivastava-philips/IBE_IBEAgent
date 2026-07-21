@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure config DTOs + structural validation + JSON schema. Shared with the Web service. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

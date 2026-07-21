@@ -1,0 +1,2 @@
+# Place ServiceInstaller.ps1, CertificateGenerator.ps1, PasswordEncryptor.ps1 (and any
+# InstallationFiles) here. build.ps1 copies this folder's contents into ./publish.

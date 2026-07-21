@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- HTTP / WebSocket inbound + outbound endpoint. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
+  </ItemGroup>
+
+</Project>

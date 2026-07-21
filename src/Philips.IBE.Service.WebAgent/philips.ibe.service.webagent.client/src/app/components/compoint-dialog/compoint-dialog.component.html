@@ -1,0 +1,299 @@
+<f-dialog class="dialog" width="900" isDismissable (close)="closeDialog()">
+    <f-dialog-title>
+      {{isEditMode ? 'Edit Communication Point' : 'Add Communication Point' }}
+    </f-dialog-title>
+    <f-dialog-content>
+      <table class="unified-table">
+        <tr>
+          <td>Name <span class="astrick">*</span></td>
+          <td>
+
+              <input fInput type="text" id="name" [(ngModel)]="newCommunicationPoint.name" name="name" required>
+
+          </td>
+        </tr>
+        <tr>
+          <td>Mode <span class="astrick">*</span></td>
+          <td>
+            <f-dropdown variant="default" [(ngModel)]="newCommunicationPoint.mode" (ngModelChange)="newCommunicationPoint.type=''" placeholder="Select Mode" isFullWidth>
+              <f-option value="input">Input</f-option>
+              <f-option value="output">Output</f-option>
+            </f-dropdown>
+          </td>
+        </tr>
+        <tr>
+          <td>Type <span class="astrick">*</span></td>
+          <td>
+            <f-dropdown variant="default" [(ngModel)]="newCommunicationPoint.type" name="type" placeholder="Select Type" isFullWidth>
+              @for (type of getAllowedTypes(newCommunicationPoint.mode); track type.value) {
+                <f-option [value]="type.value">
+                  {{ type.label }}
+                </f-option>
+              }
+            </f-dropdown>
+          </td>
+        </tr>
+
+        @if (newCommunicationPoint.type === 'tcp' || newCommunicationPoint.type === 'adt_tcp') {
+          <tr>
+            <td>IP Address <span class="astrick">*</span></td>
+            <td>
+
+                <input fInput type="text" id="ip" [(ngModel)]="newCommunicationPoint.tcpConfiguration.ipAddress" name="ipAddress" required>
+
+            </td>
+          </tr>
+          <tr>
+            <td>Port <span class="astrick">*</span></td>
+            <td>
+
+                <input fInput type="text" id="port" [(ngModel)]="newCommunicationPoint.tcpConfiguration.port" name="port" required>
+
+            </td>
+          </tr>
+        }
+
+        @if (newCommunicationPoint.type === 'http') {
+          <tr>
+            <td>Endpoint <span class="astrick">*</span></td>
+            <td>
+
+                <input fInput type="text" id="endPoint" [(ngModel)]="newCommunicationPoint.httpConfiguration.endPoint" name="EndPoint" required>
+            
+            </td>
+          </tr>
+        }
+
+        @if (newCommunicationPoint.type === 'websocket') {
+          <tr>
+            <td>Endpoint <span class="astrick">*</span></td>
+            <td>
+              
+                <input fInput type="text" id="EndPoint" [(ngModel)]="newCommunicationPoint.webSocketConfiguration.endPoint" name="EndPoint" required>
+          
+            </td>
+          </tr>
+        }
+
+
+        @if (newCommunicationPoint.mode === 'output' && newCommunicationPoint.type === 'cim_s3') {
+          <tr>
+            <td>Service ID <span class="astrick">*</span></td>
+            <td>
+              
+                <input fInput type="text" id="serviceId" [(ngModel)]="newCommunicationPoint.s3Configuration.serviceId" name="ServiceId" required>
+              
+            </td>
+          </tr>
+          <tr>
+            <td>TenantName <span class="astrick">*</span></td>
+            <td>
+              
+                <input fInput type="text" id="tenantname" [(ngModel)]="newCommunicationPoint.s3Configuration.tenantName" name="TenantName" required>
+             
+            </td>
+          </tr>
+          <tr>
+            <td>CollectorId <span class="astrick">*</span></td>
+            <td>
+             
+                <input fInput type="text" id="collectorid" [(ngModel)]="newCommunicationPoint.s3Configuration.collectorId" name="CollectorId" required>
+             
+            </td>
+          </tr>
+          <tr>
+            <td>InstitutionName <span class="astrick">*</span></td>
+            <td>
+             
+                <input fInput type="text" id="institutionname" [(ngModel)]="newCommunicationPoint.s3Configuration.institutionName" name="InstitutionName" required>
+             
+            </td>
+          </tr>
+          <tr>
+            <td>GatewayUrl <span class="astrick">*</span></td>
+            <td>
+             
+                <input fInput type="text" id="gatewayurl" [(ngModel)]="newCommunicationPoint.s3Configuration.gatewayUrl" name="GatewayUrl" required>
+             
+            </td>
+          </tr>
+          <tr>
+            <td>IamHost <span class="astrick">*</span></td>
+            <td>
+             
+                <input fInput type="text" id="iamhost" [(ngModel)]="newCommunicationPoint.s3Configuration.iamHost" name="IamHost" required>
+             
+            </td>
+          </tr>
+          <tr>
+            <td>TimeZone <span class="astrick">*</span></td>
+            <td>
+             
+                <input fInput type="text" id="timezone" [(ngModel)]="newCommunicationPoint.s3Configuration.timeZone" name="TimeZone" required>
+             
+            </td>
+          </tr>
+          <tr>
+            <td>Private Key Path <span class="astrick">*</span></td>
+            <td>
+             
+                <input fInput type="text" id="privateKeyPath" [(ngModel)]="newCommunicationPoint.s3Configuration.privateKeyPath" name="PrivateKeyPath" required>
+             
+            </td>
+          </tr>
+          <tr>
+            <td>Private Key Password <span class="astrick">*</span></td>
+            <td>
+              <f-password isFullWidth>
+                <input fInput type="password" id="privateKeyPassword" [(ngModel)]="newCommunicationPoint.s3Configuration.privateKeyPassword" name="PrivateKeyPassword" required>
+              </f-password>
+            </td>
+          </tr>
+
+          <tr>
+            <td>CacheReconciliationEndpoint <span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="cachereconciliationendPoint" [(ngModel)]="newCommunicationPoint.cacheConfiguration.cacheReconciliationEndPoint" name="CacheReconciliationEndPoint" required>
+            </td>
+          </tr>
+          <tr>
+            <td>CacheRelaodEndPoint <span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="cacherelaodendPoint" [(ngModel)]="newCommunicationPoint.cacheConfiguration.cacheRelaodEndPoint" name="CacheRelaodEndPoint" required>
+            </td>
+          </tr>
+          <tr>
+            <td>CacheCertificatePath <span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="cachecertificatepath" [(ngModel)]="newCommunicationPoint.cacheConfiguration.cacheCertificatePath" name="CacheCertificatePath" required>
+            </td>
+          </tr>
+          <tr>
+            <td>Cache Certificate Password <span class="astrick">*</span></td>
+            <td>
+              <f-password isFullWidth>
+                <input fInput type="password" id="cacheCertificatePassword" [(ngModel)]="newCommunicationPoint.cacheConfiguration.cacheCertificatePassword" name="CacheCertificatePassword" required>
+              </f-password>
+            </td>
+          </tr>
+        }
+
+
+        @if (newCommunicationPoint.mode === 'output' && !(newCommunicationPoint.type === 'cim_s3')) {
+          <tr>
+            <td>SSL</td>
+            <td><f-toggle-switch class="dialog-toggle-switch" id="isSSLEnabled" [(ngModel)]="newCommunicationPoint.isSSLEnabled" name="IsSSLEnabled"></f-toggle-switch></td>
+          </tr>
+          <tr>
+
+          <tr>
+            <td>Root Certificate</td>
+            <td>
+              <f-flex-box gap="8" flexDirection="column">
+                <input fInput type="file" id="rootCert" (change)="onFile1Selected($event)" accept=".cer,.crt,.pfx" [disabled]="!newCommunicationPoint.isSSLEnabled" style="display: none;" #rootCertInput>
+                <button f-button variant="outline" type="button" (click)="rootCertInput.click()" [disabled]="!newCommunicationPoint.isSSLEnabled" style="width: 120px;">Browse</button>
+                <span>{{ file1?.name || getFileName(newCommunicationPoint.certificateDetails!.rootCertificatePath) }}</span>
+              </f-flex-box>
+            </td>
+          </tr>
+
+          <tr>
+            <td>Client Certificate</td>
+            <td>
+              <f-flex-box gap="8" flexDirection="column">
+                <input fInput type="file" id="clientCert" (change)="onFile2Selected($event)" accept=".cer,.crt,.pfx" [disabled]="!newCommunicationPoint.isSSLEnabled" style="display: none;" #clientCertInput>
+                <button f-button variant="outline" type="button" (click)="clientCertInput.click()" [disabled]="!newCommunicationPoint.isSSLEnabled" style="width: 120px;">Browse</button>
+                <span>{{ file2?.name || getFileName(newCommunicationPoint.certificateDetails!.clientCertificatePath) }}</span>
+              </f-flex-box>
+            </td>
+          </tr>
+          <tr>
+            <td>Password</td>
+            <td>
+              <f-password isFullWidth>
+                <input fInput type="password" [(ngModel)]="newCommunicationPoint.certificateDetails!.clientCertificatePassword" id="password"
+                       name="password" placeholder="Enter password" [disabled]="!newCommunicationPoint.isSSLEnabled">
+              </f-password>
+            </td>
+          </tr>
+
+
+
+          <tr>
+            <td>Enable Proxy</td>
+            <td>
+              <f-toggle-switch class="dialog-toggle-switch" id="isProxyEnabled" [(ngModel)]="newCommunicationPoint.proxyConfigurations.isEnabled" name="IsProxyEnabled"></f-toggle-switch>
+            </td>
+          </tr>
+
+
+
+          <tr>
+            <td>Proxy Server <span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="proxyServer" [(ngModel)]="newCommunicationPoint.proxyConfigurations.proxyAddress" name="proxyServer" required [disabled]="!newCommunicationPoint.proxyConfigurations.isEnabled">
+            </td>
+          </tr>
+          <tr>
+            <td>Proxy Port <span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="proxyPort" [(ngModel)]="newCommunicationPoint.proxyConfigurations.proxyPort" name="proxyPort" required [disabled]="!newCommunicationPoint.proxyConfigurations.isEnabled">
+            </td>
+          </tr>
+          <tr>
+            <td>Proxy Username</td>
+            <td>
+              <input fInput type="text" id="proxyUsername" [(ngModel)]="newCommunicationPoint.proxyConfigurations.proxyUsername" name="proxyUsername" [disabled]="!newCommunicationPoint.proxyConfigurations.isEnabled">
+            </td>
+          </tr>
+          <tr>
+            <td>Proxy Password</td>
+            <td>
+              <f-password isFullWidth>
+                <input fInput type="password" id="proxyPassword" [(ngModel)]="newCommunicationPoint.proxyConfigurations.proxyPassword" name="proxyPassword" [disabled]="!newCommunicationPoint.proxyConfigurations.isEnabled">
+              </f-password>
+            </td>
+          </tr>
+          <tr>
+            <td>ConnectionRetryAttempts<span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="connectionretryAttempts" [(ngModel)]="newCommunicationPoint.connectionRetry.retryAttempts" name="ConnectionRetryAttempts" required>
+            </td>
+          </tr>
+          <tr>
+            <td>ConnectionBaseRetryDelayInSeconds<span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="connectionbaseRetryDelayInSeconds" [(ngModel)]="newCommunicationPoint.connectionRetry.baseRetryDelayInSeconds" name="ConnectionBaseRetryDelayInSeconds" required>
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>MessageRetryAttempts<span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="messageretryAttempts" [(ngModel)]="newCommunicationPoint.messageRetry.retryAttempts" name="MessageRetryAttempts" required>
+            </td>
+          </tr>
+          <tr>
+            <td>MessageBaseRetryDelayInSeconds<span class="astrick">*</span></td>
+            <td>
+              <input fInput type="text" id="messagebaseRetryDelayInSeconds" [(ngModel)]="newCommunicationPoint.messageRetry.baseRetryDelayInSeconds" name="MessageBaseRetryDelayInSeconds" required>
+            </td>
+          </tr>
+        }
+      </table>
+    </f-dialog-content>
+    <f-dialog-actions>
+      <form (ngSubmit)="submitCommunicationPoint()" class="form-container">
+        <div class="button-group-container">
+          @if (errorValidation) {
+            <div class="error-validation">{{ errorValidation != '' ? errorValidation: ' ' }}</div>
+          }
+          <div class="button-group">
+            <button f-button type="button" variant="secondary" (click)="closeDialog()">Cancel</button>
+            <button f-button type="submit" variant="primary">{{ isEditMode ? 'Edit' : 'Add' }}</button>
+          </div>
+        </div>
+      </form>
+    </f-dialog-actions>
+  </f-dialog>

@@ -1,0 +1,63 @@
+<div class="communication-data-container">
+  <i class="fa fa-plus-circle" aria-hidden="false"></i>
+  <f-text size="headingMBold">Service Nodes</f-text>
+
+  <f-flex-box gap="24" class="card-grid">
+    <f-card showShadow [ngClass]="{'active': tcp.isEnabled, 'inactive': !tcp.isEnabled}">
+      <f-card-header>
+        <f-card-title>TCP Listener</f-card-title>
+      </f-card-header>
+      <div class="card-content">
+        <p><strong>IP Address:</strong> {{ tcp.ipAddress }}</p>
+        <p><strong>Port:</strong> {{ tcp.port }}</p>
+        <p><strong>SSL:</strong> {{ tcp.enableSSL }}</p>
+      </div>
+      <f-card-footer>
+        <button f-button variant="primary" (click)="openDialog('tcp', true)">Edit</button>
+      </f-card-footer>
+    </f-card>
+
+    <f-card showShadow [ngClass]="{'active': httpServer.isEnabled, 'inactive': !httpServer.isEnabled}">
+      <f-card-header>
+        <f-card-title>HTTP Server</f-card-title>
+      </f-card-header>
+      <div class="card-content">
+        <p><strong>IP Address:</strong> {{ httpServer.ipAddress }}</p>
+        <p><strong>Port:</strong> {{ httpServer.port }}</p>
+        <p><strong>Context Path:</strong> {{ httpServer.contextPath }}</p>
+        <p><strong>SSL:</strong> {{ httpServer.enableSSL }}</p>
+      </div>
+      <f-card-footer>
+        <button f-button variant="primary" (click)="openDialog('httpServer', true)">Edit</button>
+      </f-card-footer>
+    </f-card>
+
+    <f-card showShadow [ngClass]="{'active': webSocket.isEnabled, 'inactive': !webSocket.isEnabled}">
+      <f-card-header>
+        <f-card-title>WebSocket Client</f-card-title>
+      </f-card-header>
+      <div class="card-content">
+        <p><strong>EndPoint:</strong> {{ webSocket.endPoint }}</p>
+        <p><strong>SSL:</strong> {{ webSocket.enableSSL }}</p>
+      </div>
+      <f-card-footer>
+        <button f-button variant="primary" (click)="openDialog('webSocket', true)">Edit</button>
+      </f-card-footer>
+    </f-card>
+
+    <f-card showShadow [ngClass]="{'active': adt.isEnabled, 'inactive': !adt.isEnabled}">
+      <f-card-header>
+        <f-card-title>ADT_TCP</f-card-title>
+      </f-card-header>
+      <div class="card-content">
+        <p><strong>IP Address:</strong> {{ adt.ipAddress }}</p>
+        <p><strong>Port:</strong> {{ adt.port }}</p>
+        <p><strong>SSL:</strong> {{ adt.enableSSL }}</p>
+      </div>
+      <f-card-footer>
+        <button f-button variant="primary" (click)="openDialog('adt', true)">Edit</button>
+      </f-card-footer>
+    </f-card>
+  </f-flex-box>
+</div>
+<app-service-node-dialog [type]="currentNodeType" (close)="closeDialog($event)" [inputData]="currentNode" *ngIf="isDialogOpen"></app-service-node-dialog>

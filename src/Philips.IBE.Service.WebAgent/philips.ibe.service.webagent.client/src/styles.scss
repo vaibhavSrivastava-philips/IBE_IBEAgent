@@ -1,0 +1,21 @@
+@import '@filament/css/styles/color/blue-light.css';
+@import '@filament/css/styles/size/medium.css';
+
+
+
+html,
+body {
+    line-height: 1;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    box-sizing: border-box;
+}
+
+
+f-toasts-renderer {
+    top: 10vh !important;
+    z-index: 9999 !important;
+}
+
+

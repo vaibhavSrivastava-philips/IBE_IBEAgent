@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- OpenTelemetry meters/spans, queue-depth gauges, store-and-forward counters. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

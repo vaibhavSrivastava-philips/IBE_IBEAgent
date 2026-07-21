@@ -1,0 +1,4 @@
+<Project>
+  <!-- Stop MSBuild property inheritance here: the Angular .esproj (JavaScript project
+       system) must not pick up the .NET TargetFramework/Nullable/etc. from parent props. -->
+</Project>

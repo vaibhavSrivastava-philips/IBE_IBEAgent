@@ -1,0 +1,12 @@
+<f-dialog class="dialog" isDismissable (close)="dismissForAlert()">
+        <f-dialog-title>
+            {{title}}
+        </f-dialog-title>
+        <f-dialog-content>
+            <p>{{message}}</p>
+        </f-dialog-content>
+        <f-dialog-actions>
+            <button f-button (click)="dismissForAlert()">Cancel</button>
+            <button f-button variant="primary" (click)="onSelect()">{{buttonName}}</button>
+        </f-dialog-actions>
+</f-dialog>

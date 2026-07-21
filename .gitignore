@@ -1,0 +1,33 @@
+# .NET build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+*.user
+*.suo
+.vs/
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# Test / coverage
+[Tt]est[Rr]esults/
+coverage/
+*.trx
+*.coverage
+*.cobertura.xml
+
+# Node / Angular
+node_modules/
+dist/
+npm-debug.log*
+*.log
+
+# NuGet
+*.nupkg
+.packages/
+
+# OS
+Thumbs.db
+.DS_Store

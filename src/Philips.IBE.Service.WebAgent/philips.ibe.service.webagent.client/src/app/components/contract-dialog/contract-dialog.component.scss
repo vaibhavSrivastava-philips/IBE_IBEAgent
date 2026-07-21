@@ -1,0 +1,142 @@
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
+}
+
+::ng-deep .dialog-overlay .f-dialog-container,
+::ng-deep .dialog-overlay .f-dialog-container *,
+::ng-deep .dialog-overlay .f-dialog-container *::before,
+::ng-deep .dialog-overlay .f-dialog-container *::after {
+  box-sizing: border-box !important;
+  margin: 0 !important;
+}
+
+::ng-deep .dialog {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+::ng-deep f-dialog-content {
+  overflow-y: auto;
+  max-height: calc(87vh - 100px);
+}
+
+.contracts-section {
+  margin-top: 16px;
+  margin-bottom: 32px;
+}
+
+.pt-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 0px;
+  padding: 16px;
+  transition: 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #000;
+}
+
+.form-group input,
+.form-group select {
+  padding: 8px;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #0078d4;
+  box-shadow: 0 0 4px rgba(0, 120, 212, 0.5);
+}
+
+::ng-deep .f-tag-box-base {
+  width: 100%;
+}
+
+.pt-quiet {
+  background-color: transparent;
+  color: #555;
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.pt-quiet:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.pt-primary {
+  background-color: #0078d4;
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.pt-primary:hover {
+  background-color: #005a9e;
+}
+
+.error-message {
+  color: #d9534f;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+::ng-deep f-toggle-switch {
+  width: 100%;
+  display: block;
+}
+
+::ng-deep f-toggle-switch label.container {
+  width: 7.5%;
+  margin: 0;
+  padding-right: 0;
+  justify-content: flex-start;
+}

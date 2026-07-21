@@ -1,0 +1,13 @@
+<ng-container class="homepage" *ngIf="loginService.isUserLoggedIn()">
+  <div class="navbar">
+    <app-navbar class="content"></app-navbar>
+  </div>
+  <div class="body">
+    <app-sidebar class="sidebar" fShadow="container"></app-sidebar>
+    <div class="content">
+      <router-outlet></router-outlet>
+    </div>
+  </div>
+
+  
+</ng-container>

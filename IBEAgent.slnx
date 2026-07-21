@@ -1,0 +1,38 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/Philips.IBE.IBEAgent/">
+    <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Abstractions/Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Configuration/Philips.IBE.IBEAgent.Configuration.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Core/Philips.IBE.IBEAgent.Core.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Persistence/Philips.IBE.IBEAgent.Persistence.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Security/Philips.IBE.IBEAgent.Security.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Telemetry/Philips.IBE.IBEAgent.Telemetry.csproj" />
+  </Folder>
+  <Folder Name="/src/Philips.IBE.IBEAgent/endpoints/">
+    <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.CimS3/Philips.IBE.IBEAgent.Endpoints.CimS3.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.File/Philips.IBE.IBEAgent.Endpoints.File.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Http/Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Tcp/Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />
+  </Folder>
+  <Folder Name="/src/Philips.IBE.IBEAgent/formats/">
+    <Project Path="src/Philips.IBE.IBEAgent/formats/Philips.IBE.IBEAgent.Formats.Hl7/Philips.IBE.IBEAgent.Formats.Hl7.csproj" />
+  </Folder>
+  <Folder Name="/src/Philips.IBE.IBEAgent/hosts/">
+    <Project Path="src/Philips.IBE.IBEAgent/hosts/Philips.IBE.IBEAgent.ForwardService/Philips.IBE.IBEAgent.ForwardService.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/hosts/Philips.IBE.IBEAgent.Service/Philips.IBE.IBEAgent.Service.csproj" />
+  </Folder>
+  <Folder Name="/src/Philips.IBE.Service.WebAgent/">
+    <Project Path="src/Philips.IBE.Service.WebAgent/Philips.IBE.Service.WebAgent.Server.UnitTest/Philips.IBE.Service.WebAgent.Server.UnitTest.csproj" />
+    <Project Path="src/Philips.IBE.Service.WebAgent/Philips.IBE.Service.WebAgent.Server/Philips.IBE.Service.WebAgent.Server.csproj" />
+  </Folder>
+  <Folder Name="/testkit/">
+    <Project Path="testkit/Philips.IBE.IBEAgent.TestKit/Philips.IBE.IBEAgent.TestKit.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Philips.IBE.IBEAgent.Configuration.UnitTests/Philips.IBE.IBEAgent.Configuration.UnitTests.csproj" />
+    <Project Path="tests/Philips.IBE.IBEAgent.Core.UnitTests/Philips.IBE.IBEAgent.Core.UnitTests.csproj" />
+    <Project Path="tests/Philips.IBE.IBEAgent.Formats.Hl7.UnitTests/Philips.IBE.IBEAgent.Formats.Hl7.UnitTests.csproj" />
+    <Project Path="tests/Philips.IBE.IBEAgent.Host.IntegrationTests/Philips.IBE.IBEAgent.Host.IntegrationTests.csproj" />
+    <Project Path="tests/Philips.IBE.IBEAgent.Persistence.IntegrationTests/Philips.IBE.IBEAgent.Persistence.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

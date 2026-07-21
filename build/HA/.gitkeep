@@ -1,0 +1,2 @@
+# PostgreSQL high-availability scripts (pg_*_Failover_Orchestrator.ps1, pg_promote.ps1,
+# pg_rewind.ps1, ConfigUpdater.ps1) go here.

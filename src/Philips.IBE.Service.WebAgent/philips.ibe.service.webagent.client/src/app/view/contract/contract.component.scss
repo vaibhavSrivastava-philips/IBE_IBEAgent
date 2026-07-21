@@ -1,0 +1,301 @@
+.communication-list {
+  max-width: 95%;
+  margin: 0 auto;
+  padding: 20px;
+  position: relative;
+}
+
+.custom-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+
+  .pt-icon {
+    align-self: center;
+    font-size: 24px;
+    height: 24px;
+    width: 24px;
+  }
+
+  .expander-icons{
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+}
+
+::ng-deep f-expander {
+  
+  .f-expander-header button:hover {
+    background-color: transparent !important;
+  }
+
+  .f-expander-header button:active {
+    background-color: transparent !important;
+  }
+}
+
+h2 {
+  color: #333;
+  border-bottom: 2px solid #333;
+  padding-bottom: 10px;
+  margin-bottom: 20px; /* Add margin to separate from list items */
+}
+
+.list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 20px;
+}
+
+.list-item {
+  background-color: #f5f5f5; /* Light background for the list item */
+  border-radius: 4px;
+  box-shadow: 1px 3px rgba(0, 0, 0, 0.1);
+  display: block;
+  margin-bottom: 10px; /* Increased space between list items */
+  position: relative; /* For positioning icons within */
+}
+
+.list-item span {
+  font-size: 14px;
+  color: #333;
+}
+
+.list-item strong {
+  font-weight: bold;
+  color: #2c3e50;
+}
+
+.add-button {
+  position: absolute;
+  top: 20px; /* Adjusted for better positioning */
+  right: 20px; /* Adjusted for better positioning */
+}
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dialog {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  width: 40%;
+  max-height: 80%;
+  overflow-y: auto;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  position: sticky;
+  top: 0;
+  background-color: white;
+  z-index: 10;
+  padding: 10px 0;
+}
+
+.dialog-header h2 {
+  margin: 0;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.button-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.button-group button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.contract-container {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+
+.column {
+  width: 48%;
+  padding: 10px;
+  border: 1px solid #ddd;
+}
+
+.contract-heading {
+  font-weight: bold;
+  font-size: 1.2em;
+  margin-bottom: 10px;
+}
+
+.workflow-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #ddd;
+  margin-top: 20px;
+}
+
+.workflow-item:last-child {
+  border-bottom: none;
+}
+
+.workflow-details {
+  display: grid;
+  align-items: center;
+  font-size: 14px;
+  color: #555;
+  grid-template-columns: 1fr 3fr 4fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+
+
+
+.workflow-details .input {
+  white-space: nowrap;
+  margin-right: 60px;
+  margin-left: 60px;
+  display: inline;
+}
+
+.workflow-details .output {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-grow: 2;
+}
+
+.workflow-details .output p {
+  margin: 0;
+}
+
+.workflow-details .output ul {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.workflow-details .output li {
+  margin: 0;
+}
+
+.edit-btn-small {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #007bff;
+  font-size: 16px;
+  gap: 20px;
+}
+
+.delete-btn-small {
+  color: red;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.edit-btn-small:hover {
+  color: #0056b3;
+}
+
+.delete-btn-small:hover {
+  color: rgb(176, 0, 0);
+}
+
+.workflow-details .icons i:hover {
+  opacity: 0.8;
+}
+
+h4 {
+  margin-bottom: 15px;
+  font-size: 18px;
+  color: #333;
+}
+
+.list-container-icons {
+  position: absolute;
+  top: 1px;
+  left: 120px;
+}
+
+.list-container-icons i {
+  margin-left: 10px;
+}
+
+.edit-btn, .delete-btn {
+  background-color: #f5f5f5;
+  border: 0;
+}
+
+.list-container-icons {
+  margin-top: 10px;
+}
+
+.list-container-icons i {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.edit-btn, .delete-btn {
+  color: #6c757d;
+}
+
+.edit-btn:hover, .delete-btn:hover {
+  color: #575e64;
+}
+

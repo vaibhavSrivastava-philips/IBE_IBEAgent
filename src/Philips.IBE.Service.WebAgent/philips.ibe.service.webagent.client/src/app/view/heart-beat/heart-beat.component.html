@@ -1,0 +1,20 @@
+<div class="communication-data-container">
+  <div class="header">
+    <h2>Heart Beat</h2>
+    <span class="p-input-icon-left">
+    </span>
+  </div>
+
+  <div class="card-grid">
+    <div *ngFor="let item of filteredCommunicationData" class="card" [ngClass]="{'active': item.status, 'inactive': !item.status}">
+      <h3>{{ item.name }}</h3>
+      <div class="card-content">
+        <p><strong>Type:</strong> {{ item.type }}</p>
+        <p><strong>IP/EndPoint:</strong> {{ item.ipAddress }}</p>
+        <p><strong>Port:</strong> {{ item.port }}</p>
+      </div>
+    </div>
+  </div>
+
+  
+</div>

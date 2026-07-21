@@ -1,0 +1,56 @@
+<f-dialog class="dialog" width="900" isDismissable (close)="closeDialog()">
+    <f-dialog-title>
+      {{ isEditMode ? 'Edit Contract' : 'Create Contract' }}
+    </f-dialog-title>
+    <f-dialog-content>
+      <div class="contracts-section">
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-content">
+              <div class="form-group">
+                <label [for]="'contractName'">Contract Name <span class="astrick">*</span></label>
+                <input fInput type="text" [id]="'contractName'" [name]="'contractName'" [(ngModel)]="currentContract.name">
+              </div>
+              <div class="form-group">
+                <label [for]="'contractType'">Input <span class="astrick">*</span></label>
+                <f-tag-box [(value)]="selectedInputKeys" (valueChange)="onInputSelectionChange($event)" [isFullWidth]="true" [showCloseButton]="true">
+                  <f-item *ngFor="let cd of inputCommunicationData" [key]="cd.id.toString()" [content]="cd.name" />
+                </f-tag-box>
+              </div>
+              <div class="form-group">
+                <label [for]="'contractStatus'">Output <span class="astrick">*</span></label>
+                <f-dropdown [(value)]="selectedOutputKey" (valueChange)="onOutputSelectionChange($event)" [isFullWidth]="true">
+                  <f-option *ngFor="let cd of outputCommunicationData" [value]="cd.id.toString()" [content]="cd.name"></f-option>
+                </f-dropdown>
+              </div>
+              <div class="form-group">
+                <label>High Fidelity <span class="astrick">*</span></label>
+                <f-toggle-switch [(ngModel)]="currentContract.highFidelity!.isEnabled" [isDisabled]="currentContract.acknowledgement!.isEnabled"></f-toggle-switch>
+              </div>
+              <div class="form-group" *ngIf="currentContract.highFidelity!.isEnabled">
+                <label>Batch Size <span class="astrick">*</span></label>
+                <input fInput type="text" [(ngModel)]="currentContract.highFidelity!.batchCount">
+              </div>
+              <div class="form-group" *ngIf="currentContract.highFidelity!.isEnabled">
+                <label>Time Limit (in seconds) <span class="astrick">*</span></label>
+                <input fInput type="text" [(ngModel)]="currentContract.highFidelity!.timeLimit">
+              </div>
+              <div class="form-group">
+                <label>Acknowledgement <span class="astrick">*</span></label>
+                <f-toggle-switch [(ngModel)]="currentContract.acknowledgement!.isEnabled" [isDisabled]="currentContract.highFidelity!.isEnabled"></f-toggle-switch>
+              </div>
+              <div class="form-group" *ngIf="currentContract.acknowledgement!.isEnabled">
+                <label>IsEnhanced <span class="astrick">*</span></label>
+                <f-toggle-switch [(ngModel)]="currentContract.acknowledgement!.isEnhanced"></f-toggle-switch>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </f-dialog-content>
+    <f-dialog-actions>
+      <div class="error-message">{{ errorMessage != '' ? errorMessage: ' ' }}</div>
+      <button f-button (click)="closeDialog()">Cancel</button>
+      <button f-button variant="primary" class="add-btn" (click)="add()">{{ isEditMode ? 'Update'  : 'Add' }}</button>
+    </f-dialog-actions>
+</f-dialog>

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- File inbound (poll) + outbound (write) endpoint + retention. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
+  </ItemGroup>
+
+</Project>

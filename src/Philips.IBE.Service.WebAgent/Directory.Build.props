@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- Inherit repo-wide defaults, then relax them for the copied Web app so it builds
+       unchanged (it predates the strict warning policy). -->
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <PropertyGroup>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

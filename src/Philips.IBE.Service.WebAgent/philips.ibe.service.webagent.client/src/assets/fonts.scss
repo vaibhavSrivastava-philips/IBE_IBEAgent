@@ -1,0 +1,56 @@
+@charset "UTF-8";
+
+    /// images font files
+    @font-face {
+        font-family:"dls-images";
+        src: url("/assets/fonts/dls-images.woff") format("woff"),
+            url("/assets/fonts/dls-images.ttf") format("truetype");
+        font-weight:normal;
+        font-style:normal;
+    }
+
+    /// icon font files
+    @font-face {
+        font-family: 'dls-social-media-icons';
+        src: url('/assets/fonts/social-media.eot');
+        src: url('/assets/fonts/social-media.eot') format('embedded-opentype'),
+            url('/assets/fonts/social-media.woff2') format('woff2'),
+            url('/assets/fonts/social-media.woff') format('woff'),
+            url('/assets/fonts/social-media.ttf') format('truetype'),
+            url('/assets/fonts/social-media.svg') format('svg');
+        font-weight: normal;
+        font-style: normal;
+    }
+
+    /// fonts that are used by default with toolkit
+    @font-face {
+        font-family: "centrale-sans-book";
+        src: url("/assets/fonts/centralesans-book-webfont.woff"),
+            url("/assets/fonts/centralesans-book-webfont.ttf"),
+            url("/assets/fonts/centralesans-book-webfont.eot"),
+            url("/assets/fonts/centralesans-book-webfont.svg")
+    }
+
+    @font-face {
+        font-family: "centrale-sans-medium";
+        src: url("/assets/fonts/centralesans-medium-webfont.woff"),
+            url("/assets/fonts/centralesans-medium-webfont.ttf"),
+            url("/assets/fonts/centralesans-medium-webfont.eot"),
+            url("/assets/fonts/centralesans-medium-webfont.svg")
+    }
+
+    @font-face {
+        font-family: "centrale-sans-bold";
+        src: url("/assets/fonts/centralesans-bold-webfont.woff"),
+            url("/assets/fonts/centralesans-bold-webfont.ttf"),
+            url("/assets/fonts/centralesans-bold-webfont.eot"),
+            url("/assets/fonts/centralesans-bold-webfont.svg")
+    }
+
+    @font-face {
+        font-family: "centrale-sans-light";
+        src: url("/assets/fonts/centralesans-light-webfont.woff"),
+            url("/assets/fonts/centralesans-light-webfont.ttf"),
+            url("/assets/fonts/centralesans-light-webfont.eot"),
+            url("/assets/fonts/centralesans-light-webfont.svg")
+    }

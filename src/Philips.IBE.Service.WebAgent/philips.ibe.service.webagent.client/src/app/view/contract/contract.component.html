@@ -1,0 +1,43 @@
+<div class="communication-list">
+  <button f-button class="pt-accent add-button" (click)="openContractDialog()">
+    + Add New
+  </button>
+  <f-text size="headingMBold" class="top-header">Contracts</f-text>
+  <div class="list-container">
+    @for (item of contractData; track item.name) {
+    <div class="list-item">
+      <f-expander class="contract-name">
+        <f-expander-header>
+          <div class="custom-header">
+            <div>
+              {{item.name}}
+            </div>
+            <div class="expander-icons">
+              <button class="edit-btn" (click)="edit(item); $event.stopPropagation()" (keydown.enter)="edit(item); $event.stopPropagation()"><f-edit-icon /></button>
+              <button class="delete-btn" (click)="deleteAlertComponent(item); $event.stopPropagation()" (keydown.enter)="deleteAlertComponent(item); $event.stopPropagation()"><f-trashcan-icon /></button>
+            </div>
+          </div>
+        </f-expander-header>
+        <f-expander-content>
+          <div class="contract-container">
+            <div class="input">
+              <strong>Input :</strong>
+              <span *ngFor="let inputId of item.inputIDs; let last = last">
+                {{ fetchCommunicationData(inputId) }}<span *ngIf="!last">,</span>
+              </span>
+            </div>
+            <div class="output"><strong>Output :</strong> <span> {{ fetchCommunicationData(item.outputID) }} </span> </div>
+          </div>
+        </f-expander-content>
+      </f-expander>
+    </div>
+    }
+  </div>
+</div>
+
+<app-contract-dialog *ngIf="isContractDialogOpen" [currentContract]="editData" [isEditMode]="isEditMode"
+                     (close)="closeContractDialog($event)" (getAllContract)="onGetAllContract()"
+                     [contractNameSet]="contractNameSet"></app-contract-dialog>
+
+<app-info-dialog *ngIf="isAlertOpen" [title]="dialogTitle" [message]="dialogMessage" [buttonName]="'Ok'"
+                 (close)="closeAlert($event)"></app-info-dialog>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- hl7v2 Format module: parser, Hl7v2Codec (IMessageCodec), Hl7SingleAckFormatter,
+       HL7 filter rules, MSH-10 -> IdempotencyKey extractor stage. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- DPAPI DataDecipher, certificate helpers. No engine dependencies. -->
+
+</Project>

@@ -1,0 +1,39 @@
+<div class="login-page-parent">
+	<img src="assets/icons/login-background.png" class="f-background-image" alt="background" />
+	<f-card>
+		<f-flex-box class="f-header">
+			<f-philips-logo-icon class="philips-icon"/>
+			<h2>IBE Agent</h2>
+			<form name="login-form" class="pt-login-form" (ngSubmit)="onSubmit()">
+				<f-flex-box gap="12" flexDirection="column" class="f-inputs" alignItems="stretch">
+					<f-text-field isFullWidth>
+						<input fInput placeholder="User Name" [(ngModel)]="username"
+							[ngModelOptions]="{standalone: true}" />
+					</f-text-field>
+					<f-password isFullWidth>
+						<input fInput placeholder="Password" autocomplete="off" autocorrect="off" autocapitalize="off"
+							spellcheck="false" [(ngModel)]="password" [ngModelOptions]="{standalone: true}" />
+					</f-password>
+				</f-flex-box>
+				<f-flex-box gap="8" flexDirection="column" class="f-buttons" alignItems="stretch">
+					<button f-button type="submit" isFullWidth variant="primary">Log In</button>
+				</f-flex-box>
+				@if (errorMessage != '') {
+				<p class="error-message">{{errorMessage}}</p>
+				}
+			</form>
+		</f-flex-box>
+		<f-flex-box class="f-footer" gap="8" flexDirection="column">
+			<f-flex-box class="f-icons" gap="10" alignItems="center">
+				<f-operators-manual-iso-icon />
+				<f-caution-iso-icon />
+			</f-flex-box>
+			<p>
+				© 2025 Koninklijke Philips N.V. All rights are reserved.
+				Reproduction or transmission in whole or in part, in any form or by
+				any means, electronic, mechanical, or otherwise, is prohibited
+				without the prior written consent of the copyright owner.
+			</p>
+		</f-flex-box>
+	</f-card>
+</div>

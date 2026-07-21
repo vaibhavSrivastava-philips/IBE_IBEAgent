@@ -1,0 +1,12 @@
+<f-dialog class="dialog" isDismissable (close)="dismissForAlert()">
+        <f-dialog-title>
+            Delete Communication Point
+        </f-dialog-title>
+        <f-dialog-content>
+            <p>Are you sure you want to delete this communication point : {{commpointName}}?</p>
+        </f-dialog-content>
+        <f-dialog-actions>
+            <button f-button (click)="dismissForAlert()">Cancel</button>
+            <button f-button variant="primary" (click)="onDelete()">Delete</button>
+        </f-dialog-actions>
+</f-dialog>

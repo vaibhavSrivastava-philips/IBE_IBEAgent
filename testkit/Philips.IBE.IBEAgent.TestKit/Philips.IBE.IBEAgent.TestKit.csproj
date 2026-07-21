@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared test doubles/builders: FakeInboundEndpoint, FakeOutboundEndpoint, FakeAckToken,
+       FakeMessageCodec, MessageContextBuilder. Referenced by all test projects. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
+  </ItemGroup>
+
+</Project>

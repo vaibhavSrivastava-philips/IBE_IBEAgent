@@ -1,0 +1,65 @@
+<div class="error-queue">
+    <f-text size="headingMBold" class="top-header">Transactions</f-text>
+    <div class="card table-scroll-container">
+        <f-data-grid>
+            <table>
+                <ng-template #sortIcon let-header>
+                    @if (header.column.getIsSorted() === 'asc') {
+                        <f-sorting-down-icon size="small" />
+                    } @else if (header.column.getIsSorted() === 'desc') {
+                        <f-sorting-up-icon size="small" />
+                    } @else {
+                        <f-sorting-default-icon size="small" />
+                    }
+                </ng-template>
+                <thead>
+                    @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+                    <tr>
+                        @for (header of headerGroup.headers; track header.id) {
+                        @if (!header.isPlaceholder) {
+                        <th [style.cursor]="header.column.getCanSort() ? 'pointer' : 'default'"
+                            [class.sorted]="header.column.getIsSorted()"
+                            (click)="header.column.getToggleSortingHandler()?.($event)"
+                            tabindex="0"
+                            (keydown.enter)="header.column.getToggleSortingHandler()?.($event)"
+                            (keydown.space)="header.column.getToggleSortingHandler()?.($event)">
+                            <div class="header-cell">
+                                <ng-container *flexRender="header.column.columnDef.header; props: header.getContext(); let header">{{ header }}</ng-container>
+                                @if (header.column.getCanSort()) {
+                                    <ng-container *ngTemplateOutlet="sortIcon; context: { $implicit: header }"></ng-container>
+                                }
+                            </div>
+                        </th>
+                        }
+                        }
+                    </tr>
+                    }
+                </thead>
+                <tbody>
+                    @for (row of table.getRowModel().rows; track row.id) {
+                    <tr>
+                        @for (cell of row.getVisibleCells(); track cell.id) {
+                        <td>
+                            @if (cell.column.id === 'id') {
+                                {{ row.original.id }}
+                            } @else if (cell.column.id === 'senderId') {
+                                {{ row.original.senderId }}
+                            } @else if (cell.column.id === 'timeStamp') {
+                                {{ row.original.timeStamp | date:'short' }}
+                            } @else if (cell.column.id === 'message') {
+                                <button f-button class="pt-quiet" style="border-radius: 70%;border: 1px solid;" (click)="showErrorDetails(row.original)">
+                                    <i class="pi pi-info"></i>
+                                </button>
+                            } @else {
+                                <ng-container *flexRender="cell.column.columnDef.cell; props: cell.getContext(); let cell">{{ cell }}</ng-container>
+                            }
+                        </td>
+                        }
+                    </tr>
+                    }
+                </tbody>
+            </table>
+        </f-data-grid>
+    </div>
+</div>
+<app-info-dialog *ngIf="visible" [title]="dialogTitle" [message]="dialogMessage" [buttonName]="'Ok'" (close)="visible = false"></app-info-dialog>

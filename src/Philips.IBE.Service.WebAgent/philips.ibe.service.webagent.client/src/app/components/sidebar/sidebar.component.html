@@ -1,0 +1,19 @@
+<div style="font-size: larger;">
+    <f-list>
+        <f-list-item value="service" (click)="handleClick('service')" (keydown.enter)="handleClick('service')" *ngIf="role === 'admin'">
+            <label>Service Configuration</label>
+        </f-list-item>
+        <f-list-item value="commpoints" (click)="handleClick('commpoints')" (keydown.enter)="handleClick('commpoints')" *ngIf="role === 'admin'">
+            <label>Tenant Configuration</label>
+        </f-list-item>
+        <f-list-item value="contracts" (click)="handleClick('contracts')" (keydown.enter)="handleClick('contracts')" *ngIf="role === 'admin'">
+            <label>Contracts</label>
+        </f-list-item>
+        <f-list-item value="transactions" (click)="handleClick('transactions')" (keydown.enter)="handleClick('transactions')" *ngIf="role === 'normal'">
+            <label>Transactions</label>
+        </f-list-item>
+        <f-list-item value="heartbeat" (click)="handleClick('heartbeat')" (keydown.enter)="handleClick('heartbeat')" *ngIf="role === 'normal'">
+            <label>Heart Beat</label>
+        </f-list-item>
+    </f-list>
+</div>

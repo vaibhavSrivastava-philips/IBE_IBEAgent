@@ -1,0 +1,9 @@
+<Project>
+
+  <!-- The copied Web app keeps its own inline PackageReference versions (opts out of the
+       repo-wide Central Package Management). -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+</Project>

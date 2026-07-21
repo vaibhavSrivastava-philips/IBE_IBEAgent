@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Engine spine: Dispatcher, Router, ContractRegistry, ContractRuntime, DeliveryLeg,
+       ReplyContext, pipeline engine, ContractCompiler, ComponentRegistry, ForwardWorker,
+       channel base. Never references Endpoints.* / Formats.*. -->
+  <ItemGroup>
+    <ProjectReference Include="..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <ProjectReference Include="..\Philips.IBE.IBEAgent.Configuration\Philips.IBE.IBEAgent.Configuration.csproj" />
+  </ItemGroup>
+
+</Project>

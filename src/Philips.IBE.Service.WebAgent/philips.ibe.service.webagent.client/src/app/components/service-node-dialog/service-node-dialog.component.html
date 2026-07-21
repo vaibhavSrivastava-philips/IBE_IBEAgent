@@ -1,0 +1,123 @@
+<f-dialog class="dialog" width="1200" isDismissable (close)="dismissForAlert()">
+    <f-dialog-title>
+      Update Service Node
+    </f-dialog-title>
+    <f-dialog-content>
+      <f-data-grid>
+        <table>
+          <!-- Common: Is Enabled (all types) -->
+          <tr>
+            <td>Is Enabled</td>
+            <td><f-toggle-switch class="toggle-switch-node" [(ngModel)]="serviceNode.isEnabled"></f-toggle-switch></td>
+          </tr>
+          <!-- IP Address & Port (tcp, adt, httpServer) -->
+          <tr *ngIf="type !== 'webSocket'">
+            <td>IP Address</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.ipAddress"></td>
+          </tr>
+          <tr *ngIf="type !== 'webSocket'">
+            <td>Port</td>
+            <td><input fInput type="number" [(ngModel)]="serviceNode.port"></td>
+          </tr>
+          <!-- EndPoint (webSocket only) -->
+          <tr *ngIf="type === 'webSocket'">
+            <td>EndPoint</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.endPoint"></td>
+          </tr>
+          <!-- Context Path (httpServer only) -->
+          <tr *ngIf="type === 'httpServer'">
+            <td>Context Path</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.contextPath"></td>
+          </tr>
+          <!-- Common: SSL toggle (all types) -->
+          <tr>
+            <td>SSL</td>
+            <td><f-toggle-switch class="toggle-switch-node" [(ngModel)]="serviceNode.enableSSL"></f-toggle-switch></td>
+          </tr>
+          <!-- Root Certificate (httpServer, webSocket) -->
+          <tr *ngIf="type === 'httpServer' || type === 'webSocket'">
+            <td>Root Certificate</td>
+            <td>
+              <f-flex-box gap="8" flexDirection="column">
+                <input fInput type="file" (change)="onRootCertificateFileSelected($event)" [attr.accept]="type === 'httpServer' ? '.cer,.crt,.pem,.der,.pfx' : '.cer,.crt,.pem,.der'" [disabled]="!serviceNode.enableSSL" style="display: none;" #rootCertInput>
+                <button f-button variant="outline" type="button" (click)="rootCertInput.click()" [disabled]="!serviceNode.enableSSL" style="width: 120px;">Browse</button>
+                <span>{{root?.name || getFileName(serviceNode.sslConfiguration?.rootCertificatePath)}}</span>
+              </f-flex-box>
+            </td>
+          </tr>
+          <!-- Common: Server Certificate (all types) -->
+          <tr>
+            <td>Server Certificate</td>
+            <td>
+              <f-flex-box gap="8" flexDirection="column">
+                <input fInput type="file" (change)="onServerCertificateFileSelected($event)" accept=".pfx" [disabled]="!serviceNode.enableSSL" style="display: none;" #serverCertInput>
+                <button f-button variant="outline" type="button" (click)="serverCertInput.click()" [disabled]="!serviceNode.enableSSL" style="width: 120px;">Browse</button>
+                <span>{{server?.name || getFileName(serviceNode.sslConfiguration?.serverCertificatePath)}}</span>
+              </f-flex-box>
+            </td>
+          </tr>
+          <!-- Common: Server Certificate Password (all types) -->
+          <tr>
+            <td>Server Certificate Password</td>
+            <td>
+              <input fInput type="password" [(ngModel)]="serviceNode.sslConfiguration!.serverCertificatePassword" class="password"
+                     name="serverCertPassword" placeholder="Enter password" [disabled]="!serviceNode.enableSSL">
+            </td>
+          </tr>
+          <!-- Client Certificate (tcp, adt, httpServer) -->
+          <tr *ngIf="type !== 'webSocket'">
+            <td>Client Certificate</td>
+            <td>
+              <f-flex-box gap="8" flexDirection="column">
+                <input fInput type="file" (change)="onClientCertificateFileSelected($event)" accept=".pfx" [disabled]="!serviceNode.enableSSL" style="display: none;" #clientCertInput>
+                <button f-button variant="outline" type="button" (click)="clientCertInput.click()" [disabled]="!serviceNode.enableSSL" style="width: 120px;">Browse</button>
+                <span>{{client?.name || getFileName(serviceNode.sslConfiguration?.clientCertificatePath)}}</span>
+              </f-flex-box>
+            </td>
+          </tr>
+          <!-- Client Certificate Password (tcp, adt, httpServer) -->
+          <tr *ngIf="type !== 'webSocket'">
+            <td>Client Certificate Password</td>
+            <td>
+              <input fInput type="password" [(ngModel)]="serviceNode.sslConfiguration!.clientCertificatePassword" class="password"
+                     name="clientCertPassword" placeholder="Enter password" [disabled]="!serviceNode.enableSSL">
+            </td>
+          </tr>
+          <!-- Connection Retry (webSocket only) -->
+          <tr *ngIf="type === 'webSocket'">
+            <td>Connection Retry Attempts</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.connectionRetry!.retryAttempts"></td>
+          </tr>
+          <tr *ngIf="type === 'webSocket'">
+            <td>Base Retry Delay(In Seconds)</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.connectionRetry!.baseRetryDelayInSeconds"></td>
+          </tr>
+          <!-- Proxy (webSocket only) -->
+          <tr *ngIf="type === 'webSocket'">
+            <td>ProxyConfigurations</td>
+            <td><f-toggle-switch class="toggle-switch-node" [(ngModel)]="serviceNode.proxyConfigurations!.isEnabled"></f-toggle-switch></td>
+          </tr>
+          <tr *ngIf="type === 'webSocket'">
+            <td>Proxy Host</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.proxyConfigurations!.proxyAddress" [disabled]="!serviceNode.proxyConfigurations!.isEnabled"></td>
+          </tr>
+          <tr *ngIf="type === 'webSocket'">
+            <td>Proxy Port</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.proxyConfigurations!.proxyPort" [disabled]="!serviceNode.proxyConfigurations!.isEnabled"></td>
+          </tr>
+          <tr *ngIf="type === 'webSocket'">
+            <td>Proxy Username</td>
+            <td><input fInput type="text" [(ngModel)]="serviceNode.proxyConfigurations!.proxyUsername" [disabled]="!serviceNode.proxyConfigurations!.isEnabled"></td>
+          </tr>
+          <tr *ngIf="type === 'webSocket'">
+            <td>Proxy Password</td>
+            <td><input fInput type="password" [(ngModel)]="serviceNode.proxyConfigurations!.proxyPassword" name="proxyPassword" [disabled]="!serviceNode.proxyConfigurations!.isEnabled"></td>
+          </tr>
+        </table>
+      </f-data-grid>
+    </f-dialog-content>
+    <f-dialog-actions>
+      <button f-button (click)="dismissForAlert()">Cancel</button>
+      <button f-button variant="primary" (click)="UpdateServiceNode()">Update</button>
+    </f-dialog-actions>
+</f-dialog>

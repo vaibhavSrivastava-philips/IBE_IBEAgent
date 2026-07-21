@@ -1,0 +1,72 @@
+<div class="communication-list">
+  <button f-button variant="secondary" class="pt-accent add-button" (click)="openDialog()">
+    + Add New 
+  </button>
+  <f-text size="headingMBold" class="top-header">Tenant Nodes</f-text>
+  <div class="card table-scroll-container">
+    <f-data-grid>
+      <table>
+        <thead>
+          @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+          <tr>
+            @for (header of headerGroup.headers; track header.id) {
+            @if (!header.isPlaceholder) {
+            <th [ngStyle]="{ cursor: header.column.getCanSort() ? 'pointer' : 'default' }"
+              [class.sorted]="header.column.getIsSorted()"
+              (click)="header.column.getToggleSortingHandler()?.($event)"
+              (keydown.enter)="header.column.getToggleSortingHandler()?.($event)"
+              (keydown.space)="header.column.getToggleSortingHandler()?.($event)" tabindex="0">
+              <div class="header-cell">
+                <ng-container *flexRender="header.column.columnDef.header; props: header.getContext(); let header">{{ header }}</ng-container>
+                @if (header.column.getCanSort()) {
+                  @switch (header.column.getIsSorted()) {
+                    @case ('asc') { <f-sorting-down-icon size="small" /> }
+                    @case ('desc') { <f-sorting-up-icon size="small" /> }
+                    @default { <f-sorting-default-icon size="small" /> }
+                  }
+                }
+              </div>
+            </th>
+            }
+            }
+          </tr>
+          }
+        </thead>
+        <tbody>
+          @for (row of table.getRowModel().rows; track row.id) {
+          <tr>
+            @for (cell of row.getVisibleCells(); track cell.id) {
+            <td>
+              @if (cell.column.id === 'name') {
+              {{ row.original.name }}
+              } @else if (cell.column.id === 'mode') {
+              {{ row.original.mode | titlecase }}
+              } @else if (cell.column.id === 'type') {
+              {{ row.original.type | uppercase }}
+              } @else if (cell.column.id === 'actions') {
+              <div class="list-container-btn">
+                <button class="edit-btn" (click)="edit(row.original)">
+                  <f-edit-icon />
+                </button>
+                <button class="delete-btn" (click)="deleteAlertComponent(row.original)">
+                  <f-trashcan-icon />
+                </button>
+              </div>
+              } @else {
+              <ng-container *flexRender="cell.column.columnDef.cell; props: cell.getContext(); let cell">{{ cell }}</ng-container>
+              }
+            </td>
+            }
+          </tr>
+          }
+        </tbody>
+      </table>
+    </f-data-grid>
+  </div>
+</div>
+
+<app-compoint-dialog *ngIf="isDialogOpen" [currentCommunicationData]="currentCommunicationData"
+  [isEditMode]="isEditMode" (close)="closeDialog($event)" (getAllCommunicationData)="onGetAllCommunicationData()"
+  [nameSet]="nameSet"></app-compoint-dialog>
+
+<app-delete-alert *ngIf="isAlertOpen" [commpointName]="toDelete.name" (close)="closeAlert($event)"></app-delete-alert>

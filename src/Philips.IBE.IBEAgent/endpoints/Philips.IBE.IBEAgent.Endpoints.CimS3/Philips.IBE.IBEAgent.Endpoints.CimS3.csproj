@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- CIM/S3 batch outbound endpoint; AvroZip batch codec wraps the legacy S3BatchProcessor. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
+  </ItemGroup>
+
+</Project>
