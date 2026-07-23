@@ -6,7 +6,3 @@ public interface IInboundEndpoint          // hosted lifecycle; starts after run
     Task StopAsync(CancellationToken cancellationToken);
 }
 
-public interface IOutboundEndpoint         // pooled; serializes via its codec; may send-and-receive.
-{
-    Task<DeliveryResult> SendAsync(MessageContext context, CancellationToken cancellationToken);
-}

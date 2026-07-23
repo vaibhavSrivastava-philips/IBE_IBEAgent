@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="coverlet.collector" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\endpoints\Philips.IBE.IBEAgent.Endpoints.Tcp\Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\endpoints\Philips.IBE.IBEAgent.Endpoints.Http\Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
+    <ProjectReference Include="..\..\testkit\Philips.IBE.IBEAgent.TestKit\Philips.IBE.IBEAgent.TestKit.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

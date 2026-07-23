@@ -6,4 +6,8 @@
     <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Philips.IBE.IBEAgent.Endpoints.IntegrationTests" />
+  </ItemGroup>
+
 </Project>

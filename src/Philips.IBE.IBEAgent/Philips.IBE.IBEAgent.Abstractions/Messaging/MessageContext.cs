@@ -8,7 +8,7 @@ public sealed class MessageContext
     public int SourceEndpointId { get; }
     public string Format { get; }                      // per-input tag (INV-1): selects parser/stages/formatter
     public ReadOnlyMemory<byte> Payload { get; private set; }  // canonical source bytes (INV-5)
-    public object? ParsedView { get; set; }            // lazily-parsed model, built once by the parse stage
+    // public object? ParsedView { get; set; }            // lazily-parsed model, built once by the parse stage
     public IDictionary<string, string> Headers { get; } // mutable during shared pipeline; read-only after fan-out (A5)
     public IAckToken Ack { get; }
     public IReplyContext Reply { get; }                // shared by reference across all leg clones
@@ -47,7 +47,7 @@ public sealed class MessageContext
         Ack = source.Ack;
         Reply = source.Reply;
         Payload = source.Payload;
-        ParsedView = source.ParsedView;
+        // ParsedView = source.ParsedView;
         Headers = source.Headers;
         LegOutputId = legOutputId;
     }
