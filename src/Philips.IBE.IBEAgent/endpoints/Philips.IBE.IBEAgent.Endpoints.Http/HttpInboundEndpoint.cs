@@ -65,6 +65,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                 reply: reply,
                 payload: ms.ToArray());
 
+            ctx.Reply.Attach(ctx); 
             await _dispatcher.DispatchAsync(ctx, ct);
             await token.Completion.WaitAsync(_options.ReplyTimeout, ct); // hold request until reply/timeout (§6.1)
         }

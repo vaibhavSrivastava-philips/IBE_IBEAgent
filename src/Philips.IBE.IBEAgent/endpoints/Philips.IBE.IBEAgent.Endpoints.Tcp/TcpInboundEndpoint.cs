@@ -72,6 +72,8 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                             ack: token,
                             reply: reply,
                             payload: payload);
+                            
+                        ctx.Reply.Attach(ctx);     
                         await _dispatcher.DispatchAsync(ctx, ct); // backpressure comes from the ingress queue
                     }
                     finally { _admission.Release(); }
