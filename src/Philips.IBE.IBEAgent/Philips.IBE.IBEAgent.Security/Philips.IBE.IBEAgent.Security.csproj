@@ -2,4 +2,8 @@
 
   <!-- DPAPI DataDecipher, certificate helpers. No engine dependencies. -->
 
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" />
+  </ItemGroup>
+
 </Project>

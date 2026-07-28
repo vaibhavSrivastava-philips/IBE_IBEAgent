@@ -6,6 +6,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
     <ProjectReference Include="..\Philips.IBE.IBEAgent.Configuration\Philips.IBE.IBEAgent.Configuration.csproj" />
+    <ProjectReference Include="..\Philips.IBE.IBEAgent.Telemetry\Philips.IBE.IBEAgent.Telemetry.csproj" />
   </ItemGroup>
 
 </Project>

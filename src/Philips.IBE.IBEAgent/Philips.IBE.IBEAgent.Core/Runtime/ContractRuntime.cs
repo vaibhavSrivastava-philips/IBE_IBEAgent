@@ -1,4 +1,5 @@
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Telemetry;
 
 namespace Philips.IBE.IBEAgent.Core;
 
@@ -10,6 +11,10 @@ public sealed class ContractRuntime : IContractRuntime
     private readonly IMessagePipeline _pipeline;                               // the ONE shared pipeline
     private readonly IReadOnlyList<DeliveryLeg> _legs;
     private readonly List<Task> _consumers = [];
+
+    // Exposed so the host composition root can build the ForwardWorker's IReplayTargetRegistry
+    // (§3.9) without the Persistence layer needing to know about ContractRuntime internals.
+    public IReadOnlyList<DeliveryLeg> Legs => _legs;
 
     public ContractRuntime(
         IReadOnlyDictionary<int, IMessageChannel> ingressQueues,
@@ -23,7 +28,10 @@ public sealed class ContractRuntime : IContractRuntime
 
     // Routes to the per-input queue by SourceEndpointId (per-input backpressure).
     public ValueTask EnqueueAsync(MessageContext context, CancellationToken cancellationToken)
-        => _ingressQueues[context.SourceEndpointId].EnqueueAsync(context, cancellationToken);
+    {
+        AgentDiagnostics.QueueDepth.Add(1, new KeyValuePair<string, object?>("queue", $"input:{context.SourceEndpointId}"));
+        return _ingressQueues[context.SourceEndpointId].EnqueueAsync(context, cancellationToken);
+    }
 
     // Starts the leg consumers + one consumer per ingress queue. The host calls this once.
     public Task RunAsync(CancellationToken cancellationToken)
@@ -38,9 +46,11 @@ public sealed class ContractRuntime : IContractRuntime
     {
         await foreach (var ctx in ingress.ReadAllAsync(cancellationToken))
         {
+            AgentDiagnostics.QueueDepth.Add(-1, new KeyValuePair<string, object?>("queue", $"input:{ctx.SourceEndpointId}"));
             var pipeline = await _pipeline.ExecuteAsync(ctx); // parse/validate/filter/enrich, ONCE
             if (pipeline.ShortCircuited)
             {
+                AgentDiagnostics.FilteredMessages.Add(1, new KeyValuePair<string, object?>("source", ctx.SourceEndpointId));
                 ctx.Reply.ReportFiltered();                   // whole-message drop -> reply "filtered"
                 continue;
             }

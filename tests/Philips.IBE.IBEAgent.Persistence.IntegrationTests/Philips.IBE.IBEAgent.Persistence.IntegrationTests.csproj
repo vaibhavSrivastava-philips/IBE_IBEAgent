@@ -11,10 +11,14 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Moq" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\Philips.IBE.IBEAgent.Persistence\Philips.IBE.IBEAgent.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\Philips.IBE.IBEAgent.Security\Philips.IBE.IBEAgent.Security.csproj" />
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\Philips.IBE.IBEAgent.Configuration\Philips.IBE.IBEAgent.Configuration.csproj" />
     <ProjectReference Include="..\..\testkit\Philips.IBE.IBEAgent.TestKit\Philips.IBE.IBEAgent.TestKit.csproj" />
   </ItemGroup>
 

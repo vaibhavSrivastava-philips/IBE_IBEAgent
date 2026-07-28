@@ -1,10 +1,11 @@
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Telemetry;
 
 namespace Philips.IBE.IBEAgent.Core;
 
 // One output. Owns its queue + outbound endpoint; delivers; reports to the message's ReplyContext.
 // NO per-leg processing pipeline — a leg only encodes (via the endpoint's codec) + delivers.
-public sealed class DeliveryLeg
+public sealed class DeliveryLeg : IReplayTarget
 {
     private readonly IMessageChannel _queue;
     private readonly IOutboundEndpoint _endpoint;
@@ -36,7 +37,10 @@ public sealed class DeliveryLeg
         => FromInputIds is null || FromInputIds.Count == 0 || FromInputIds.Contains(sourceEndpointId);
 
     public ValueTask EnqueueAsync(MessageContext context, CancellationToken cancellationToken)
-        => _queue.EnqueueAsync(context, cancellationToken);
+    {
+        AgentDiagnostics.QueueDepth.Add(1, new KeyValuePair<string, object?>("queue", $"leg:{OutputId}"));
+        return _queue.EnqueueAsync(context, cancellationToken);
+    }
 
     // Leg-targeted replay (Phase 6): reuses THIS leg's path; never re-routes/re-processes/re-replies.
     public ValueTask ReplayAsync(MessageContext context, CancellationToken cancellationToken)
@@ -52,6 +56,8 @@ public sealed class DeliveryLeg
     {
         await foreach (var ctx in _queue.ReadAllAsync(cancellationToken))
         {
+            AgentDiagnostics.QueueDepth.Add(-1, new KeyValuePair<string, object?>("queue", $"leg:{OutputId}"));
+            using var activity = AgentDiagnostics.StartLegDelivery(OutputId);
             DeliveryResult result;
             try
             {
@@ -61,6 +67,10 @@ public sealed class DeliveryLeg
             {
                 result = new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
             }
+
+            AgentDiagnostics.Deliveries.Add(1,
+                new KeyValuePair<string, object?>("outputId", OutputId),
+                new KeyValuePair<string, object?>("outcome", result.Outcome.ToString()));
 
             if (result.Outcome != DeliveryOutcome.Delivered)
             {

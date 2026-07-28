@@ -3,8 +3,16 @@
   <!-- DurableChannel journal + IForwardStore (store-and-forward: Pending|Parked) over
        IDatabaseUtils (Postgres). Shared with the ForwardService host. -->
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Philips.IBE.IBEAgent.Abstractions\Philips.IBE.IBEAgent.Abstractions.csproj" />
+    <ProjectReference Include="..\Philips.IBE.IBEAgent.Configuration\Philips.IBE.IBEAgent.Configuration.csproj" />
     <ProjectReference Include="..\Philips.IBE.IBEAgent.Security\Philips.IBE.IBEAgent.Security.csproj" />
+    <ProjectReference Include="..\Philips.IBE.IBEAgent.Telemetry\Philips.IBE.IBEAgent.Telemetry.csproj" />
   </ItemGroup>
 
 </Project>

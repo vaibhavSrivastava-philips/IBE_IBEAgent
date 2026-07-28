@@ -101,12 +101,12 @@ flowchart LR
 - **Interface:** `Task DispatchAsync(MessageContext, ct)`.
 - **Never does:** routing *logic*, processing, per‑message state, **or retry replay** (replay is leg‑targeted, §3.9 — the Dispatcher is not a retry hub).
 
-### 3.2a Router (`IRouteResolver`) — *routing decision (Strategy)*
+### 3.2a Router (`IContractResolver`) — *routing decision (Strategy)*
 - **Responsibilities:** pure `MessageContext → IContractRuntime` (**exactly one**, INV‑3). `SourceBasedRouter` (default) by `SourceEndpointId`; `ContentBasedRouter` (future) by field/header — still resolves to one contract per message.
 - **Interface:** `IContractRuntime Resolve(MessageContext)`.
 
-### 3.2b Contract Registry (`IContractRegistry`) — *compiled‑contract lookup*
-- **Responsibilities:** hold all compiled `IContractRuntime`s and the `inputCommPointId → IContractRuntime` index (O(1), source‑based). Queried by the Router; makes no decisions.
+### 3.2b Contract Registry (`ContractRegistry`) — *compiled‑contract lookup*
+- **Responsibilities:** hold all compiled `IContractRuntime`s and the `inputCommPointId → IContractRuntime` index (O(1), source‑based). Queried by the Router; makes no decisions. A concrete class in `Core` — not behind a cross‑layer interface, since (unlike the Router) it has one implementation and no planned alternative.
 - **Note (naming):** distinct from the config **Catalog** (§8, named pipelines + codecs) and the **Component Registry** (§3.10, type→impl factories). Three different lookups, three different names — see §3.10.
 
 ### 3.3 ContractRuntime (`IContractRuntime`) — *shared reception + fan‑out*
@@ -833,7 +833,7 @@ class Dispatcher {
   <<coordinator>>
   +DispatchAsync(ctx) Task
 }
-class IRouteResolver {
+class IContractResolver {
   <<Router — decision>>
   +Resolve(ctx) IContractRuntime
 }
@@ -850,12 +850,12 @@ class ContractRuntime {
   <<shared reception + fan-out>>
   -Dictionary~int,IMessageChannel~ _ingressQueues
   -IMessagePipeline _sharedPipeline
-  -DeliveryLeg[] _legs
+  -Output[] _legs
   +EnqueueAsync(ctx)
   +RunAsync(ct)
   +DrainAsync(timeout)
 }
-class DeliveryLeg {
+class Output {
   <<one output>>
   +int OutputId
   +bool Required
@@ -944,19 +944,19 @@ InboundAdapters ..> ReplyContext : creates (at reception)
 MessageContext --> IAckToken : carries
 MessageContext --> IReplyContext : references
 InboundAdapters --> Dispatcher : dispatch
-Dispatcher --> IRouteResolver : which contract?
-IRouteResolver --> ContractRegistry : queries
+Dispatcher --> IContractResolver : which contract?
+IContractResolver --> ContractRegistry : queries
 ContractRegistry o-- IContractRuntime
 IContractRuntime <|.. ContractRuntime
 Dispatcher --> IContractRuntime : enqueue ingress
 ContractRuntime --> "1..*" IMessageChannel : per-input ingress (owns N)
 ContractRuntime --> IMessagePipeline : shared (owns 1)
-ContractRuntime o-- "1..*" DeliveryLeg : fans out to
+ContractRuntime o-- "1..*" Output : fans out to
 ContractRuntime --> IReplyContext : arms (required count)
-DeliveryLeg --> IMessageChannel : leg queue (owns 1)
-DeliveryLeg --> IOutboundEndpoint : sends via
-DeliveryLeg --> IForwardStore : on failure
-DeliveryLeg --> IReplyContext : ReportLeg(DeliveryResult)
+Output --> IMessageChannel : leg queue (owns 1)
+Output --> IOutboundEndpoint : sends via
+Output --> IForwardStore : on failure
+Output --> IReplyContext : ReportLeg(DeliveryResult)
 ReplyContext --> IAckStrategy : triggers
 IAckStrategy --> IAckFormatter : formats generated ack
 IAckFormatter --> IAckToken : writes over transport
@@ -964,7 +964,7 @@ IAckStrategy --> IAckToken : writes pass-through / response
 IOutboundEndpoint ..> DeliveryResult : returns
 OutboundAdapters --> IBatchCodec : batch sinks use
 ForwardWorker --> IForwardStore : reads
-ForwardWorker --> DeliveryLeg : ReplayAsync (same leg)
+ForwardWorker --> Output : ReplayAsync (same leg)
 ContractCompiler --> ContractRuntime : builds
 ContractCompiler --> ContractRegistry : registers
 ```
@@ -989,7 +989,7 @@ public sealed class MessageContext
     public required IAckToken Ack { get; init; }
     public required IReplyContext Reply { get; init; }           // IReplyContext seam (Abstractions); concrete ReplyContext in Core (A2/A3). Created at reception (INV-6); shared across leg clones
     public int LegOutputId { get; private set; }
-    public bool IsReplay { get; private set; }                   // set on store-and-forward replay -> suppresses re-reply (see DeliveryLeg)
+    public bool IsReplay { get; private set; }                   // set on store-and-forward replay -> suppresses re-reply (see Output)
 
     public void ReplacePayload(ReadOnlyMemory<byte> p) => Payload = p;
     public void MarkReplay() => IsReplay = true;
@@ -1011,7 +1011,7 @@ public sealed class ContractRuntime : IContractRuntime
 {
     private readonly IReadOnlyDictionary<int, IMessageChannel> _ingressQueues; // one per input comm point
     private readonly IMessagePipeline _shared;
-    private readonly IReadOnlyList<DeliveryLeg> _legs;
+    private readonly IReadOnlyList<Output> _legs;
     private readonly int _requiredCount;
 
     // Routes to the per-input queue by SourceEndpointId (per-input backpressure).
@@ -1048,9 +1048,9 @@ public sealed class ContractRuntime : IContractRuntime
 }
 ```
 
-**DeliveryLeg — consumer + delivery + report (+ leg‑targeted replay)**
+**Output — consumer + delivery + report (+ leg‑targeted replay)**
 ```csharp
-public sealed class DeliveryLeg
+public sealed class Output
 {
     public int OutputId { get; }
     public bool Required { get; }
@@ -1208,7 +1208,7 @@ This is a **greenfield build**, not an in‑place refactor (see the greenfield n
 
 | Phase | Objective | Components / layers | Depends on | Validation | Deliverable |
 |---|---|---|---|---|---|
-| **1. Abstractions & envelope** | Freeze the contract spine: `MessageContext`, `DeliveryResult`, `PipelineResult`, enums, and **all cross‑layer interfaces** (`IAckToken`, `IReplyContext`, `IMessageDispatcher`, `IRouteResolver`, `IContractRuntime`, `IMessageChannel`, `IMessagePipeline`/`IMessageStage`, `IInbound/OutboundEndpoint`, `IMessageCodec`/`IBatchCodec`, `IAckStrategy`, `IAckFormatter`, `IForwardStore`). TestKit doubles. | `Abstractions` (+ `TestKit`) | — | envelope unit tests (`CloneForLeg` shares refs; headers read‑only after fan‑out) | reference‑free `Abstractions` every layer builds on |
+`IAckToken`, `IReplyContext`, `IMessageDispatcher`, `IContractResolver`, `IContractRuntime`, `IMessageChannel`,
 | **2. Configuration** | Pure option + Catalog DTOs and `IValidateOptions` structural validators (INV‑2, ack XOR response, capacity/DOP > 0, referential integrity, `FromInputIds`, encoding⇄format) + JSON schema/manifest. | `Configuration` | 1 | validators reject each INV violation; round‑trips the example `contractData.json`/`catalogData.json` | one config truth shared by Agent + Web |
 | **3. Core spine — single leg (in‑memory)** | `Dispatcher`/`SourceBasedRouter`/`ContractRegistry`, `ContractRuntime` with **per‑input ingress queues** + **one** leg, `BoundedInMemoryChannel`, shared pipeline (parse once) + leg delivery via outbound endpoint (codec), concrete `ReplyContext`, `ComponentRegistry`, minimal `ContractCompiler`. | `Core` | 1–2 | end‑to‑end TestKit slice: fake inbound → dispatch → pipeline → single leg → fake outbound → reply; graceful drain | the vertical slice all breadth hangs off |
 | **4. Multi‑output fan‑out** | `Outputs` list; per‑leg queues; concurrent fan‑out (`Task.WhenAll`); `FromInputIds` filter; required/optional legs; Normal/Enhanced ack; one‑shot + timeout; per‑message required count; multi‑leg `ContractCompiler` + fan‑out validation. | `Core`, `Configuration` | 3 | fan‑out + reply matrix (normal/enhanced; required/optional; partial‑required failure → NACK; filtered; replay = no double‑reply) | many‑in → many‑out |

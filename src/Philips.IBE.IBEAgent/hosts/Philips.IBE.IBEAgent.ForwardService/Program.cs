@@ -3,11 +3,13 @@
 // through the SAME IOutboundEndpoint + codec the engine uses. No duplicate senders.
 // See docs/architecture/target-architecture-v3.md §3.9.
 
+using Philips.IBE.IBEAgent.ForwardService;
+
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddWindowsService(options => options.ServiceName = "Philips.IBE.Forward");
 
-// TODO: builder.Services.AddForwardWorker(builder.Configuration);
+builder.Services.AddForwardService(builder.Configuration);
 
 var host = builder.Build();
 host.Run();
