@@ -1,0 +1,43 @@
+{
+  "Ibe": {
+    "Endpoints": {
+      "TcpInbound": [
+        { "SourceEndpointId": 1, "Port": 6661, "Format": "hl7v2" }
+      ],
+      "HttpInbound": [
+        { "SourceEndpointId": 2, "Prefix": "http://localhost:8080/ibe/", "Format": "hl7v2" }
+      ],
+      "TcpOutbound": [
+        { "OutputId": 100, "Host": "downstream-tcp.example.local", "Port": 7001 }
+      ],
+      "HttpOutbound": [
+        { "OutputId": 200, "Endpoint": "http://downstream-http.example.local/ibe/inbound" }
+      ]
+    },
+
+    "Contracts": {
+      "Contracts": [
+        {
+          "Name": "Adt-Tcp-NoAck",
+          "Inputs": [ { "InputId": 1 } ],
+          "Pipeline": "main",
+          "Acknowledgement": { "IsEnabled": false },
+          "Outputs": [
+            { "OutputId": 100, "Encoding": "hl7v2" },
+            { "OutputId": 200, "Encoding": "hl7v2" }
+          ]
+        },
+        {
+          "Name": "Adt-Http-Ack",
+          "Inputs": [ { "InputId": 2 } ],
+          "Pipeline": "main",
+          "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+          "Outputs": [
+            { "OutputId": 100, "Encoding": "hl7v2" },
+            { "OutputId": 200, "Encoding": "hl7v2" }
+          ]
+        }
+      ]
+    }
+  }
+}

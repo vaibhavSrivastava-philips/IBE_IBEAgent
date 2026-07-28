@@ -1,0 +1,12 @@
+{
+  "Ibe": {
+    "Catalog": {
+      "Pipelines": {
+        "main": []
+      },
+      "Codecs": {
+        "hl7v2": { "Type": "hl7v2" }
+      }
+    }
+  }
+}
