@@ -1,4 +1,37 @@
 {
-  "Pipelines": {},
-  "Codecs": {}
+  // Developer-owned building blocks. FSE contracts reference these BY NAME only; FSEs never
+  // assemble stages or pick raw codecs. Four layers, each referencing the previous by name:
+  //   Codecs    - registered encoders (plug-in Type + params)
+  //   Pipelines - ordered processing stages; shared per contract, run once before fan-out
+  //   Formats   - per-output-leg encoding bundle: a message Codec (+ optional BatchCodec)
+  //   Templates - a contract blueprint an FSE picks: a shared Pipeline + a default per-leg Format
+  //
+  // This is the "plug-and-play code" side. Message-level/operational settings (Acknowledgement,
+  // Retry, DeliveryGuarantee, Channel, batch enable/thresholds) are NOT here - they stay FSE-owned
+  // in contractData.json.
+  "Catalog": {
+
+    "Codecs": {
+      "hl7v2": { "Type": "hl7v2" }          // pass-through HL7 v2 message codec
+    },
+
+    // Named stage lists. Every stage token must be registered in ComponentRegistryBuilder.
+    // Leave empty until stages exist (empty pipelines are rejected by validation).
+    // Example once stages are registered:  "main": [ "validate", "enrich" ]
+    "Pipelines": {
+    },
+
+    // Per-leg encoding bundles. Codec names a Codecs entry (one message -> bytes).
+    // BatchCodec (optional) names the Codecs entry used when an FSE enables batching on a leg.
+    "Formats": {
+      "hl7-standard": { "Codec": "hl7v2" }
+    },
+
+    // Contract blueprints. Pipeline is optional (omit = no processing stages). Format supplies the
+    // default per-leg encoding; individual outputs may override it with their own Format.
+    "Templates": {
+      "adt": { "Format": "hl7-standard" }
+      // With stages:  "adt": { "Pipeline": "main", "Format": "hl7-standard" }
+    }
+  }
 }

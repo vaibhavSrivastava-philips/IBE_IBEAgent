@@ -6,23 +6,42 @@ using Philips.IBE.IBEAgent.Service;
 
 namespace Philips.IBE.IBEAgent.Host.IntegrationTests;
 
-// §14 Phase 7 — proves the composition root: config (Ibe:Catalog/Contracts/Endpoints) compiles
+// §14 Phase 7 — proves the composition root: config (Catalog/Contracts/Endpoints) compiles
 // into a runnable IContractRuntime registered for DI, without needing a live Tcp/Http listener.
 public sealed class ServiceCollectionExtensionsTests
 {
     private static IConfiguration BuildConfiguration() => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Ibe:Catalog:Codecs:hl7v2:Type"] = "hl7v2",
+            ["Catalog:Codecs:hl7v2:Type"] = "hl7v2",
+            ["Catalog:Formats:hl7-standard:Codec"] = "hl7v2",
+            ["Catalog:Templates:adt:Format"] = "hl7-standard",
 
-            ["Ibe:Contracts:Contracts:0:Name"] = "Adt",
-            ["Ibe:Contracts:Contracts:0:Inputs:0:InputId"] = "1",
-            ["Ibe:Contracts:Contracts:0:Outputs:0:OutputId"] = "100",
-            ["Ibe:Contracts:Contracts:0:Outputs:0:Encoding"] = "hl7v2",
+            ["Contracts:0:Name"] = "Adt",
+            ["Contracts:0:Template"] = "adt",
+            ["Contracts:0:Inputs:0:InputId"] = "1",
+            ["Contracts:0:Outputs:0:OutputId"] = "100",
 
-            ["Ibe:Endpoints:TcpOutbound:0:OutputId"] = "100",
-            ["Ibe:Endpoints:TcpOutbound:0:Host"] = "localhost",
-            ["Ibe:Endpoints:TcpOutbound:0:Port"] = "9999",
+            ["Endpoints:TcpOutbound:0:OutputId"] = "100",
+            ["Endpoints:TcpOutbound:0:Host"] = "localhost",
+            ["Endpoints:TcpOutbound:0:Port"] = "9999",
+        })
+        .Build();
+
+    // Legacy/manual path: no Template - developer concerns wired inline on the contract.
+    private static IConfiguration BuildInlineConfiguration() => new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Catalog:Codecs:hl7v2:Type"] = "hl7v2",
+
+            ["Contracts:0:Name"] = "Adt",
+            ["Contracts:0:Inputs:0:InputId"] = "1",
+            ["Contracts:0:Outputs:0:OutputId"] = "100",
+            ["Contracts:0:Outputs:0:Encoding"] = "hl7v2",
+
+            ["Endpoints:TcpOutbound:0:OutputId"] = "100",
+            ["Endpoints:TcpOutbound:0:Host"] = "localhost",
+            ["Endpoints:TcpOutbound:0:Port"] = "9999",
         })
         .Build();
 
@@ -52,5 +71,19 @@ public sealed class ServiceCollectionExtensionsTests
         var hosted = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
 
         Assert.Contains(hosted, h => h is AgentRuntimeHost);
+    }
+
+    [Fact]
+    public void AddIbeAgentEngine_supports_legacy_inline_contracts_without_a_template()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddIbeAgentEngine(BuildInlineConfiguration());
+
+        using var provider = services.BuildServiceProvider();
+        var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();
+
+        Assert.Single(runtimes);
     }
 }

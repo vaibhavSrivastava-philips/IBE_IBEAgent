@@ -91,4 +91,86 @@ public sealed class CatalogOptionsValidatorTests
 
         Assert.True(result.IsValid);
     }
+
+    [Fact]
+    public void Format_with_blank_codec_fails()
+    {
+        var catalog = new CatalogOptions
+        {
+            Formats = new Dictionary<string, OutputFormatOptions> { ["bad"] = new() { Codec = " " } },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.Contains(result.Errors, e => e.Contains("non-empty Codec"));
+    }
+
+    [Fact]
+    public void Format_referencing_unknown_codec_fails()
+    {
+        var catalog = new CatalogOptions
+        {
+            Formats = new Dictionary<string, OutputFormatOptions> { ["fmt"] = new() { Codec = "missing" } },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.Contains(result.Errors, e => e.Contains("unknown Codec"));
+    }
+
+    [Fact]
+    public void Format_referencing_unknown_batch_codec_fails()
+    {
+        var catalog = new CatalogOptions
+        {
+            Codecs = new Dictionary<string, CodecOptions> { ["hl7v2"] = new() { Type = "hl7v2" } },
+            Formats = new Dictionary<string, OutputFormatOptions> { ["fmt"] = new() { Codec = "hl7v2", BatchCodec = "missing" } },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.Contains(result.Errors, e => e.Contains("unknown BatchCodec"));
+    }
+
+    [Fact]
+    public void Template_referencing_unknown_pipeline_fails()
+    {
+        var catalog = new CatalogOptions
+        {
+            Templates = new Dictionary<string, ContractTemplateOptions> { ["t"] = new() { Pipeline = "missing" } },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.Contains(result.Errors, e => e.Contains("unknown Pipeline"));
+    }
+
+    [Fact]
+    public void Template_referencing_unknown_format_fails()
+    {
+        var catalog = new CatalogOptions
+        {
+            Templates = new Dictionary<string, ContractTemplateOptions> { ["t"] = new() { Format = "missing" } },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.Contains(result.Errors, e => e.Contains("unknown Format"));
+    }
+
+    [Fact]
+    public void Valid_formats_and_templates_pass()
+    {
+        var catalog = new CatalogOptions
+        {
+            Codecs = new Dictionary<string, CodecOptions> { ["hl7v2"] = new() { Type = "hl7v2" } },
+            Pipelines = new Dictionary<string, IReadOnlyList<object>> { ["main"] = ["validate"] },
+            Formats = new Dictionary<string, OutputFormatOptions> { ["hl7-standard"] = new() { Codec = "hl7v2" } },
+            Templates = new Dictionary<string, ContractTemplateOptions> { ["adt"] = new() { Pipeline = "main", Format = "hl7-standard" } },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.True(result.IsValid);
+    }
 }

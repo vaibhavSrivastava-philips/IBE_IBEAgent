@@ -1,3 +1,39 @@
 {
-  "Contracts": []
+  "Endpoints": {
+    "TcpInbound": [
+      { "SourceEndpointId": 1, "Port": 5101, "Format": "hl7v2" }
+    ],
+    "HttpInbound": [
+      { "SourceEndpointId": 2, "Prefix": "http://localhost:5102/ibe/", "Format": "hl7v2", "ReplyTimeout": "00:00:15" }
+    ],
+    "TcpOutbound": [
+      { "OutputId": 101, "Host": "127.0.0.1", "Port": 5201, "ExpectReply": true }
+    ],
+    "HttpOutbound": [
+      { "OutputId": 102, "Endpoint": "http://localhost:5202/ibe/inbound", "ContentType": "application/octet-stream", "TimeoutSeconds": 30 }
+    ]
+  },
+
+  
+
+  "Contracts": [
+    {
+      "Name": "Demo-Tcp-To-Http-Enhanced",
+      "Template": "adt",
+      "Inputs": [ { "InputId": 1 } ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Outputs": [
+        { "OutputId": 102 }
+      ]
+    },
+    {
+      "Name": "Demo-Http-To-Tcp-Ack-Normal",
+      "Template": "adt",
+      "Inputs": [ { "InputId": 2 } ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false },
+      "Outputs": [
+        { "OutputId": 101 }
+      ]
+    }
+  ]
 }

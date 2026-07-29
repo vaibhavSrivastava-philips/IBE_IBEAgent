@@ -17,10 +17,13 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddIbeAgentEngine(this IServiceCollection services, IConfiguration configuration)
     {
-        var catalog = configuration.GetSection("Ibe:Catalog").Get<CatalogOptions>() ?? new CatalogOptions();
-        var contractCatalog = configuration.GetSection("Ibe:Contracts").Get<ContractCatalogOptions>() ?? new ContractCatalogOptions();
-        var endpoints = configuration.GetSection("Ibe:Endpoints").Get<AgentEndpointsOptions>() ?? new AgentEndpointsOptions();
-        var forwardOptions = configuration.GetSection("Ibe:Forward").Get<ForwardOptions>() ?? new ForwardOptions();
+        // Config sections (merged from appsettings.json + catalogData.json + contractData.json in /config):
+        //   Catalog   -> developer-owned pipelines + codecs
+        //   Endpoints -> FSE-owned comm points   Contracts -> FSE-owned contract topology (a flat array)
+        var catalog = configuration.GetSection("Catalog").Get<CatalogOptions>() ?? new CatalogOptions();
+        var contracts = configuration.GetSection("Contracts").Get<List<ContractOptions>>() ?? [];
+        var endpoints = configuration.GetSection("Endpoints").Get<AgentEndpointsOptions>() ?? new AgentEndpointsOptions();
+        var forwardOptions = configuration.GetSection("Forward").Get<ForwardOptions>() ?? new ForwardOptions();
 
         var componentRegistry = ComponentRegistryBuilder.Build(endpoints, catalog);
 
@@ -38,10 +41,14 @@ public static class ServiceCollectionExtensions
         var replayTargets = new List<KeyValuePair<int, IReplayTarget>>();
         var replyPoliciesBySource = new Dictionary<int, (IAckStrategy Strategy, TimeSpan Timeout)>();
 
-        foreach (var contract in contractCatalog.Contracts)
+        foreach (var contract in contracts)
         {
-            var runtime = compiler.Compile(contract);
-            var inputIds = ContractOptionsValidator.ResolveInputs(contract).Select(i => i.InputId).ToList();
+            // §8 — flatten the FSE contract against the developer catalog (Template -> shared
+            // Pipeline + per-leg Format) so everything below sees concrete Encoding / batch codec.
+            var resolved = ContractTemplateResolver.Resolve(contract, catalog);
+
+            var runtime = compiler.Compile(resolved);
+            var inputIds = ContractOptionsValidator.ResolveInputs(resolved).Select(i => i.InputId).ToList();
             contractRegistry.Register(runtime, inputIds);
             runtimes.Add(runtime);
 
@@ -49,7 +56,7 @@ public static class ServiceCollectionExtensions
                 replayTargets.Add(new KeyValuePair<int, IReplayTarget>(leg.OutputId, leg));
 
             // §6/§8 — one reply mode per contract (Ack XOR Response), shared by all its inputs.
-            var policy = AckStrategyResolver.Resolve(contract, componentRegistry);
+            var policy = AckStrategyResolver.Resolve(resolved, componentRegistry);
             foreach (var inputId in inputIds)
                 replyPoliciesBySource[inputId] = policy;
         }

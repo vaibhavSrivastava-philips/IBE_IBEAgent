@@ -1,0 +1,137 @@
+{
+  // ---------------------------------------------------------------------------
+  // Comm-point templates. COPY the entries you need into the "Endpoints" section
+  // of contractData.json, then adjust the values. Rules:
+  //   * Every INBOUND comm point needs a unique "SourceEndpointId"
+  //     (referenced by a contract's Inputs[].InputId).
+  //   * Every OUTBOUND comm point needs a unique "OutputId"
+  //     (referenced by a contract's Outputs[].OutputId).
+  //   * Optional fields show their default value and can be omitted.
+  // ---------------------------------------------------------------------------
+  "Endpoints": {
+
+    "TcpInbound": [
+      {
+        "SourceEndpointId": 1,            // REQUIRED, unique. Referenced by Inputs[].InputId.
+        "Port": 6661,                     // REQUIRED. MLLP TCP listen port.
+        "Format": "hl7v2",                // Message format tag (parser/stages/ack formatter). Default "hl7v2".
+        "MaxConcurrentMessages": 100      // Optional. Admission control (bounded). Default 100.
+      }
+    ],
+
+    "HttpInbound": [
+      {
+        "SourceEndpointId": 2,                      // REQUIRED, unique.
+        "Prefix": "http://localhost:8080/ibe/",     // REQUIRED. HttpListener prefix (trailing slash required).
+        "Format": "hl7v2",                          // Default "hl7v2".
+        "MaxConcurrentRequests": 200,               // Optional. Default 200.
+        "ReplyTimeout": "00:00:30"                  // Optional. How long the request is held for a reply. Default 30s.
+      }
+    ],
+
+    "TcpOutbound": [
+      {
+        "OutputId": 100,                            // REQUIRED, unique. Referenced by Outputs[].OutputId.
+        "Host": "downstream.example.local",         // REQUIRED. Destination host.
+        "Port": 7001,                               // REQUIRED. Destination MLLP port.
+        "PoolSize": 8,                              // Optional. Pooled connections. Default 8.
+        "ExpectReply": true                         // Optional. Read the MLLP ack frame back. Default true.
+      }
+    ],
+
+    "HttpOutbound": [
+      {
+        "OutputId": 200,                                        // REQUIRED, unique.
+        "Endpoint": "http://downstream.example.local/ibe/inbound", // REQUIRED. Destination URL.
+        "ContentType": "application/octet-stream",              // Optional. Default "application/octet-stream".
+        "TimeoutSeconds": 30                                    // Optional. Request timeout. Default 30.
+      }
+    ]
+  },
+
+  // ---------------------------------------------------------------------------
+  // Contract templates. COPY into the "Contracts" array of contractData.json.
+  //
+  // A contract fans one or more Inputs out to one or more Outputs. The developer/code concerns
+  // (message stages, encoding, batch codec) come from a catalog "Template" (defined in
+  // catalogData.json) - the FSE just names it. The FSE owns only the message-level/operational
+  // fields below. Every field except Name / Inputs / Outputs / Template is optional.
+  // ---------------------------------------------------------------------------
+  "Contracts": [
+
+    // 1) Minimal - the common case. Name a Template + list endpoints. Encoding/stages come from
+    //    the Template; ack defaults apply.
+    {
+      "Name": "MyContract",                 // REQUIRED, unique.
+      "Template": "adt",                    // REQUIRED*. Names a catalog Templates entry (pipeline + default format).
+      "Inputs": [ { "InputId": 1 } ],       // REQUIRED. Each InputId is an inbound SourceEndpointId.
+      "Outputs": [
+        { "OutputId": 100 },                // REQUIRED. Each OutputId is an outbound comm point. Encoding inherited from Template.
+        { "OutputId": 200 }
+      ]
+    },
+
+    // 2) With FSE overrides (all optional; shown with their defaults where applicable).
+    {
+      "Name": "MyContract-Tuned",
+      "Template": "adt",
+
+      // Reply mode - choose AT MOST ONE (Acknowledgement XOR Response). Omit both = default ack.
+      "Acknowledgement": {
+        "IsEnabled": true,                  // false = fire-and-forget (no reply bytes).
+        "IsEnhanced": true,                 // false = Normal ("received"); true = reflects delivery.
+        "Shape": "Single"                   // Single (default).
+      },
+      // "Response": { "IsEnabled": true, "FromOutputId": 100, "TimeoutMs": 30000 },  // request-reply instead of ack
+
+      "Inputs": [
+        {
+          "InputId": 2,
+          "Channel": {                      // Optional per-input queue tuning.
+            "Capacity": 1024,               // Default 1024.
+            "DegreeOfParallelism": 1,       // Default 1.
+            "Ordered": false,               // Default false. Cannot combine Ordered with DOP > 1.
+            "OverflowPolicy": "Wait"        // Wait (default) | Reject | SpillToDisk.
+          }
+        }
+      ],
+
+      "Outputs": [
+        { "OutputId": 100 },                // inherits the Template's default Format.
+
+        {
+          "OutputId": 200,
+          "Format": "hl7-standard",         // Optional. Override the leg's encoding with a DIFFERENT catalog Format (developer-named).
+          "Required": true,                 // Default true. false = best-effort leg (does not gate the ack).
+          "FromInputIds": [ 2 ],            // Optional. Restrict this leg to specific inputs. Omit = all inputs.
+          "DeliveryGuarantee": "AtLeastOnce", // AtMostOnce (default) | AtLeastOnce (uses store-and-forward).
+          "Retry": {                        // Optional per-leg retry.
+            "MaxAttempts": 5,               // Default 3 (>= 1).
+            "BackoffSeconds": 2,            // Default 2.
+            "Backoff": "Exponential"        // Exponential (default) | Fixed | Linear.
+          },
+          "Channel": { "Capacity": 2048 },  // Optional per-output queue tuning (same shape as Input.Channel).
+          "Batching": {                     // Optional. FSE owns whether/when to batch; the batch CODEC comes from the Format.
+            "Enabled": true,
+            "MaxCount": 500,                // Default 500 (>= 1 when enabled).
+            "MaxLatencyMs": 10000           // Default 10000.
+          }
+        }
+      ]
+    },
+
+    // 3) Escape hatch - no Template. Wire developer concerns inline (legacy/manual). Pipeline names a
+    //    catalog Pipelines entry; Encoding names a catalog Codecs entry directly.
+    {
+      "Name": "MyContract-Manual",
+      "Pipeline": "main",                   // Optional. Omit = no processing stages.
+      "Inputs": [ { "InputId": 1 } ],
+      "Outputs": [
+        { "OutputId": 100, "Encoding": "hl7v2" }  // inline codec name (bypasses Template/Format).
+      ]
+    }
+
+    // * A contract needs SOME way to resolve each leg's encoding: a Template with a Format, a
+    //   per-Output Format, or an inline Output.Encoding. Otherwise the contract fails validation.
+  ]
+}

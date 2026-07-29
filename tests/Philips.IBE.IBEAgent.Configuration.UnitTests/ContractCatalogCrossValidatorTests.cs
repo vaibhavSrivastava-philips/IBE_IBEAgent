@@ -73,4 +73,38 @@ public sealed class ContractCatalogCrossValidatorTests
 
         Assert.Contains(result.Errors, e => e.Contains("unknown Batching.Codec"));
     }
+
+    [Fact]
+    public void Unresolved_encoding_fails()
+    {
+        var contract = ValidContract() with
+        {
+            Outputs = [new OutputOptions { OutputId = 100 }],   // no Encoding resolved
+        };
+
+        var result = ContractCatalogCrossValidator.Validate(contract, ValidCatalog());
+
+        Assert.Contains(result.Errors, e => e.Contains("no resolved Encoding"));
+    }
+
+    [Fact]
+    public void Batching_enabled_without_resolved_codec_fails()
+    {
+        var contract = ValidContract() with
+        {
+            Outputs =
+            [
+                new OutputOptions
+                {
+                    OutputId = 100,
+                    Encoding = "hl7v2",
+                    Batching = new BatchingOptions { Enabled = true },   // no Codec resolved
+                },
+            ],
+        };
+
+        var result = ContractCatalogCrossValidator.Validate(contract, ValidCatalog());
+
+        Assert.Contains(result.Errors, e => e.Contains("no resolved batch Codec"));
+    }
 }

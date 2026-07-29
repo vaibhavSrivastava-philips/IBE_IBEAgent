@@ -14,4 +14,14 @@ public sealed record CatalogOptions
     // Named codec bindings (message + batch), referenced by Output.Encoding / Output.Batching.Codec.
     public IReadOnlyDictionary<string, CodecOptions> Codecs { get; init; } =
         new Dictionary<string, CodecOptions>(StringComparer.Ordinal);
+
+    // Named per-leg encoding bundles (message codec + optional batch codec), referenced by
+    // Template.Format or Output.Format. The developer's "how a leg renders bytes" building block.
+    public IReadOnlyDictionary<string, OutputFormatOptions> Formats { get; init; } =
+        new Dictionary<string, OutputFormatOptions>(StringComparer.Ordinal);
+
+    // Named contract blueprints (shared Pipeline + default Format) that FSE contracts reference by
+    // name. Bundles only developer/code concerns; message-level/operational settings stay FSE-owned.
+    public IReadOnlyDictionary<string, ContractTemplateOptions> Templates { get; init; } =
+        new Dictionary<string, ContractTemplateOptions>(StringComparer.Ordinal);
 }

@@ -35,7 +35,8 @@ public static class ComponentRegistryBuilder
                     PoolSize = tcp.PoolSize,
                     ExpectReply = tcp.ExpectReply,
                 },
-                catalog.Codecs.TryGetValue(output.Encoding, out var codecOptions) && codecOptions.Type == "hl7v2"
+                output.Encoding is { } tcpEncoding
+                    && catalog.Codecs.TryGetValue(tcpEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"
                     ? new Hl7v2Codec()
                     : null));
         }
@@ -49,7 +50,8 @@ public static class ComponentRegistryBuilder
                     ContentType = http.ContentType,
                     Timeout = TimeSpan.FromSeconds(http.TimeoutSeconds),
                 },
-                catalog.Codecs.TryGetValue(output.Encoding, out var codecOptions) && codecOptions.Type == "hl7v2"
+                output.Encoding is { } httpEncoding
+                    && catalog.Codecs.TryGetValue(httpEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"
                     ? new Hl7v2Codec()
                     : null));
         }

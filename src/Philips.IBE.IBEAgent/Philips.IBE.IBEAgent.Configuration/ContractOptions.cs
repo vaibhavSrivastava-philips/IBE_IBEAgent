@@ -7,8 +7,9 @@ public sealed record ContractOptions
     public required string Name { get; init; }
     public required IReadOnlyList<InputOptions> Inputs { get; init; }
     public IReadOnlyList<int>? InputIds { get; init; }          // backward-compat shorthand -> Inputs w/ default Channel
+    public string? Template { get; init; }                      // catalog Templates entry name; supplies shared Pipeline + default per-leg Format
     public AckOptions Acknowledgement { get; init; } = new();
     public ResponseOptions Response { get; init; } = new();
-    public string? Pipeline { get; init; }                      // catalog Pipelines entry name; null = no processing stages
+    public string? Pipeline { get; init; }                      // manual/legacy override; used only when Template is not set. null = no processing stages
     public required IReadOnlyList<OutputOptions> Outputs { get; init; }
 }

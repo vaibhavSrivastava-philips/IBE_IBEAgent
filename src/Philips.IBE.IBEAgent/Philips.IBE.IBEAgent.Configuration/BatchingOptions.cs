@@ -4,7 +4,7 @@ namespace Philips.IBE.IBEAgent.Configuration;
 public sealed record BatchingOptions
 {
     public bool Enabled { get; init; }
-    public string Codec { get; init; } = "avro-zip";   // names a catalog Codecs entry (IBatchCodec)
+    public string? Codec { get; init; }                // null = inherit the batch codec from the Format/Template; set = inline override. names a catalog Codecs entry (IBatchCodec)
     public int MaxCount { get; init; } = 500;
     public int MaxLatencyMs { get; init; } = 10_000;
 }

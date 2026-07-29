@@ -17,6 +17,36 @@ public static class CatalogOptionsValidator
             }
         }
 
+        foreach (var (name, format) in catalog.Formats)
+        {
+            if (string.IsNullOrWhiteSpace(format.Codec))
+            {
+                result.AddError($"Catalog format '{name}' must declare a non-empty Codec.");
+            }
+            else if (!catalog.Codecs.ContainsKey(format.Codec))
+            {
+                result.AddError($"Catalog format '{name}' references unknown Codec '{format.Codec}'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(format.BatchCodec) && !catalog.Codecs.ContainsKey(format.BatchCodec))
+            {
+                result.AddError($"Catalog format '{name}' references unknown BatchCodec '{format.BatchCodec}'.");
+            }
+        }
+
+        foreach (var (name, template) in catalog.Templates)
+        {
+            if (!string.IsNullOrWhiteSpace(template.Pipeline) && !catalog.Pipelines.ContainsKey(template.Pipeline))
+            {
+                result.AddError($"Catalog template '{name}' references unknown Pipeline '{template.Pipeline}'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(template.Format) && !catalog.Formats.ContainsKey(template.Format))
+            {
+                result.AddError($"Catalog template '{name}' references unknown Format '{template.Format}'.");
+            }
+        }
+
         foreach (var (name, stages) in catalog.Pipelines)
         {
             if (stages.Count == 0)

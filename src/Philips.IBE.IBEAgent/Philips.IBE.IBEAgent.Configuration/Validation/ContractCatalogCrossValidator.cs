@@ -18,14 +18,25 @@ public static class ContractCatalogCrossValidator
 
         foreach (var output in contract.Outputs ?? [])
         {
-            if (!catalog.Codecs.ContainsKey(output.Encoding))
+            if (string.IsNullOrWhiteSpace(output.Encoding))
+            {
+                result.AddError($"Contract '{contract.Name}' Output {output.OutputId} has no resolved Encoding (set an Output.Encoding, an Output.Format, or a Template with a Format).");
+            }
+            else if (!catalog.Codecs.ContainsKey(output.Encoding))
             {
                 result.AddError($"Contract '{contract.Name}' Output {output.OutputId} references unknown Encoding codec '{output.Encoding}'.");
             }
 
-            if (output.Batching is { Enabled: true } batching && !catalog.Codecs.ContainsKey(batching.Codec))
+            if (output.Batching is { Enabled: true } batching)
             {
-                result.AddError($"Contract '{contract.Name}' Output {output.OutputId} references unknown Batching.Codec '{batching.Codec}'.");
+                if (string.IsNullOrWhiteSpace(batching.Codec))
+                {
+                    result.AddError($"Contract '{contract.Name}' Output {output.OutputId} enables Batching but has no resolved batch Codec (set Batching.Codec or a Format with a BatchCodec).");
+                }
+                else if (!catalog.Codecs.ContainsKey(batching.Codec))
+                {
+                    result.AddError($"Contract '{contract.Name}' Output {output.OutputId} references unknown Batching.Codec '{batching.Codec}'.");
+                }
             }
         }
 

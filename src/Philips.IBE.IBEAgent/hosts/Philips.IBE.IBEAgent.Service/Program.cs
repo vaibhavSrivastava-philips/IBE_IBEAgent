@@ -3,9 +3,16 @@
 // See docs/architecture/Refactor_ArchitectureDoc_v4.md §3.10/§14.
 using Philips.IBE.IBEAgent.Service;
 
-var builder = Host.CreateApplicationBuilder(args);
+// Content root = the exe's directory so config resolves consistently in dev and as a Windows
+// service (whose working directory is not the install folder). The shared /config files are
+// copied next to the exe by the csproj.
+var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
 
-// §8 — catalogData.json (developer-owned: pipelines/codecs) and contractData.json (FSE-owned:
+// catalogData.json (developer-owned: pipelines/codecs) and contractData.json (FSE-owned:
 // communication endpoints + contract topology) layer on top of appsettings.json.
 builder.Configuration
     .AddJsonFile("catalogData.json", optional: true, reloadOnChange: true)

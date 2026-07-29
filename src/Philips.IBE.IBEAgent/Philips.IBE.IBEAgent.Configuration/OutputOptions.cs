@@ -11,7 +11,8 @@ public sealed record OutputOptions
     public IReadOnlyList<int>? FromInputIds { get; init; }   // null/empty = all inputs (default)
     public DeliveryGuarantee DeliveryGuarantee { get; init; } = DeliveryGuarantee.AtMostOnce;
     public ChannelOptions Channel { get; init; } = new();
-    public string Encoding { get; init; } = "hl7v2";         // names a catalog Codecs entry (IMessageCodec)
+    public string? Format { get; init; }                    // optional per-leg override: names a catalog Formats entry (developer-owned)
+    public string? Encoding { get; init; }                  // null = inherit from Format/Template; set = inline codec-name override (legacy escape hatch)
     public BatchingOptions? Batching { get; init; }
     public RetryOptions Retry { get; init; } = new();
 }

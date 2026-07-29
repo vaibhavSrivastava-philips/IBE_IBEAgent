@@ -3,7 +3,7 @@ using Philips.IBE.IBEAgent.Abstractions;
 namespace Philips.IBE.IBEAgent.Configuration;
 
 // §3.9/§8 — ForwardWorker tuning: poll cadence, attempt cap, and backoff between retries of
-// Pending store-and-forward rows. Read from "Ibe:Forward".
+// Pending store-and-forward rows. Read from "Forward".
 public sealed record ForwardOptions
 {
     public ForwardOwner Owner { get; init; } = ForwardOwner.InProcess;

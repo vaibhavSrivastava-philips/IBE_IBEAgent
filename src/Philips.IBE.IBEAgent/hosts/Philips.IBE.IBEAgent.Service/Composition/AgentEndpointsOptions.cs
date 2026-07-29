@@ -19,8 +19,8 @@ public sealed class HttpOutboundEndpointConfig
     public int TimeoutSeconds { get; init; } = 30;
 }
 
-// Host-level config wrapper — binds appsettings.json "Ibe:Endpoints" into what the composition
-// root needs to construct real Tcp/Http in/out endpoints and feed them into the ComponentRegistry.
+// Host-level config wrapper — binds the "Endpoints" section (contractData.json) into what the
+// composition root needs to construct real Tcp/Http in/out endpoints and feed them into the ComponentRegistry.
 public sealed class AgentEndpointsOptions
 {
     public IReadOnlyList<Endpoints.Tcp.TcpInboundOptions> TcpInbound { get; init; } = [];
