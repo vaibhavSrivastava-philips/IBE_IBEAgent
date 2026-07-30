@@ -12,7 +12,7 @@ public sealed class ContractTemplateResolverTests
             ["json"] = new() { Type = "json" },
             ["avro-zip"] = new() { Type = "avro-zip" },
         },
-        Pipelines = new Dictionary<string, IReadOnlyList<object>> { ["main"] = ["validate"] },
+        Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["validate"] },
         Formats = new Dictionary<string, OutputFormatOptions>
         {
             ["hl7-standard"] = new() { Codec = "hl7v2", BatchCodec = "avro-zip" },
@@ -20,7 +20,7 @@ public sealed class ContractTemplateResolverTests
         },
         Templates = new Dictionary<string, ContractTemplateOptions>
         {
-            ["adt"] = new() { Pipeline = "main", Format = "hl7-standard" },
+            ["adt"] = new() { Pipeline = "main", Format = "hl7-standard", ReplyOnFilter = true },
         },
     };
 
@@ -41,6 +41,36 @@ public sealed class ContractTemplateResolverTests
         Assert.Equal("hl7v2", resolved.Outputs[0].Encoding);
         Assert.Null(resolved.Template);          // flattened away
         Assert.Null(resolved.Outputs[0].Format);
+    }
+
+    [Fact]
+    public void ReplyOnFilter_is_inherited_from_the_template()
+    {
+        // Template "adt" sets ReplyOnFilter = true (the developer default); a bare contract inherits it.
+        var resolved = ContractTemplateResolver.Resolve(BareContract(), Catalog());
+
+        Assert.True(resolved.ReplyOnFilter);
+    }
+
+    [Fact]
+    public void Contract_ReplyOnFilter_override_wins_over_the_template()
+    {
+        var resolved = ContractTemplateResolver.Resolve(BareContract() with { ReplyOnFilter = false }, Catalog());
+
+        Assert.False(resolved.ReplyOnFilter);
+    }
+
+    [Fact]
+    public void ReplyOnFilter_defaults_to_false_when_unset_by_template_and_contract()
+    {
+        var catalog = Catalog() with
+        {
+            Templates = new Dictionary<string, ContractTemplateOptions> { ["adt"] = new() { Format = "hl7-standard" } },
+        };
+
+        var resolved = ContractTemplateResolver.Resolve(BareContract(), catalog);
+
+        Assert.False(resolved.ReplyOnFilter);
     }
 
     [Fact]

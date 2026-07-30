@@ -2,10 +2,13 @@ using Philips.IBE.IBEAgent.Abstractions;
 
 namespace Philips.IBE.IBEAgent.Core;
 
-// §3.6 — the SHARED pipeline: an IMessageStage chain (Chain-of-Responsibility / middleware) that runs
-// ONCE per message before fan-out. Builds the chain once (constructor) and replays it per message.
-// A stage short-circuits by either not calling `next` or by throwing PipelineFilteredException;
-// both surface as PipelineResult.Filtered(reason) — the ContractRuntime stops fan-out for that message.
+// §3.6 — the SHARED pipeline: an ordered IMessageStage list that runs ONCE per message before fan-out.
+// The PIPELINE drives the iteration and each stage RETURNS its decision (StageResult.Continue /
+// StageResult.Filter(reason)), so a stage physically cannot "forget to continue" and silently skip the
+// rest — that whole class of bug is designed away. A stage drops a message two ways:
+//   1. return StageResult.Filter(reason)       -> routine filter/dedup drop (reason kept)
+//   2. throw PipelineFilteredException(reason)  -> exceptional / hard-stop escape hatch
+// Both surface as PipelineResult.Filtered(reason); the ContractRuntime then stops fan-out.
 public sealed class MessagePipeline : IMessagePipeline
 {
     private readonly IReadOnlyList<IMessageStage> _stages;
@@ -16,29 +19,35 @@ public sealed class MessagePipeline : IMessagePipeline
         _stages = stages;
     }
 
-    public async Task<PipelineResult> ExecuteAsync(MessageContext context)
+    public ValueTask<PipelineResult> ExecuteAsync(MessageContext context)
     {
-        var reachedTerminal = false;
+        // High-fidelity fast path: no stages -> identity, completes synchronously with ZERO Task
+        // allocation. This is the ~80% (no-pipeline) case. A non-empty pipeline runs the async core;
+        // an all-synchronous stage list also completes without allocating a Task (async ValueTask).
+        if (_stages.Count == 0)
+            return new ValueTask<PipelineResult>(PipelineResult.Continue);
 
-        // Build inside-out per invocation so each stage can safely capture per-message state;
-        // the chain itself is cheap (a handful of delegate allocations) — correctness over micro-opt.
-        StageDelegate chain = _ => { reachedTerminal = true; return Task.CompletedTask; };
-        for (var i = _stages.Count - 1; i >= 0; i--)
+        return ExecuteCoreAsync(context);
+    }
+
+    private async ValueTask<PipelineResult> ExecuteCoreAsync(MessageContext context)
+    {
+        foreach (var stage in _stages)
         {
-            var stage = _stages[i];
-            var next = chain;
-            chain = ctx => stage.InvokeAsync(ctx, next);
+            StageResult result;
+            try
+            {
+                result = await stage.ProcessAsync(context).ConfigureAwait(false);
+            }
+            catch (PipelineFilteredException ex)
+            {
+                return PipelineResult.Filtered(ex.Reason);   // exceptional / hard-stop escape hatch
+            }
+
+            if (result.Filtered)
+                return PipelineResult.Filtered(result.Reason);
         }
 
-        try
-        {
-            await chain(context).ConfigureAwait(false);
-        }
-        catch (PipelineFilteredException ex)
-        {
-            return PipelineResult.Filtered(ex.Reason);
-        }
-
-        return reachedTerminal ? PipelineResult.Continue : PipelineResult.Filtered();
+        return PipelineResult.Continue;
     }
 }

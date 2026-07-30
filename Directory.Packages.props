@@ -25,6 +25,16 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- HL7 v2 parsing + ACK generation (NuGet id "HL7-V2", namespace Efferent.HL7.V2) -->
+    <PackageVersion Include="HL7-V2" Version="3.7.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logging provider (routes Microsoft.Extensions.Logging output through NLog) -->
+    <PackageVersion Include="NLog.Extensions.Logging" Version="6.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Test stack (matches the existing WebAgent.Server.UnitTest) -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />

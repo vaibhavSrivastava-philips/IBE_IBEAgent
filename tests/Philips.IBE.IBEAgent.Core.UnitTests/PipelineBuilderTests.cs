@@ -30,7 +30,7 @@ public sealed class PipelineBuilderTests
             .RegisterStage("b", () => new RecordingStage("b", order));
         var catalog = new CatalogOptions
         {
-            Pipelines = new Dictionary<string, IReadOnlyList<object>> { ["main"] = ["a", "b"] },
+            Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["a", "b"] },
         };
 
         var pipeline = PipelineBuilder.Build("main", catalog, registry);
@@ -40,38 +40,15 @@ public sealed class PipelineBuilderTests
         Assert.Equal(["a", "b"], order);
     }
 
-    [Fact]
-    public async Task Build_resolves_parallel_stage_branches()
-    {
-        var order = new List<string>();
-        var registry = new ComponentRegistry()
-            .RegisterStage("x", () => new RecordingStage("x", order))
-            .RegisterStage("y", () => new RecordingStage("y", order));
-        var catalog = new CatalogOptions
-        {
-            Pipelines = new Dictionary<string, IReadOnlyList<object>>
-            {
-                ["main"] = [new ParallelStageOptions { Branches = [["x"], ["y"]] }],
-            },
-        };
-
-        var pipeline = PipelineBuilder.Build("main", catalog, registry);
-        var ctx = MakeContext();
-        await pipeline.ExecuteAsync(ctx);
-
-        Assert.Contains("x", order);
-        Assert.Contains("y", order);
-    }
-
     private static MessageContext MakeContext() =>
         new("corr-1", 1, "hl7v2", new NoopAckToken(), new NoopReplyContext());
 
     private sealed class RecordingStage(string name, List<string> order) : IMessageStage
     {
-        public Task InvokeAsync(MessageContext context, StageDelegate next)
+        public Task<StageResult> ProcessAsync(MessageContext context)
         {
             lock (order) order.Add(name);
-            return next(context);
+            return Task.FromResult(StageResult.Continue);
         }
     }
 
@@ -84,7 +61,7 @@ public sealed class PipelineBuilderTests
     {
         public void Attach(MessageContext message) { }
         public void OnFannedOut(int requiredTotal) { }
-        public void ReportFiltered() { }
+        public void ReportFiltered(string? reason = null) { }
         public void ReportLeg(bool required, in DeliveryResult result) { }
     }
 }

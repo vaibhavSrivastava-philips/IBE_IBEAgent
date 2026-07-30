@@ -56,6 +56,6 @@ public sealed class ComponentRegistryTests
 
     private sealed class FakeStage : IMessageStage
     {
-        public Task InvokeAsync(MessageContext context, StageDelegate next) => next(context);
+        public Task<StageResult> ProcessAsync(MessageContext context) => Task.FromResult(StageResult.Continue);
     }
 }

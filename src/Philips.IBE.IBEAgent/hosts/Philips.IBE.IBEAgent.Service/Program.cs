@@ -1,6 +1,7 @@
 // MAIN IBE Agent host (Windows service "Philips.IBE.Agent").
 // Composition root: build config -> compile IContractRuntimes + legs -> register endpoints -> run.
 // See docs/architecture/Refactor_ArchitectureDoc_v4.md §3.10/§14.
+using NLog.Extensions.Logging;
 using Philips.IBE.IBEAgent.Service;
 
 // Content root = the exe's directory so config resolves consistently in dev and as a Windows
@@ -17,6 +18,10 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 builder.Configuration
     .AddJsonFile("catalogData.json", optional: true, reloadOnChange: true)
     .AddJsonFile("contractData.json", optional: true, reloadOnChange: true);
+
+// Route all Microsoft.Extensions.Logging output through NLog (targets/rules in nlog.config next to the exe).
+builder.Logging.ClearProviders();
+builder.Logging.AddNLog();
 
 builder.Services.AddWindowsService(options => options.ServiceName = "Philips.IBE.Agent");
 

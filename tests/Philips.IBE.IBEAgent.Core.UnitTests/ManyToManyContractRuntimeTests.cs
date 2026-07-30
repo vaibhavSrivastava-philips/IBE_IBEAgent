@@ -31,7 +31,7 @@ public sealed class ManyToManyContractRuntimeTests
             legs.Add(new DeliveryLeg(o, required: true, new BoundedInMemoryChannel(16), endpoint));
         }
 
-        var runtime = new ContractRuntime(ingress, new PassThroughPipeline(), legs);
+        var runtime = new ContractRuntime(ingress, new MessagePipeline([]), legs);
         _ = runtime.RunAsync(CancellationToken.None);
 
         var replies = new List<RecordingReplyContext>();
@@ -76,7 +76,7 @@ public sealed class ManyToManyContractRuntimeTests
         var legB = new DeliveryLeg(20, required: true, new BoundedInMemoryChannel(8), epB,
             fromInputIds: new HashSet<int> { 3 });
 
-        var runtime = new ContractRuntime(ingress, new PassThroughPipeline(), new[] { legA, legB });
+        var runtime = new ContractRuntime(ingress, new MessagePipeline([]), new[] { legA, legB });
         _ = runtime.RunAsync(CancellationToken.None);
 
         var replyFrom1 = new RecordingReplyContext();

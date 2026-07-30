@@ -3,6 +3,7 @@ using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
 using Philips.IBE.IBEAgent.Formats.Hl7;
+using Microsoft.Extensions.Logging;
 
 namespace Philips.IBE.IBEAgent.Service;
 
@@ -11,12 +12,16 @@ namespace Philips.IBE.IBEAgent.Service;
 // added here (register + name), never by editing Core.
 public static class ComponentRegistryBuilder
 {
-    public static ComponentRegistry Build(AgentEndpointsOptions endpoints, CatalogOptions catalog)
+    public static ComponentRegistry Build(AgentEndpointsOptions endpoints, CatalogOptions catalog, ILoggerFactory loggerFactory)
     {
         var registry = new ComponentRegistry();
 
+        // §3.10 — generic Core stages (name -> factory). Module-owned so the host stays thin (OCP);
+        // protocol modules register their own stages the same way when they gain any.
+        registry.AddCoreStages();
+
         // §3.8/§6 — Enhanced-ack rendering: HL7's own (Format x Shape) generated ack.
-        registry.RegisterAckFormatter(new Hl7SingleAckFormatter());
+        registry.RegisterAckFormatter(new Hl7SingleAckFormatter(loggerFactory.CreateLogger<Hl7SingleAckFormatter>()));
 
         // Codecs: any catalog entry whose Type is "hl7v2" resolves to the pass-through HL7 codec.
         foreach (var (name, codec) in catalog.Codecs)
@@ -49,6 +54,9 @@ public static class ComponentRegistryBuilder
                     Endpoint = http.Endpoint,
                     ContentType = http.ContentType,
                     Timeout = TimeSpan.FromSeconds(http.TimeoutSeconds),
+                    MaxConnectionsPerServer = http.MaxConnectionsPerServer,
+                    PooledConnectionLifetime = TimeSpan.FromSeconds(http.PooledConnectionLifetimeSeconds),
+                    PooledConnectionIdleTimeout = TimeSpan.FromSeconds(http.PooledConnectionIdleTimeoutSeconds),
                 },
                 output.Encoding is { } httpEncoding
                     && catalog.Codecs.TryGetValue(httpEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"

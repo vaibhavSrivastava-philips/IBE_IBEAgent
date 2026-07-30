@@ -80,6 +80,45 @@ public sealed class ReplyContextTests
     }
 
     [Fact]
+    public void ReportFiltered_passes_reason_to_the_strategy()
+    {
+        var strategy = new StubStrategy(repliesOnReceipt: false);
+        using var reply = new ReplyContext(strategy, Timeout.InfiniteTimeSpan);
+        reply.Attach(MessageContextBuilder.Create());
+
+        reply.ReportFiltered("duplicate");
+
+        Assert.Equal(1, strategy.Calls);
+        Assert.Equal(DeliveryOutcome.Filtered, strategy.LastResult.Outcome);
+        Assert.Equal("duplicate", strategy.LastResult.Error);   // reason flows to the formatter
+    }
+
+    [Fact]
+    public void ReplyOnFilter_false_suppresses_the_filtered_reply()
+    {
+        var strategy = new StubStrategy(repliesOnReceipt: false);
+        using var reply = new ReplyContext(strategy, Timeout.InfiniteTimeSpan, replyOnFilter: false);
+        reply.Attach(MessageContextBuilder.Create());
+
+        reply.ReportFiltered("duplicate");
+
+        Assert.Equal(0, strategy.Calls);   // legacy silent drop: no reply written
+    }
+
+    [Fact]
+    public async Task ReplyOnFilter_false_also_cancels_the_pending_timeout()
+    {
+        var strategy = new StubStrategy(repliesOnReceipt: false);
+        using var reply = new ReplyContext(strategy, TimeSpan.FromMilliseconds(50), replyOnFilter: false);
+        reply.Attach(MessageContextBuilder.Create());
+
+        reply.ReportFiltered("duplicate");   // suppress -> also disposes the timer
+        await Task.Delay(200);                // wait past the would-be timeout
+
+        Assert.Equal(0, strategy.Calls);      // no timeout NACK either
+    }
+
+    [Fact]
     public void Not_attached_does_not_fire_and_does_not_throw()
     {
         var strategy = new StubStrategy(repliesOnReceipt: true);

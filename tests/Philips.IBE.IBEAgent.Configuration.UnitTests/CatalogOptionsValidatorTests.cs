@@ -33,7 +33,7 @@ public sealed class CatalogOptionsValidatorTests
     {
         var catalog = new CatalogOptions
         {
-            Pipelines = new Dictionary<string, IReadOnlyList<object>>
+            Pipelines = new Dictionary<string, IReadOnlyList<string>>
             {
                 ["empty"] = [],
             },
@@ -49,41 +49,9 @@ public sealed class CatalogOptionsValidatorTests
     {
         var catalog = new CatalogOptions
         {
-            Pipelines = new Dictionary<string, IReadOnlyList<object>>
+            Pipelines = new Dictionary<string, IReadOnlyList<string>>
             {
                 ["main"] = ["validate", "transform"],
-            },
-        };
-
-        var result = CatalogOptionsValidator.Validate(catalog);
-
-        Assert.True(result.IsValid);
-    }
-
-    [Fact]
-    public void Parallel_stage_with_single_branch_fails()
-    {
-        var catalog = new CatalogOptions
-        {
-            Pipelines = new Dictionary<string, IReadOnlyList<object>>
-            {
-                ["main"] = [new ParallelStageOptions { Branches = [["a"]] }],
-            },
-        };
-
-        var result = CatalogOptionsValidator.Validate(catalog);
-
-        Assert.Contains(result.Errors, e => e.Contains("at least two branches"));
-    }
-
-    [Fact]
-    public void Parallel_stage_with_two_branches_passes()
-    {
-        var catalog = new CatalogOptions
-        {
-            Pipelines = new Dictionary<string, IReadOnlyList<object>>
-            {
-                ["main"] = [new ParallelStageOptions { Branches = [["a"], ["b"]] }],
             },
         };
 
@@ -164,7 +132,7 @@ public sealed class CatalogOptionsValidatorTests
         var catalog = new CatalogOptions
         {
             Codecs = new Dictionary<string, CodecOptions> { ["hl7v2"] = new() { Type = "hl7v2" } },
-            Pipelines = new Dictionary<string, IReadOnlyList<object>> { ["main"] = ["validate"] },
+            Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["validate"] },
             Formats = new Dictionary<string, OutputFormatOptions> { ["hl7-standard"] = new() { Codec = "hl7v2" } },
             Templates = new Dictionary<string, ContractTemplateOptions> { ["adt"] = new() { Pipeline = "main", Format = "hl7-standard" } },
         };

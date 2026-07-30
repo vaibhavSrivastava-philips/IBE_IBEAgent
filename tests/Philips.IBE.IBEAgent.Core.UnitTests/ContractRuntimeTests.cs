@@ -17,7 +17,7 @@ public sealed class ContractRuntimeTests
         var endpoint = new FakeOutboundEndpoint();
         var leg = new DeliveryLeg(10, required: true, new BoundedInMemoryChannel(8), endpoint);
         var ingress = new Dictionary<int, IMessageChannel> { [1] = new BoundedInMemoryChannel(8) };
-        var runtime = new ContractRuntime(ingress, new PassThroughPipeline(), new[] { leg });
+        var runtime = new ContractRuntime(ingress, new MessagePipeline([]), new[] { leg });
 
         _ = runtime.RunAsync(CancellationToken.None);
         await runtime.EnqueueAsync(ctx, CancellationToken.None);
@@ -60,7 +60,7 @@ public sealed class ContractRuntimeTests
         var legA = new DeliveryLeg(10, true, new BoundedInMemoryChannel(8), epA, fromInputIds: new HashSet<int> { 1 });
         var legB = new DeliveryLeg(20, true, new BoundedInMemoryChannel(8), epB, fromInputIds: new HashSet<int> { 2 });
         var ingress = new Dictionary<int, IMessageChannel> { [1] = new BoundedInMemoryChannel(8) };
-        var runtime = new ContractRuntime(ingress, new PassThroughPipeline(), new[] { legA, legB });
+        var runtime = new ContractRuntime(ingress, new MessagePipeline([]), new[] { legA, legB });
 
         _ = runtime.RunAsync(CancellationToken.None);
         await runtime.EnqueueAsync(ctx, CancellationToken.None);
@@ -73,7 +73,7 @@ public sealed class ContractRuntimeTests
 
     private sealed class FilteringPipeline : IMessagePipeline
     {
-        public Task<PipelineResult> ExecuteAsync(MessageContext context)
-            => Task.FromResult(PipelineResult.Filtered("blocked"));
+        public ValueTask<PipelineResult> ExecuteAsync(MessageContext context)
+            => new(PipelineResult.Filtered("blocked"));
     }
 }

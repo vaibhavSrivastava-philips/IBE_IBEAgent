@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="NLog.Extensions.Logging" />
   </ItemGroup>
 
   <ItemGroup>
@@ -30,6 +31,7 @@
     <Content Include="..\..\..\..\config\appsettings.json" Link="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\..\config\catalogData.json" Link="catalogData.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\..\config\contractData.json" Link="contractData.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\..\config\nlog.config" Link="nlog.config" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

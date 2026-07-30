@@ -14,7 +14,7 @@ public sealed class SourceBasedRouterTests
         var endpoint = new FakeOutboundEndpoint();
         var leg = new DeliveryLeg(10, required: true, new BoundedInMemoryChannel(8), endpoint);
         var ingress = new Dictionary<int, IMessageChannel> { [1] = new BoundedInMemoryChannel(8) };
-        var runtime = new ContractRuntime(ingress, new PassThroughPipeline(), new[] { leg });
+        var runtime = new ContractRuntime(ingress, new MessagePipeline([]), new[] { leg });
         registry.Register(runtime, [1]);
 
         var router = new SourceBasedRouter(registry);

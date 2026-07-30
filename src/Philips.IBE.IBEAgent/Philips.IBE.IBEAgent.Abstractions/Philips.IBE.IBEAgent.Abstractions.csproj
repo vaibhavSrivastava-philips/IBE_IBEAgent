@@ -3,4 +3,9 @@
   <!-- Format- & transport-neutral contracts: MessageContext, DeliveryResult, IAckToken,
        IMessage*, enums. No dependencies. -->
 
+  <ItemGroup>
+    <!-- Core orchestrates fan-out and binds a single-leg envelope in place (MessageContext.SetLeg). -->
+    <InternalsVisibleTo Include="Philips.IBE.IBEAgent.Core" />
+  </ItemGroup>
+
 </Project>

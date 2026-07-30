@@ -33,6 +33,8 @@ public static class ContractTemplateResolver
         {
             Template = null,        // flattened away
             Pipeline = pipeline,
+            // ReplyOnFilter: FSE contract override wins; else the developer Template default; else silent drop.
+            ReplyOnFilter = contract.ReplyOnFilter ?? template?.ReplyOnFilter ?? false,
             Outputs = outputs,
         };
     }

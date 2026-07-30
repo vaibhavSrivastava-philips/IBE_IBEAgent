@@ -44,7 +44,10 @@
         "OutputId": 200,                                        // REQUIRED, unique.
         "Endpoint": "http://downstream.example.local/ibe/inbound", // REQUIRED. Destination URL.
         "ContentType": "application/octet-stream",              // Optional. Default "application/octet-stream".
-        "TimeoutSeconds": 30                                    // Optional. Request timeout. Default 30.
+        "TimeoutSeconds": 30,                                   // Optional. Request timeout. Default 30.
+        "MaxConnectionsPerServer": 8,                           // Optional. Pooled connections per host (~ TCP PoolSize). Default 8.
+        "PooledConnectionLifetimeSeconds": 300,                 // Optional. Recycle a pooled connection after this many seconds (picks up DNS changes). Default 300 (5 min).
+        "PooledConnectionIdleTimeoutSeconds": 120               // Optional. Close an idle pooled connection after this many seconds. Default 120 (2 min).
       }
     ]
   },
@@ -80,9 +83,11 @@
       "Acknowledgement": {
         "IsEnabled": true,                  // false = fire-and-forget (no reply bytes).
         "IsEnhanced": true,                 // false = Normal ("received"); true = reflects delivery.
-        "Shape": "Single"                   // Single (default).
+        "Shape": "Single",                  // Single (default).
+        "TimeoutMs": 30000                  // Enhanced only: max wait for delivery before NACK. Default 30000; <=0 = no timeout.
       },
       // "Response": { "IsEnabled": true, "FromOutputId": 100, "TimeoutMs": 30000 },  // request-reply instead of ack
+      "ReplyOnFilter": true,              // OPTIONAL override of the Template's ReplyOnFilter (the DEV usually sets it in catalogData.json). true = filtered message gets an HL7 AR reject (with reason); false = silent drop.
 
       "Inputs": [
         {

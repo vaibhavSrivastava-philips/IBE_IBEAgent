@@ -6,7 +6,7 @@ public sealed class ContractCatalogCrossValidatorTests
 {
     private static CatalogOptions ValidCatalog() => new()
     {
-        Pipelines = new Dictionary<string, IReadOnlyList<object>> { ["main"] = ["validate"] },
+        Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["validate"] },
         Codecs = new Dictionary<string, CodecOptions>
         {
             ["hl7v2"] = new() { Type = "Hl7v2Codec" },

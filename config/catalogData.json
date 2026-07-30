@@ -15,10 +15,12 @@
       "hl7v2": { "Type": "hl7v2" }          // pass-through HL7 v2 message codec
     },
 
-    // Named stage lists. Every stage token must be registered in ComponentRegistryBuilder.
-    // Leave empty until stages exist (empty pipelines are rejected by validation).
-    // Example once stages are registered:  "main": [ "validate", "enrich" ]
+    // Named stage lists. Every stage token must be registered in the ComponentRegistry (via a
+    // module-owned AddXxxStages() extension called from ComponentRegistryBuilder). Empty pipelines
+    // are rejected by validation. "passthrough" is a TEMPORARY no-op stage (Core) that passes the
+    // message through unchanged, until real stages (validate/filter/enrich) exist.
     "Pipelines": {
+      "main": [ "passthrough" ]
     },
 
     // Per-leg encoding bundles. Codec names a Codecs entry (one message -> bytes).
@@ -28,10 +30,12 @@
     },
 
     // Contract blueprints. Pipeline is optional (omit = no processing stages). Format supplies the
-    // default per-leg encoding; individual outputs may override it with their own Format.
+    // default per-leg encoding; individual outputs may override it with their own Format. ReplyOnFilter
+    // (dev default) decides what happens to a message the pipeline FILTERS: true = reply with an
+    // intentional HL7 AR reject (carrying the reason); false/omitted = silently drop it. An FSE may
+    // override it on the contract.
     "Templates": {
-      "adt": { "Format": "hl7-standard" }
-      // With stages:  "adt": { "Pipeline": "main", "Format": "hl7-standard" }
+      "adt": { "Pipeline": "main", "Format": "hl7-standard", "ReplyOnFilter": false }
     }
   }
 }

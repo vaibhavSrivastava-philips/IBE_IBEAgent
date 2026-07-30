@@ -1,3 +1,4 @@
+using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.TestKit;
 
@@ -9,7 +10,7 @@ public sealed class ReplyContextFactoryTests
     public void Created_context_replies_on_receipt_via_the_message_token()
     {
         var token = new FakeAckToken();
-        var factory = new ReplyContextFactory(new NormalAckStrategy());
+        var factory = new ReplyContextFactory(new NormalAckStrategy(new ComponentRegistry(), AckShape.Single));
 
         var reply = factory.Create(sourceEndpointId: 1, ackToken: token);
         var ctx = MessageContextBuilder.Create(ack: token, reply: reply);

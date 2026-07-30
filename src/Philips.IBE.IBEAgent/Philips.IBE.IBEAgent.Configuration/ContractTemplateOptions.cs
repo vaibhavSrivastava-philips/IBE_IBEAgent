@@ -9,4 +9,5 @@ public sealed record ContractTemplateOptions
 {
     public string? Pipeline { get; init; }   // names a catalog Pipelines entry (shared stages); null = no processing stages
     public string? Format { get; init; }     // names a catalog Formats entry (default per-leg encoding bundle)
+    public bool? ReplyOnFilter { get; init; } // dev default: when the pipeline filters a message, reply with an intentional reject (true) or silently drop (false/null). FSE may override on the contract.
 }

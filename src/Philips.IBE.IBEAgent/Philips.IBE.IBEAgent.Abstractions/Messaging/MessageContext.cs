@@ -54,5 +54,11 @@ public sealed class MessageContext
 
     public void ReplacePayload(ReadOnlyMemory<byte> payload) => Payload = payload;
     public void MarkReplay() => IsReplay = true;
+
+    // Single-leg fan-out reuse: bind THIS envelope to its one output leg IN PLACE instead of
+    // allocating a clone. Safe only when the message fans out to exactly one leg (no sibling envelope
+    // needs its own LegOutputId). Multi-leg fan-out must still CloneForLeg per leg.
+    internal void SetLeg(int outputId) => LegOutputId = outputId;
+
     public MessageContext CloneForLeg(int outputId) => new(this, outputId);
 }

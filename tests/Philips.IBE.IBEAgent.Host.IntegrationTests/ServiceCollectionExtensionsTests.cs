@@ -28,6 +28,29 @@ public sealed class ServiceCollectionExtensionsTests
         })
         .Build();
 
+    // Non-empty pipeline: the adt template names the "main" pipeline, which lists the "passthrough"
+    // stage. Compiling this requires the real ComponentRegistryBuilder to have registered that stage
+    // (via AddCoreStages) — otherwise CreateStage throws "No stage registered with name 'passthrough'".
+    private static IConfiguration BuildPipelineConfiguration() => new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Catalog:Codecs:hl7v2:Type"] = "hl7v2",
+            ["Catalog:Formats:hl7-standard:Codec"] = "hl7v2",
+            ["Catalog:Pipelines:main:0"] = "passthrough",
+            ["Catalog:Templates:adt:Format"] = "hl7-standard",
+            ["Catalog:Templates:adt:Pipeline"] = "main",
+
+            ["Contracts:0:Name"] = "Adt",
+            ["Contracts:0:Template"] = "adt",
+            ["Contracts:0:Inputs:0:InputId"] = "1",
+            ["Contracts:0:Outputs:0:OutputId"] = "100",
+
+            ["Endpoints:TcpOutbound:0:OutputId"] = "100",
+            ["Endpoints:TcpOutbound:0:Host"] = "localhost",
+            ["Endpoints:TcpOutbound:0:Port"] = "9999",
+        })
+        .Build();
+
     // Legacy/manual path: no Template - developer concerns wired inline on the contract.
     private static IConfiguration BuildInlineConfiguration() => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
@@ -80,6 +103,20 @@ public sealed class ServiceCollectionExtensionsTests
         services.AddLogging();
 
         services.AddIbeAgentEngine(BuildInlineConfiguration());
+
+        using var provider = services.BuildServiceProvider();
+        var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();
+
+        Assert.Single(runtimes);
+    }
+
+    [Fact]
+    public void AddIbeAgentEngine_compiles_a_contract_with_a_non_empty_pipeline()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddIbeAgentEngine(BuildPipelineConfiguration());
 
         using var provider = services.BuildServiceProvider();
         var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();

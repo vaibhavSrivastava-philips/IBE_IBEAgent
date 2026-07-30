@@ -17,6 +17,12 @@ public sealed class HttpOutboundEndpointConfig
     public required Uri Endpoint { get; init; }
     public string ContentType { get; init; } = "application/octet-stream";
     public int TimeoutSeconds { get; init; } = 30;
+
+    // Connection-pool knobs (parity with TCP PoolSize) — optional; omit to keep the endpoint's own
+    // SocketsHttpHandler defaults. Lifetime/idle are in seconds and mapped to TimeSpans in the builder.
+    public int MaxConnectionsPerServer { get; init; } = 8;                       // ~ TCP PoolSize
+    public int PooledConnectionLifetimeSeconds { get; init; } = 300;             // 5 min — recycle to pick up DNS changes
+    public int PooledConnectionIdleTimeoutSeconds { get; init; } = 120;          // 2 min
 }
 
 // Host-level config wrapper — binds the "Endpoints" section (contractData.json) into what the

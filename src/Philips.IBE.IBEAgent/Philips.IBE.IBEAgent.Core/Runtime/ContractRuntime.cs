@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Telemetry;
 
@@ -10,6 +11,7 @@ public sealed class ContractRuntime : IContractRuntime
     private readonly IReadOnlyDictionary<int, IMessageChannel> _ingressQueues; // one per input comm point
     private readonly IMessagePipeline _pipeline;                               // the ONE shared pipeline
     private readonly IReadOnlyList<DeliveryLeg> _legs;
+    private readonly FrozenDictionary<int, FanOutPlan> _fanOutBySource;        // precomputed per source (§4)
     private readonly List<Task> _consumers = [];
 
     // Exposed so the host composition root can build the ForwardWorker's IReplayTargetRegistry
@@ -24,6 +26,14 @@ public sealed class ContractRuntime : IContractRuntime
         _ingressQueues = ingressQueues;
         _pipeline = pipeline;
         _legs = legs;
+
+        // The applicable legs + required count for a message are a pure function of its source id
+        // (a fixed compile-time set), so resolve one fan-out plan per input ONCE here instead of
+        // recomputing it per message. Every SourceEndpointId that reaches ConsumeAsync is an ingress
+        // key (EnqueueAsync routes by it), so this map is total over the sources we can observe.
+        _fanOutBySource = ingressQueues.Keys.ToFrozenDictionary(
+            inputId => inputId,
+            inputId => FanOutPlan.For([.. legs.Where(l => l.AcceptsInput(inputId))]));
     }
 
     // Routes to the per-input queue by SourceEndpointId (per-input backpressure).
@@ -50,18 +60,20 @@ public sealed class ContractRuntime : IContractRuntime
             var pipeline = await _pipeline.ExecuteAsync(ctx); // parse/validate/filter/enrich, ONCE
             if (pipeline.ShortCircuited)
             {
-                AgentDiagnostics.FilteredMessages.Add(1, new KeyValuePair<string, object?>("source", ctx.SourceEndpointId));
-                ctx.Reply.ReportFiltered();                   // whole-message drop -> reply "filtered"
+                // Surface the drop reason (low-cardinality, stage-authored) for observability — parity
+                // with the legacy filter's dedicated "message filtered" metric.
+                AgentDiagnostics.FilteredMessages.Add(1,
+                    new KeyValuePair<string, object?>("source", ctx.SourceEndpointId),
+                    new KeyValuePair<string, object?>("reason", pipeline.Reason ?? "unspecified"));
+                ctx.Reply.ReportFiltered(pipeline.Reason);     // whole-message drop -> reply "filtered" (or silent, per contract)
                 continue;
             }
 
-            // Per-leg input filter: only fan out to legs that accept this message's source.
-            var applicable = _legs.Where(l => l.AcceptsInput(ctx.SourceEndpointId)).ToList();
-            var requiredCount = applicable.Count(l => l.Required);
-
-            ctx.Reply.OnFannedOut(requiredCount);             // arm per-message; Normal ack fires "received" here
-            await Task.WhenAll(applicable.Select(l =>
-                l.EnqueueAsync(ctx.CloneForLeg(l.OutputId), cancellationToken).AsTask()));
+            // Fan out via the precomputed per-source plan: applicable legs + required count were
+            // resolved once at construction, so there is no per-message LINQ and no leg-count branch
+            // here. A single-leg (high-fidelity) plan reuses the envelope in place; a multi-leg plan
+            // clones per leg and awaits them together.
+            await _fanOutBySource[ctx.SourceEndpointId].DispatchAsync(ctx, cancellationToken);
         }
     }
 

@@ -16,7 +16,20 @@ public sealed class MessagePipelineTests
     }
 
     [Fact]
-    public async Task Runs_stages_in_order_and_continues_when_all_call_next()
+    public async Task Empty_pipeline_completes_synchronously_without_allocating_a_task()
+    {
+        var pipeline = new MessagePipeline([]);
+
+        var pending = pipeline.ExecuteAsync(MessageContextBuilder.Create());
+
+        // High-fidelity fast path: the no-stage case returns a completed ValueTask (no Task alloc).
+        Assert.True(pending.IsCompletedSuccessfully);
+        var result = await pending;
+        Assert.False(result.ShortCircuited);
+    }
+
+    [Fact]
+    public async Task Runs_stages_in_order_and_continues_when_all_return_continue()
     {
         var order = new List<string>();
         var pipeline = new MessagePipeline(
@@ -33,23 +46,6 @@ public sealed class MessagePipelineTests
     }
 
     [Fact]
-    public async Task Stage_that_does_not_call_next_short_circuits()
-    {
-        var order = new List<string>();
-        var pipeline = new MessagePipeline(
-        [
-            new RecordingStage(order, "a"),
-            new SwallowingStage(),
-            new RecordingStage(order, "c"),
-        ]);
-
-        var result = await pipeline.ExecuteAsync(MessageContextBuilder.Create());
-
-        Assert.True(result.ShortCircuited);
-        Assert.Equal(["a"], order);   // "c" never runs
-    }
-
-    [Fact]
     public async Task Stage_throwing_PipelineFilteredException_short_circuits_with_reason()
     {
         var pipeline = new MessagePipeline([new ThrowingStage("blocked")]);
@@ -58,6 +54,24 @@ public sealed class MessagePipelineTests
 
         Assert.True(result.ShortCircuited);
         Assert.Equal("blocked", result.Reason);
+    }
+
+    [Fact]
+    public async Task Stage_that_returns_filter_short_circuits_with_reason_and_no_exception()
+    {
+        var order = new List<string>();
+        var pipeline = new MessagePipeline(
+        [
+            new RecordingStage(order, "a"),
+            new FilteringStage("duplicate"),
+            new RecordingStage(order, "c"),
+        ]);
+
+        var result = await pipeline.ExecuteAsync(MessageContextBuilder.Create());
+
+        Assert.True(result.ShortCircuited);
+        Assert.Equal("duplicate", result.Reason);   // reason carried without an exception
+        Assert.Equal(["a"], order);                 // "c" never runs
     }
 
     [Fact]
@@ -73,30 +87,32 @@ public sealed class MessagePipelineTests
 
     private sealed class RecordingStage(List<string> order, string name) : IMessageStage
     {
-        public Task InvokeAsync(MessageContext context, StageDelegate next)
+        public Task<StageResult> ProcessAsync(MessageContext context)
         {
             order.Add(name);
-            return next(context);
+            return Task.FromResult(StageResult.Continue);
         }
-    }
-
-    private sealed class SwallowingStage : IMessageStage
-    {
-        public Task InvokeAsync(MessageContext context, StageDelegate next) => Task.CompletedTask; // never calls next
     }
 
     private sealed class ThrowingStage(string reason) : IMessageStage
     {
-        public Task InvokeAsync(MessageContext context, StageDelegate next)
+        public Task<StageResult> ProcessAsync(MessageContext context)
             => throw new PipelineFilteredException(reason);
+    }
+
+    // Preferred routine-filter pattern: return Filter(reason) — no exception, and no next to forget.
+    private sealed class FilteringStage(string reason) : IMessageStage
+    {
+        public Task<StageResult> ProcessAsync(MessageContext context)
+            => Task.FromResult(StageResult.Filter(reason));
     }
 
     private sealed class HeaderEnrichStage(string key, string value) : IMessageStage
     {
-        public Task InvokeAsync(MessageContext context, StageDelegate next)
+        public Task<StageResult> ProcessAsync(MessageContext context)
         {
             context.Headers[key] = value;
-            return next(context);
+            return Task.FromResult(StageResult.Continue);
         }
     }
 }

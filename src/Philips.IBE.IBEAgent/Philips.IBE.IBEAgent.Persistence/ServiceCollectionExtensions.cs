@@ -32,4 +32,18 @@ public static class ServiceCollectionExtensions
         services.AddHostedService<ForwardWorker>();
         return services;
     }
+
+    // Deferred variant: the in-process host compiles its legs lazily (so the ComponentRegistry can
+    // use the host's real ILoggerFactory), so the replay-target set is built from the provider at
+    // start rather than captured at registration time.
+    public static IServiceCollection AddForwardWorker(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Func<IServiceProvider, IEnumerable<KeyValuePair<int, IReplayTarget>>> replayTargetsFactory)
+    {
+        services.Configure<ForwardOptions>(configuration.GetSection("Ibe:Forward").Bind);
+        services.AddSingleton<IReplayTargetRegistry>(sp => new ReplayTargetRegistry(replayTargetsFactory(sp)));
+        services.AddHostedService<ForwardWorker>();
+        return services;
+    }
 }

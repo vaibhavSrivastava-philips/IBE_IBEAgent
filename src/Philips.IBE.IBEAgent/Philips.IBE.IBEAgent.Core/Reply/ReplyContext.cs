@@ -9,14 +9,16 @@ public sealed class ReplyContext : IReplyContext, IDisposable
 {
     private readonly IAckStrategy _strategy;
     private readonly Timer? _timeout;
+    private readonly bool _replyOnFilter;
     private MessageContext? _message;
     private int _requiredTotal;
     private int _requiredDone;
     private int _replied;
 
-    public ReplyContext(IAckStrategy strategy, TimeSpan timeout)
+    public ReplyContext(IAckStrategy strategy, TimeSpan timeout, bool replyOnFilter = true)
     {
         _strategy = strategy;
+        _replyOnFilter = replyOnFilter;
         if (timeout != Timeout.InfiniteTimeSpan)
             _timeout = new Timer(_ => OnTimeout(), state: null, timeout, Timeout.InfiniteTimeSpan);
     }
@@ -30,7 +32,16 @@ public sealed class ReplyContext : IReplyContext, IDisposable
             FireOnce(new DeliveryResult(DeliveryOutcome.Accepted));
     }
 
-    public void ReportFiltered() => FireOnce(new DeliveryResult(DeliveryOutcome.Filtered));
+    public void ReportFiltered(string? reason = null)
+    {
+        // §6 — a filtered message gets a reply (a reject carrying the filter reason) when ReplyOnFilter is
+        // set; otherwise it is a silent drop (consume the one-shot + kill the timeout, write nothing) — the
+        // legacy behavior. The reply CODE (e.g. HL7 AR) is the formatter's job, keyed on the Filtered outcome.
+        if (_replyOnFilter)
+            FireOnce(new DeliveryResult(DeliveryOutcome.Filtered, reason));
+        else
+            Suppress();
+    }
 
     public void ReportLeg(bool required, in DeliveryResult result)
     {
@@ -56,6 +67,14 @@ public sealed class ReplyContext : IReplyContext, IDisposable
         var message = _message;
         if (message is null) return;                            // not attached => wiring bug; nothing to write
         _ = _strategy.WriteReplyAsync(message, result);         // fire-and-forget; strategy owns bytes + token write
+    }
+
+    // Legacy "silent drop": consume the one-shot and kill the timeout so NO reply is written (not even a
+    // later timeout NACK). Used when ReplyOnFilter is disabled.
+    private void Suppress()
+    {
+        if (Interlocked.Exchange(ref _replied, 1) != 0) return;
+        _timeout?.Dispose();
     }
 
     public void Dispose() => _timeout?.Dispose();

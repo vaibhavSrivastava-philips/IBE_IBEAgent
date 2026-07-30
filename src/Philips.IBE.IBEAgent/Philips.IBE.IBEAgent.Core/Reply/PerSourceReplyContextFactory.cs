@@ -7,15 +7,15 @@ namespace Philips.IBE.IBEAgent.Core;
 // side by side over the shared IReplyContextFactory seam used by every inbound endpoint.
 public sealed class PerSourceReplyContextFactory : IReplyContextFactory
 {
-    private readonly IReadOnlyDictionary<int, (IAckStrategy Strategy, TimeSpan Timeout)> _bySource;
+    private readonly IReadOnlyDictionary<int, ReplyPolicy> _bySource;
 
-    public PerSourceReplyContextFactory(IReadOnlyDictionary<int, (IAckStrategy Strategy, TimeSpan Timeout)> bySource)
+    public PerSourceReplyContextFactory(IReadOnlyDictionary<int, ReplyPolicy> bySource)
         => _bySource = bySource;
 
     public IReplyContext Create(int sourceEndpointId, IAckToken ackToken)
     {
         if (!_bySource.TryGetValue(sourceEndpointId, out var policy))
             throw new KeyNotFoundException($"No reply policy registered for source endpoint {sourceEndpointId}.");
-        return new ReplyContext(policy.Strategy, policy.Timeout);
+        return new ReplyContext(policy.Strategy, policy.Timeout, policy.ReplyOnFilter);
     }
 }

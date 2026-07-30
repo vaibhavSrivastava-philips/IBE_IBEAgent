@@ -9,7 +9,7 @@ public sealed class ContractCompilerTests
 {
     private static CatalogOptions ValidCatalog() => new()
     {
-        Pipelines = new Dictionary<string, IReadOnlyList<object>> { ["main"] = ["stamp"] },
+        Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["stamp"] },
         Codecs = new Dictionary<string, CodecOptions>
         {
             ["hl7v2"] = new() { Type = "hl7v2" },
@@ -66,6 +66,6 @@ public sealed class ContractCompilerTests
 
     private sealed class FakeStage : IMessageStage
     {
-        public Task InvokeAsync(MessageContext context, StageDelegate next) => next(context);
+        public Task<StageResult> ProcessAsync(MessageContext context) => Task.FromResult(StageResult.Continue);
     }
 }
