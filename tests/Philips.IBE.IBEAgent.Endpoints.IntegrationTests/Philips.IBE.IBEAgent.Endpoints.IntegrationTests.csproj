@@ -12,6 +12,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\endpoints\Philips.IBE.IBEAgent.Endpoints.Tcp\Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />
     <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\endpoints\Philips.IBE.IBEAgent.Endpoints.Http\Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\endpoints\Philips.IBE.IBEAgent.Endpoints.File\Philips.IBE.IBEAgent.Endpoints.File.csproj" />
     <ProjectReference Include="..\..\testkit\Philips.IBE.IBEAgent.TestKit\Philips.IBE.IBEAgent.TestKit.csproj" />
   </ItemGroup>
   <ItemGroup>

@@ -3,6 +3,8 @@
 // through the SAME IOutboundEndpoint + codec the engine uses. No duplicate senders.
 // See docs/architecture/target-architecture-v3.md §3.9.
 
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NLog.Extensions.Logging;
 using Philips.IBE.IBEAgent.ForwardService;
 
@@ -17,4 +19,16 @@ builder.Services.AddWindowsService(options => options.ServiceName = "Philips.IBE
 builder.Services.AddForwardService(builder.Configuration);
 
 var host = builder.Build();
-host.Run();
+
+// Fatal startup/runtime failures crash the process by design (fail-fast). Log them Critical first so
+// the reason survives in ops before exit.
+var logger = host.Services.GetRequiredService<ILogger<Program>>();
+try
+{
+    host.Run();
+}
+catch (Exception ex)
+{
+    logger.LogCritical(ex, "ForwardService host terminated unexpectedly.");
+    throw;
+}

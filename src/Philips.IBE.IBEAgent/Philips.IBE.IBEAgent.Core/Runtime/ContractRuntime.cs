@@ -1,4 +1,6 @@
 using System.Collections.Frozen;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Telemetry;
 
@@ -12,6 +14,7 @@ public sealed class ContractRuntime : IContractRuntime
     private readonly IMessagePipeline _pipeline;                               // the ONE shared pipeline
     private readonly IReadOnlyList<DeliveryLeg> _legs;
     private readonly FrozenDictionary<int, FanOutPlan> _fanOutBySource;        // precomputed per source (§4)
+    private readonly ILogger<ContractRuntime> _logger;
     private readonly List<Task> _consumers = [];
 
     // Exposed so the host composition root can build the ForwardWorker's IReplayTargetRegistry
@@ -21,11 +24,13 @@ public sealed class ContractRuntime : IContractRuntime
     public ContractRuntime(
         IReadOnlyDictionary<int, IMessageChannel> ingressQueues,
         IMessagePipeline pipeline,
-        IReadOnlyList<DeliveryLeg> legs)
+        IReadOnlyList<DeliveryLeg> legs,
+        ILogger<ContractRuntime>? logger = null)
     {
         _ingressQueues = ingressQueues;
         _pipeline = pipeline;
         _legs = legs;
+        _logger = logger ?? NullLogger<ContractRuntime>.Instance;
 
         // The applicable legs + required count for a message are a pure function of its source id
         // (a fixed compile-time set), so resolve one fan-out plan per input ONCE here instead of
@@ -65,6 +70,11 @@ public sealed class ContractRuntime : IContractRuntime
                 AgentDiagnostics.FilteredMessages.Add(1,
                     new KeyValuePair<string, object?>("source", ctx.SourceEndpointId),
                     new KeyValuePair<string, object?>("reason", pipeline.Reason ?? "unspecified"));
+                // Routine, by-design drop (a filter's job is to drop) -> Debug, not Warning, to stay quiet
+                // in prod while remaining searchable per message (parity with the legacy filter's log).
+                _logger.LogDebug(
+                    "Message {CorrelationId} from source {SourceEndpointId} filtered: {Reason}",
+                    ctx.CorrelationId, ctx.SourceEndpointId, pipeline.Reason ?? "unspecified");
                 ctx.Reply.ReportFiltered(pipeline.Reason);     // whole-message drop -> reply "filtered" (or silent, per contract)
                 continue;
             }

@@ -7,5 +7,5 @@ public interface IReplyContext
     void Attach(MessageContext message);
     void OnFannedOut(int requiredTotal);          // arm per-message with the applicable required-leg count
     void ReportFiltered(string? reason = null);   // shared-pipeline short-circuit -> reply "filtered" (reject) or silent drop
-    void ReportLeg(bool required, in DeliveryResult result); // a leg's terminal outcome
+    void ReportLeg(int outputId, bool required, in DeliveryResult result); // a leg's terminal outcome
 }

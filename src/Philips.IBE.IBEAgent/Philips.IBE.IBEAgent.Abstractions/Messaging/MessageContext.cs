@@ -8,10 +8,11 @@ public sealed class MessageContext
     public int SourceEndpointId { get; }
     public string Format { get; }                      // per-input tag (INV-1): selects parser/stages/formatter
     public ReadOnlyMemory<byte> Payload { get; private set; }  // canonical source bytes (INV-5)
-    // public object? ParsedView { get; set; }            // lazily-parsed model, built once by the parse stage
+    public object? ParsedView { get; set; }            // lazily-parsed model, built once by the parse stage
     public IDictionary<string, string> Headers { get; } // mutable during shared pipeline; read-only after fan-out (A5)
     public IAckToken Ack { get; }
     public IReplyContext Reply { get; }                // shared by reference across all leg clones
+    public IMessageDisposition? Disposition { get; }   // source-side settle handle (e.g. File move/watermark); null = nothing to dispose
     public int LegOutputId { get; private set; }
     public bool IsReplay { get; private set; }         // set on store-and-forward replay -> suppresses re-reply
 
@@ -22,7 +23,8 @@ public sealed class MessageContext
         IAckToken ack,
         IReplyContext reply,
         ReadOnlyMemory<byte> payload = default,
-        IDictionary<string, string>? headers = null)
+        IDictionary<string, string>? headers = null,
+        IMessageDisposition? disposition = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(correlationId);
         ArgumentException.ThrowIfNullOrEmpty(format);
@@ -35,6 +37,7 @@ public sealed class MessageContext
         Ack = ack;
         Reply = reply;
         Payload = payload;
+        Disposition = disposition;
         Headers = headers ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
@@ -47,8 +50,9 @@ public sealed class MessageContext
         Ack = source.Ack;
         Reply = source.Reply;
         Payload = source.Payload;
-        // ParsedView = source.ParsedView;
+        ParsedView = source.ParsedView;
         Headers = source.Headers;
+        Disposition = source.Disposition;
         LegOutputId = legOutputId;
     }
 

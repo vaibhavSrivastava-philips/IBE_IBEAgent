@@ -1,4 +1,6 @@
 using System.Net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 namespace Philips.IBE.IBEAgent.Endpoints.Http;
 
@@ -8,14 +10,16 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     private readonly IMessageDispatcher _dispatcher;
     private readonly IReplyContextFactory _replyFactory;
     private readonly SemaphoreSlim _admission;
+    private readonly ILogger<HttpInboundEndpoint> _logger;
     private readonly HttpListener _listener = new();
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
-    public HttpInboundEndpoint(HttpInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory)
+    public HttpInboundEndpoint(HttpInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory, ILogger<HttpInboundEndpoint>? logger = null)
     {
         _options = options; _dispatcher = dispatcher; _replyFactory = replyFactory;
         _admission = new SemaphoreSlim(options.MaxConcurrentRequests);
+        _logger = logger ?? NullLogger<HttpInboundEndpoint>.Instance;
         _listener.Prefixes.Add(options.Prefix);
     }
 
@@ -24,6 +28,9 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _listener.Start();
         _acceptLoop = AcceptLoopAsync(_cts.Token);
+        _logger.LogInformation(
+            "HTTP inbound endpoint (source {SourceEndpointId}) listening on {Prefix}.",
+            _options.SourceEndpointId, _options.Prefix);
         return Task.CompletedTask;
     }
 
@@ -33,6 +40,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         if (_listener.IsListening) _listener.Stop();
         if (_acceptLoop is not null)
             try { await _acceptLoop.WaitAsync(cancellationToken); } catch (OperationCanceledException) { }
+        _logger.LogInformation("HTTP inbound endpoint (source {SourceEndpointId}) stopped.", _options.SourceEndpointId);
     }
 
     private async Task AcceptLoopAsync(CancellationToken ct)
@@ -41,8 +49,12 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         {
             HttpListenerContext http;
             try { http = await _listener.GetContextAsync().WaitAsync(ct); }
-            catch (OperationCanceledException) { break; }
-            catch (HttpListenerException) { break; }
+            catch (OperationCanceledException) { break; }                  // expected on shutdown
+            catch (HttpListenerException ex)
+            {
+                _logger.LogDebug(ex, "HTTP inbound accept loop (source {SourceEndpointId}) ended.", _options.SourceEndpointId);
+                break;
+            }
             _ = HandleRequestAsync(http, ct);
         }
     }
@@ -65,13 +77,29 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                 reply: reply,
                 payload: ms.ToArray());
 
-            ctx.Reply.Attach(ctx); 
+            _logger.LogDebug(
+                "Received request {CorrelationId} ({ByteCount} bytes) on HTTP source {SourceEndpointId}.",
+                ctx.CorrelationId, ms.Length, _options.SourceEndpointId);
+
+            ctx.Reply.Attach(ctx);
             await _dispatcher.DispatchAsync(ctx, ct);
             await token.Completion.WaitAsync(_options.ReplyTimeout, ct); // hold request until reply/timeout (§6.1)
         }
-        catch (TimeoutException) { token.CompleteWithError(504); }
-        catch (OperationCanceledException) { token.CompleteWithError(503); }
-        catch (Exception) { token.CompleteWithError(500); }
+        catch (TimeoutException)
+        {
+            _logger.LogWarning(
+                "Reply timed out after {TimeoutMs}ms on HTTP source {SourceEndpointId}; responding 504.",
+                _options.ReplyTimeout.TotalMilliseconds, _options.SourceEndpointId);
+            token.CompleteWithError(504);
+        }
+        catch (OperationCanceledException) { token.CompleteWithError(503); } // shutdown; expected
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Unhandled error processing HTTP request on source {SourceEndpointId}; responding 500.",
+                _options.SourceEndpointId);
+            token.CompleteWithError(500);
+        }
         finally { _admission.Release(); }
     }
 

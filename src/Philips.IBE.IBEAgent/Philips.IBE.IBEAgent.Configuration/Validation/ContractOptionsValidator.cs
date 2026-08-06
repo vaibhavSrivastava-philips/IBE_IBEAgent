@@ -1,3 +1,5 @@
+using Philips.IBE.IBEAgent.Abstractions;
+
 namespace Philips.IBE.IBEAgent.Configuration;
 
 // §8 — pure structural validation of a single contract's shape: inputs/outputs well-formed,
@@ -69,6 +71,17 @@ public static class ContractOptionsValidator
                 {
                     result.AddError($"Contract '{contract.Name}' Output {output.OutputId} Retry.MaxAttempts must be >= 1.");
                 }
+
+                if (output.RouteWhen is { Count: > 0 })
+                {
+                    foreach (var (key, value) in output.RouteWhen)
+                    {
+                        if (string.IsNullOrWhiteSpace(key))
+                            result.AddError($"Contract '{contract.Name}' Output {output.OutputId} RouteWhen has an empty key.");
+                        if (string.IsNullOrEmpty(value))
+                            result.AddError($"Contract '{contract.Name}' Output {output.OutputId} RouteWhen['{key}'] has an empty value.");
+                    }
+                }
             }
         }
 
@@ -86,6 +99,12 @@ public static class ContractOptionsValidator
         if (ackEnabled && responseEnabled)
         {
             result.AddError($"Contract '{contract.Name}' cannot enable both Acknowledgement and Response; choose exactly one reply mode.");
+        }
+
+        // TEMPORARY fail-fast: Batch ack shape (HL7 BHS..BTS) is not implemented yet (see Hl7BatchAckFormatter).
+        if (ackEnabled && contract.Acknowledgement.Shape == AckShape.Batch)
+        {
+            result.AddError($"Contract '{contract.Name}' AckShape.Batch is not supported yet; use Single.");
         }
 
         if (responseEnabled && contract.Response.TimeoutMs <= 0)

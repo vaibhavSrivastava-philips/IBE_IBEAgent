@@ -123,4 +123,41 @@ public sealed class ServiceCollectionExtensionsTests
 
         Assert.Single(runtimes);
     }
+
+    // Proves the File comm point wires end-to-end through the composition root: a File input source
+    // compiles into an IInboundEndpoint, and a File output leg resolves to a File outbound endpoint.
+    private static IConfiguration BuildFileConfiguration() => new ConfigurationBuilder()
+        .AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Catalog:Codecs:hl7v2:Type"] = "hl7v2",
+            ["Catalog:Formats:hl7-standard:Codec"] = "hl7v2",
+            ["Catalog:Templates:adt:Format"] = "hl7-standard",
+
+            ["Contracts:0:Name"] = "FileFlow",
+            ["Contracts:0:Template"] = "adt",
+            ["Contracts:0:Inputs:0:InputId"] = "1",
+            ["Contracts:0:Outputs:0:OutputId"] = "100",
+
+            ["Endpoints:FileInbound:0:SourceEndpointId"] = "1",
+            ["Endpoints:FileInbound:0:Directory"] = Path.Combine(Path.GetTempPath(), "ibe-host-filein"),
+            ["Endpoints:FileOutbound:0:OutputId"] = "100",
+            ["Endpoints:FileOutbound:0:Directory"] = Path.Combine(Path.GetTempPath(), "ibe-host-fileout"),
+        })
+        .Build();
+
+    [Fact]
+    public void AddIbeAgentEngine_compiles_a_file_input_and_output_contract()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddIbeAgentEngine(BuildFileConfiguration());
+
+        using var provider = services.BuildServiceProvider();
+        var inbound = provider.GetRequiredService<IReadOnlyList<IInboundEndpoint>>();
+        var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();
+
+        Assert.Single(inbound);    // the File inbound endpoint was constructed
+        Assert.Single(runtimes);   // the File output leg (OutputId 100) resolved to a File endpoint
+    }
 }

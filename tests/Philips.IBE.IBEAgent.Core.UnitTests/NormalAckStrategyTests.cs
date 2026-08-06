@@ -19,10 +19,10 @@ public sealed class NormalAckStrategyTests
         var token = new FakeAckToken();
         var ctx = MessageContextBuilder.Create(ack: token);
 
-        await Create().WriteReplyAsync(ctx, new DeliveryResult(DeliveryOutcome.Accepted));
+        await Create().WriteReplyAsync(ctx, ReplyOutcome.Received());
 
         Assert.Equal(1, token.WriteCount);
-        Assert.Equal("MSA|AA|received", Encoding.UTF8.GetString(token.Writes[0]));
+        Assert.Equal("IBE:ACK (no ack formatter)", Encoding.UTF8.GetString(token.Writes[0]));
     }
 
     [Fact]
@@ -32,7 +32,7 @@ public sealed class NormalAckStrategyTests
         var ctx = MessageContextBuilder.Create(ack: token);
         var registry = new ComponentRegistry().RegisterAckFormatter(new FixedFormatter());
 
-        await Create(registry).WriteReplyAsync(ctx, new DeliveryResult(DeliveryOutcome.Accepted));
+        await Create(registry).WriteReplyAsync(ctx, ReplyOutcome.Received());
 
         Assert.Equal(1, token.WriteCount);
         Assert.Equal("FORMATTED", Encoding.UTF8.GetString(token.Writes[0]));

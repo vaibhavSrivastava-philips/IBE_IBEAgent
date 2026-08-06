@@ -18,19 +18,10 @@
 
   "Contracts": [
     {
-      "Name": "Demo-Tcp-To-Http-Enhanced",
+      "Name": "Demo-Tcp-To-Tcp",
       "Template": "adt",
       "Inputs": [ { "InputId": 1 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [
-        { "OutputId": 102 }
-      ]
-    },
-    {
-      "Name": "Demo-Http-To-Tcp-Ack-Normal",
-      "Template": "adt",
-      "Inputs": [ { "InputId": 2 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false },
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false, "Shape": "Single" },
       "Outputs": [
         { "OutputId": 101 }
       ]

@@ -99,4 +99,37 @@ public sealed class DeliveryLegTests
         Assert.True(leg.AcceptsInput(2));
         Assert.False(leg.AcceptsInput(3));
     }
+
+    [Fact]
+    public void AcceptsMessage_null_or_empty_routeWhen_accepts_all()
+    {
+        var legNull = new DeliveryLeg(1, true, new BoundedInMemoryChannel(4), new FakeOutboundEndpoint());
+        Assert.True(legNull.AcceptsMessage(new Dictionary<string, string>()));
+        Assert.True(legNull.AcceptsMessage(new Dictionary<string, string> { ["x"] = "y" }));
+
+        var legEmpty = new DeliveryLeg(1, true, new BoundedInMemoryChannel(4), new FakeOutboundEndpoint(),
+            routeWhen: new Dictionary<string, string>());
+        Assert.True(legEmpty.AcceptsMessage(new Dictionary<string, string> { ["x"] = "y" }));
+    }
+
+    [Fact]
+    public void AcceptsMessage_respects_single_routeWhen_fact()
+    {
+        var leg = new DeliveryLeg(1, true, new BoundedInMemoryChannel(4), new FakeOutboundEndpoint(),
+            routeWhen: new Dictionary<string, string> { ["hl7.messageType"] = "ADT" });
+
+        Assert.True(leg.AcceptsMessage(new Dictionary<string, string> { ["hl7.messageType"] = "ADT" }));
+        Assert.False(leg.AcceptsMessage(new Dictionary<string, string> { ["hl7.messageType"] = "ORU" }));
+        Assert.False(leg.AcceptsMessage(new Dictionary<string, string>()));   // fact absent
+    }
+
+    [Fact]
+    public void AcceptsMessage_requires_all_routeWhen_facts_to_match()
+    {
+        var leg = new DeliveryLeg(1, true, new BoundedInMemoryChannel(4), new FakeOutboundEndpoint(),
+            routeWhen: new Dictionary<string, string> { ["hl7.messageType"] = "ADT", ["priority"] = "STAT" });
+
+        Assert.True(leg.AcceptsMessage(new Dictionary<string, string> { ["hl7.messageType"] = "ADT", ["priority"] = "STAT" }));
+        Assert.False(leg.AcceptsMessage(new Dictionary<string, string> { ["hl7.messageType"] = "ADT" }));   // second fact missing
+    }
 }

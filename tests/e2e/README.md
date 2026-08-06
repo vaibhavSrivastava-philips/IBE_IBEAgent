@@ -77,6 +77,57 @@ pwsh -File tests/e2e/Invoke-E2EWorkflow.ps1 -Configuration Release
 The process exit code is `0` when every scenario passes and `1` otherwise, so the
 workflow can be wired into a pipeline.
 
+## File comm points
+
+The File inbound (folder poller) and File outbound (file writer) comm points have
+their own workflow, [Invoke-FileE2EWorkflow.ps1](Invoke-FileE2EWorkflow.ps1), driven
+by [file-scenarios.psd1](file-scenarios.psd1). It reuses this harness's `lib/` helpers
+and the TCP/HTTP downstream peers, and adds File-specific helpers in
+[lib/FileCommon.ps1](lib/FileCommon.ps1) plus a "file drop" upstream peer,
+[peers/Send-FileMessage.ps1](peers/Send-FileMessage.ps1).
+
+A File source has no reply channel, so instead of a source-side reply the workflow
+verifies the **disposition** of the input file on disk. File deliveries are verified
+by polling the output directory (no long-lived listener is needed).
+
+```powershell
+# From the repository root
+pwsh -File tests/e2e/Invoke-FileE2EWorkflow.ps1
+pwsh -File tests/e2e/Invoke-FileE2EWorkflow.ps1 -Only '*Watermark*' -SkipBuild
+```
+
+What it covers:
+
+| Group                   | Scenarios                                                                                                                                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Relay / cross-transport | File to File, File to TCP, File to HTTP, TCP to File, HTTP to File                                                                                                                                                            |
+| Disposition             | Move to `processed/` (on delivery), Move to `error/` (delivery to a dead port fails), Watermark (file left in place, `.lastProcessedTime` advanced, not re-read), Delete (file removed)                                       |
+| Content                 | base64 blob envelope (`{filename, filecontent, destinationpath}`) decoded by the `blob-envelope-extract` pipeline — the output file is named from `filename` and `destinationpath` is ignored; and a base64 payload decoded by the output leg's base64 codec |
+
+Each scenario writes its input/output under `artifacts/file-<run-id>/s<nn>/{in,out}`.
+The base64 scenarios need a base64 codec and a `blob` pipeline, which the workflow
+writes into `.agent/catalogData.json` (the sandbox), leaving the repository's
+`config/` untouched.
+
+### Network shares (manual)
+
+Authenticated UNC shares are not exercised automatically because they need a real
+reachable share and credentials. To check one by hand:
+
+1. Create or attach a share the agent's service account can reach, e.g. `\\server\ibe-in`.
+2. DPAPI-protect the share password (LocalMachine scope, base64) on the agent host —
+   this matches the agent's own `DataProtectorFactory`:
+
+   ```powershell
+   $bytes = [System.Text.Encoding]::UTF8.GetBytes('<share-password>')
+   $protected = [System.Security.Cryptography.ProtectedData]::Protect($bytes, $null, 'LocalMachine')
+   [Convert]::ToBase64String($protected)   # use this as PasswordProtected
+   ```
+
+3. Configure a File inbound with the UNC `Directory`, `Username`, `Domain`, and the
+   `PasswordProtected` value above, then drop a file and confirm it moves to
+   `<share>\processed\`. Forward-slash UNC paths (`//server/ibe-in`) are accepted too.
+
 ## Evidence produced
 
 Every run writes a timestamped folder under `tests/e2e/artifacts/<run-id>/`:

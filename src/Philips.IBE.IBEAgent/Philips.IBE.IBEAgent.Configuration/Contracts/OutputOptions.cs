@@ -9,6 +9,7 @@ public sealed record OutputOptions
     public required int OutputId { get; init; }
     public bool Required { get; init; } = true;
     public IReadOnlyList<int>? FromInputIds { get; init; }   // null/empty = all inputs (default)
+    public IReadOnlyDictionary<string, string>? RouteWhen { get; init; }   // per-leg CONTENT filter: facts (set by a classifier stage) matched against message Headers (AND, exact); null/empty = all messages (default)
     public DeliveryGuarantee DeliveryGuarantee { get; init; } = DeliveryGuarantee.AtMostOnce;
     public ChannelOptions Channel { get; init; } = new();
     public string? Format { get; init; }                    // optional per-leg override: names a catalog Formats entry (developer-owned)

@@ -49,6 +49,40 @@
         "PooledConnectionLifetimeSeconds": 300,                 // Optional. Recycle a pooled connection after this many seconds (picks up DNS changes). Default 300 (5 min).
         "PooledConnectionIdleTimeoutSeconds": 120               // Optional. Close an idle pooled connection after this many seconds. Default 120 (2 min).
       }
+    ],
+
+    // A File INPUT source polls a folder and feeds each new file into the pipeline like any other
+    // inbound comm point. A consumed file is "disposed" (moved/marked/deleted) exactly once at settle.
+    "FileInbound": [
+      {
+        "SourceEndpointId": 3,            // REQUIRED, unique. Referenced by Inputs[].InputId.
+        "Directory": "C:\\ibe\\in",       // REQUIRED. Folder to poll for incoming files.
+        "FilePattern": "*.hl7;*.txt",     // Optional. ";"-delimited extension globs. Omit/blank = every file.
+        "Recursive": false,               // Optional. Poll subfolders too. Default false.
+        "PollIntervalSeconds": 10,        // Optional. Seconds between directory scans. Default 10.
+        "Format": "hl7v2",                // Optional. Message format tag (parser/stages/ack). Default "hl7v2".
+        "Disposition": "Move",            // Optional. Consumed file handling: "Move" (default; -> processed/ on success, error/ on failure) | "Watermark" (leave in place, advance a .lastProcessedTime marker - use for READ-ONLY shares) | "Delete".
+        "RetentionDays": 0                // Optional. Delete disposed files under processed/ and error/ older than N days. Default 0 = keep forever (no sweep). Ignored for "Watermark".
+        // Network share (UNC "\\\\server\\share") auth - Windows only. Omit all three for local paths.
+        // "Username": "svc-ibe",         // Optional. Share user.
+        // "Domain": "CORP",              // Optional. Share domain.
+        // "PasswordProtected": "<base64>" // Optional. DPAPI-protected password (base64). NEVER store a plaintext password; the host decrypts this at startup.
+      }
+    ],
+
+    // A File OUTPUT leg writes each delivered message to a file (atomic temp -> rename). The leg's
+    // ENCODING is NOT set here - it comes from the contract (Template's Format, a per-Output Format,
+    // or an inline Output.Encoding), same as Tcp/Http. Available codecs: "hl7v2" (pass-through) and
+    // "base64" (decodes a base64 payload before writing). If the source content is a base64 blob
+    // envelope, add the "blob-envelope-extract" stage to the pipeline (catalogData.json) - it also
+    // sets the output filename from the envelope, overriding FileNameTemplate.
+    "FileOutbound": [
+      {
+        "OutputId": 300,                            // REQUIRED, unique. Referenced by Outputs[].OutputId.
+        "Directory": "C:\\ibe\\out",                // REQUIRED. Destination folder (created if missing).
+        "FileNameTemplate": "Message_{timestamp}_{correlationId}.{ext}", // Optional. Tokens: {timestamp} (UTC yyyyMMdd_HHmmssfff), {correlationId}, {messageId}, {ext}. Omit = this default.
+        "DefaultExtension": "hl7"                   // Optional. Fills the {ext} token. Default "txt".
+      }
     ]
   },
 
@@ -109,6 +143,7 @@
           "Format": "hl7-standard",         // Optional. Override the leg's encoding with a DIFFERENT catalog Format (developer-named).
           "Required": true,                 // Default true. false = best-effort leg (does not gate the ack).
           "FromInputIds": [ 2 ],            // Optional. Restrict this leg to specific inputs. Omit = all inputs.
+          "RouteWhen": { "hl7.messageType": "ADT" }, // Optional CONTENT filter: deliver here only when a classifier stage set these facts in Headers (AND, exact match). Omit = all messages. Leave one output WITHOUT RouteWhen as a catch-all, else non-matching messages are dropped ("no route matched").
           "DeliveryGuarantee": "AtLeastOnce", // AtMostOnce (default) | AtLeastOnce (uses store-and-forward).
           "Retry": {                        // Optional per-leg retry.
             "MaxAttempts": 5,               // Default 3 (>= 1).
@@ -133,6 +168,21 @@
       "Inputs": [ { "InputId": 1 } ],
       "Outputs": [
         { "OutputId": 100, "Encoding": "hl7v2" }  // inline codec name (bypasses Template/Format).
+      ]
+    },
+
+    // 4) File relay - a File INPUT (SourceEndpointId 3) fanned to a File OUTPUT leg (OutputId 300).
+    //    File comm points are wired exactly like Tcp/Http (by Id); nothing File-specific goes in the
+    //    contract. Encoding is resolved the usual way (Template Format, per-Output Format, or inline
+    //    Output.Encoding). Use "base64" when the leg carries a base64 payload; pair it with a
+    //    "blob-envelope-extract" pipeline (catalogData.json) when the file content is a
+    //    { "filename", "filecontent" } base64 envelope - that stage decodes it and names the output file.
+    {
+      "Name": "File-Relay",
+      "Template": "adt",                    // pipeline + default Format (hl7v2). Or drop Template and set Pipeline/Encoding inline.
+      "Inputs": [ { "InputId": 3 } ],       // 3 = the FileInbound SourceEndpointId above.
+      "Outputs": [
+        { "OutputId": 300 }                 // 300 = the FileOutbound OutputId above. Add "Encoding": "base64" to write a decoded base64 payload.
       ]
     }
 

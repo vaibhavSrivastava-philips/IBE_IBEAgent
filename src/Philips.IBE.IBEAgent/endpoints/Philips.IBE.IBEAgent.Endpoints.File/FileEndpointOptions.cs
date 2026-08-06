@@ -1,0 +1,26 @@
+namespace Philips.IBE.IBEAgent.Endpoints.File;
+
+// Transport config for a File OUTPUT leg: the destination directory and how each file is named.
+public sealed class FileOutboundOptions
+{
+    public required string Directory { get; init; }
+    public string? FileNameTemplate { get; init; }          // null/blank -> FileNameResolver.DefaultTemplate
+    public string DefaultExtension { get; init; } = "txt";  // fills the {ext} token
+    public bool CreateDirectory { get; init; } = true;
+}
+
+// Transport config for a File INPUT source: which folder to poll and how.
+public sealed class FileInboundOptions
+{
+    public required int SourceEndpointId { get; init; }
+    public required string Directory { get; init; }
+    public string? FilePattern { get; init; }               // ";"-delimited extensions (e.g. "*.hl7;*.txt"); null/blank = all
+    public bool Recursive { get; init; }
+    public int PollIntervalSeconds { get; init; } = 10;
+    public string Format { get; init; } = Abstractions.MessageFormats.Hl7v2;
+    public FileDispositionMode Disposition { get; init; } = FileDispositionMode.Move;   // consumed file -> processed/error
+    public int RetentionDays { get; init; }                 // 0 = keep disposed files forever (no retention sweep)
+    public string? Username { get; init; }                  // network-share auth (UNC directories); host builds the credential
+    public string? Domain { get; init; }
+    public string? PasswordProtected { get; init; }         // DPAPI-protected (base64); decrypted by the host at composition
+}

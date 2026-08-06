@@ -1,51 +1,71 @@
 using System.Text;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 
 namespace Philips.IBE.IBEAgent.Core;
 
-// §3.8/§6 — Enhanced ack: forwards the downstream system's OWN acknowledgement back to the source
-// end to end (fires only after ReportLeg settles the reply, i.e. RepliesOnReceipt = false). For a
-// single required output the destination already returned its ack (captured in
-// DeliveryResult.ResponsePayload — e.g. the MLLP ack of a TCP leg with ExpectReply, or an HTTP
-// leg's response body), so that ack is relayed verbatim: the source sees exactly what the receiver
-// sent. Only when nothing was captured (the leg failed, or the destination returns no reply bytes)
-// does the strategy synthesize an ack that still reflects the delivery outcome, via the source's
-// own IAckFormatter (Format x AckShape, INV-4) or a fixed AA/AE stub if no formatter is registered.
-// NOTE: aggregating multiple downstream acks for a fan-out contract is a separate concern and is
-// not handled here yet; for multi-output enhanced contracts the settling leg's ack is relayed.
+// §3.8/§6 — Enhanced ack: reflects the real delivery outcome, firing only after ReplyContext settles
+// the required legs (RepliesOnReceipt = false). SINGLE shape (the only shape today): on success the
+// SOURCE sees a downstream ack verbatim — the FIRST required leg (by OutputId order) that returned ack
+// bytes is relayed; only if none captured any does it GENERATE one via the source's own IAckFormatter
+// (Format x Shape). On any required failure (or timeout) ONE negative ACK is generated. The neutral IBE
+// marker is a LAST RESORT, reached only when no formatter is registered for the source's (Format,
+// Shape) — Core can't render a protocol ack itself (that lives in the plug-in) — and it logs a warning
+// (once per contract) so the missing formatter is visible in ops; the reply path never throws.
 public sealed class EnhancedAckStrategy : IAckStrategy
 {
-    private static readonly byte[] StubNack = Encoding.UTF8.GetBytes("MSA|AE|delivery failed");
+    private static readonly byte[] NoFormatterAck = Encoding.UTF8.GetBytes("IBE:ACK (no ack formatter)");
+    private static readonly byte[] NoFormatterNack = Encoding.UTF8.GetBytes("IBE:NACK (no ack formatter)");
 
     private readonly ComponentRegistry _registry;
     private readonly AckShape _shape;
+    private readonly ILogger<EnhancedAckStrategy> _logger;
+    private int _warnedNoFormatter;
 
-    public EnhancedAckStrategy(ComponentRegistry registry, AckShape shape)
+    public EnhancedAckStrategy(ComponentRegistry registry, AckShape shape, ILogger<EnhancedAckStrategy>? logger = null)
     {
         _registry = registry;
         _shape = shape;
+        _logger = logger ?? NullLogger<EnhancedAckStrategy>.Instance;
     }
 
     public bool RepliesOnReceipt => false;   // wait for delivery outcome, not receipt
 
-    public Task WriteReplyAsync(MessageContext context, DeliveryResult result)
+    public Task WriteReplyAsync(MessageContext context, ReplyOutcome outcome)
     {
-        // Relay the destination's own ack end to end when it delivered and returned reply bytes.
-        if (result.Outcome is DeliveryOutcome.Delivered or DeliveryOutcome.Accepted
-            && !result.ResponsePayload.IsEmpty)
+        if (outcome.Outcome is DeliveryOutcome.Delivered)
         {
-            return context.Ack.WriteAsync(result.ResponsePayload, CancellationToken.None);
+            // Single: relay the first required leg's captured ack (results are ordered by OutputId).
+            foreach (var leg in outcome.LegResults)
+            {
+                if (!leg.ResponsePayload.IsEmpty)
+                    return context.Ack.WriteAsync(leg.ResponsePayload, CancellationToken.None);
+            }
+
+            // Delivered but no downstream ack bytes captured -> generate a positive ack.
+            return WriteGenerated(context, new DeliveryResult(DeliveryOutcome.Delivered), NoFormatterAck);
         }
 
-        // No downstream ack captured (failure, or the destination sends none): synthesize one.
-        var bytes = _registry.TryGetAckFormatter(context.Format, _shape, out var formatter) && formatter is not null
-            ? formatter.Render(context, result)
-            : FallbackBytes(result);
-        return context.Ack.WriteAsync(bytes, CancellationToken.None);
+        // Failure/timeout/filtered -> one generated negative ACK reflecting the outcome.
+        return WriteGenerated(context, new DeliveryResult(outcome.Outcome, outcome.Reason), NoFormatterNack);
     }
 
-    private static ReadOnlyMemory<byte> FallbackBytes(DeliveryResult result)
-        => result.Outcome is DeliveryOutcome.Delivered or DeliveryOutcome.Accepted
-            ? Encoding.UTF8.GetBytes("MSA|AA|delivered")
-            : StubNack;
+    private Task WriteGenerated(MessageContext context, in DeliveryResult result, byte[] noFormatterFallback)
+    {
+        if (_registry.TryGetAckFormatter(context.Format, _shape, out var formatter) && formatter is not null)
+            return context.Ack.WriteAsync(formatter.Render(context, result), CancellationToken.None);
+
+        WarnMissingFormatterOnce(context);
+        return context.Ack.WriteAsync(noFormatterFallback, CancellationToken.None);
+    }
+
+    // Warn once per contract instance so a missing formatter is visible without per-message log spam.
+    private void WarnMissingFormatterOnce(MessageContext context)
+    {
+        if (Interlocked.Exchange(ref _warnedNoFormatter, 1) != 0) return;
+        _logger.LogWarning(
+            "No ack formatter registered for (Format {Format}, Shape {Shape}); source {SourceEndpointId} receives a neutral IBE placeholder reply instead of a generated ack.",
+            context.Format, _shape, context.SourceEndpointId);
+    }
 }

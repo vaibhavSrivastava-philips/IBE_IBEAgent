@@ -10,12 +10,14 @@ public static class MessageContextBuilder
         string format = MessageFormats.Hl7v2,
         string payload = "",
         IAckToken? ack = null,
-        IReplyContext? reply = null)
+        IReplyContext? reply = null,
+        IDictionary<string, string>? headers = null)
         => new(
             correlationId: Guid.NewGuid().ToString("N"),
             sourceEndpointId: sourceEndpointId,
             format: format,
             ack: ack ?? new FakeAckToken(),
             reply: reply ?? new RecordingReplyContext(),
-            payload: Encoding.UTF8.GetBytes(payload));
+            payload: Encoding.UTF8.GetBytes(payload),
+            headers: headers);
 }

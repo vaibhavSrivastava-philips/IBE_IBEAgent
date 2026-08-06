@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Core;
+using Philips.IBE.IBEAgent.Endpoints.File;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
 using Philips.IBE.IBEAgent.Formats.Hl7;
@@ -16,7 +18,8 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddForwardService(this IServiceCollection services, IConfiguration configuration)
     {
-        var endpoints = configuration.GetSection("Ibe:Endpoints").Get<OutboundEndpointsOptions>() ?? new OutboundEndpointsOptions();
+        var endpoints = configuration.GetSection("Ibe:Endpoints").Get<OutboundEndpointsOptions>()
+            ?? throw new InvalidOperationException("Required configuration section 'Ibe:Endpoints' is missing.");
 
         // AddForwardStore registers IForwardStore via DI type registration; build one instance up
         // front instead (mirrors Philips.IBE.IBEAgent.Service's own composition-time wiring) so the
@@ -53,6 +56,25 @@ public static class ServiceCollectionExtensions
                 },
                 http.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
             targets.Add(new KeyValuePair<int, IReplayTarget>(http.OutputId, new EndpointReplayTarget(http.OutputId, endpoint, store)));
+        }
+
+        foreach (var file in endpoints.FileOutbound)
+        {
+            IMessageCodec? codec = file.Encoding switch
+            {
+                "hl7v2" => new Hl7v2Codec(),
+                "base64" => new Base64Codec(),
+                _ => null,
+            };
+            var endpoint = new FileOutboundEndpoint(
+                new FileOutboundOptions
+                {
+                    Directory = file.Directory,
+                    FileNameTemplate = file.FileNameTemplate,
+                    DefaultExtension = file.DefaultExtension,
+                },
+                codec);
+            targets.Add(new KeyValuePair<int, IReplayTarget>(file.OutputId, new EndpointReplayTarget(file.OutputId, endpoint, store)));
         }
 
         services.AddForwardWorker(configuration, targets);

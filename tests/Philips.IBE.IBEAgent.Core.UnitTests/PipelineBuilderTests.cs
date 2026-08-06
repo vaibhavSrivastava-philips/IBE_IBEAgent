@@ -62,6 +62,6 @@ public sealed class PipelineBuilderTests
         public void Attach(MessageContext message) { }
         public void OnFannedOut(int requiredTotal) { }
         public void ReportFiltered(string? reason = null) { }
-        public void ReportLeg(bool required, in DeliveryResult result) { }
+        public void ReportLeg(int outputId, bool required, in DeliveryResult result) { }
     }
 }

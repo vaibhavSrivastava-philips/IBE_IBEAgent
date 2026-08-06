@@ -19,9 +19,12 @@ public static class ServiceCollectionExtensions
         // Config sections (merged from appsettings.json + catalogData.json + contractData.json in /config):
         //   Catalog   -> developer-owned pipelines + codecs
         //   Endpoints -> FSE-owned comm points   Contracts -> FSE-owned contract topology (a flat array)
-        var catalog = configuration.GetSection("Catalog").Get<CatalogOptions>() ?? new CatalogOptions();
-        var contracts = configuration.GetSection("Contracts").Get<List<ContractOptions>>() ?? [];
-        var endpoints = configuration.GetSection("Endpoints").Get<AgentEndpointsOptions>() ?? new AgentEndpointsOptions();
+        var catalog = configuration.GetSection("Catalog").Get<CatalogOptions>()
+            ?? throw new InvalidOperationException("Required configuration section 'Catalog' is missing.");
+        var contracts = configuration.GetSection("Contracts").Get<List<ContractOptions>>()
+            ?? throw new InvalidOperationException("Required configuration section 'Contracts' is missing.");
+        var endpoints = configuration.GetSection("Endpoints").Get<AgentEndpointsOptions>()
+            ?? throw new InvalidOperationException("Required configuration section 'Endpoints' is missing.");
         var forwardOptions = configuration.GetSection("Forward").Get<ForwardOptions>() ?? new ForwardOptions();
 
         // §3.9 — the in-process store-and-forward buffer. Only AtLeastOnce legs use it; the
@@ -35,7 +38,7 @@ public static class ServiceCollectionExtensions
         // (and the HL7 ack formatter's logger) use the host's real ILoggerFactory. Materialized at
         // host start when AgentRuntimeHost resolves the runtimes/endpoints — still fail-fast.
         services.AddSingleton(sp => CompiledEngine.Build(
-            catalog, contracts, endpoints, forwardStore, sp.GetRequiredService<ILoggerFactory>()));
+            catalog, contracts, endpoints, forwardStore, protector, sp.GetRequiredService<ILoggerFactory>()));
 
         services.AddSingleton<IReadOnlyList<IContractRuntime>>(sp => sp.GetRequiredService<CompiledEngine>().Runtimes);
         services.AddSingleton<IReadOnlyList<IInboundEndpoint>>(sp => sp.GetRequiredService<CompiledEngine>().InboundEndpoints);

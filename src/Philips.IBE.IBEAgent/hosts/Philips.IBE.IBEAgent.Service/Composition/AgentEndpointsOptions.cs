@@ -25,12 +25,22 @@ public sealed class HttpOutboundEndpointConfig
     public int PooledConnectionIdleTimeoutSeconds { get; init; } = 120;          // 2 min
 }
 
+public sealed class FileOutboundEndpointConfig
+{
+    public required int OutputId { get; init; }
+    public required string Directory { get; init; }
+    public string? FileNameTemplate { get; init; }        // null/blank -> FileNameResolver default (timestamp+correlationId)
+    public string DefaultExtension { get; init; } = "txt";
+}
+
 // Host-level config wrapper — binds the "Endpoints" section (contractData.json) into what the
-// composition root needs to construct real Tcp/Http in/out endpoints and feed them into the ComponentRegistry.
+// composition root needs to construct real Tcp/Http/File in/out endpoints and feed them into the ComponentRegistry.
 public sealed class AgentEndpointsOptions
 {
     public IReadOnlyList<Endpoints.Tcp.TcpInboundOptions> TcpInbound { get; init; } = [];
     public IReadOnlyList<TcpOutboundEndpointConfig> TcpOutbound { get; init; } = [];
     public IReadOnlyList<Endpoints.Http.HttpInboundOptions> HttpInbound { get; init; } = [];
     public IReadOnlyList<HttpOutboundEndpointConfig> HttpOutbound { get; init; } = [];
+    public IReadOnlyList<Endpoints.File.FileInboundOptions> FileInbound { get; init; } = [];
+    public IReadOnlyList<FileOutboundEndpointConfig> FileOutbound { get; init; } = [];
 }

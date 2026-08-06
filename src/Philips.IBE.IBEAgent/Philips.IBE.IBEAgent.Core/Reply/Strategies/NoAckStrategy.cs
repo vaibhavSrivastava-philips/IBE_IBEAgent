@@ -10,5 +10,5 @@ public sealed class NoAckStrategy : IAckStrategy
 {
     public bool RepliesOnReceipt => true;
 
-    public Task WriteReplyAsync(MessageContext context, DeliveryResult result) => Task.CompletedTask;
+    public Task WriteReplyAsync(MessageContext context, ReplyOutcome outcome) => Task.CompletedTask;
 }

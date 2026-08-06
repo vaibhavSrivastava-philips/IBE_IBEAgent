@@ -11,6 +11,7 @@ public static class CoreComponentRegistrations
         ArgumentNullException.ThrowIfNull(registry);
 
         registry.RegisterStage(PassThroughStage.Name, () => new PassThroughStage());
+        registry.RegisterStage(BlobEnvelopeExtractStage.Name, () => new BlobEnvelopeExtractStage());
 
         return registry;
     }

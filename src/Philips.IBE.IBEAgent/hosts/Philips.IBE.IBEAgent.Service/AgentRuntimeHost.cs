@@ -38,6 +38,9 @@ public sealed class AgentRuntimeHost(
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        logger.LogInformation("IBE Agent stopping: draining {EndpointCount} endpoint(s) and {ContractCount} contract(s).",
+            inboundEndpoints.Count, runtimes.Count);
+
         // Endpoints stop accepting first (§3.1/§3.9 shutdown order), then runtimes drain.
         foreach (var endpoint in inboundEndpoints)
             await endpoint.StopAsync(cancellationToken);
@@ -46,5 +49,6 @@ public sealed class AgentRuntimeHost(
             await runtime.DrainAsync(DrainTimeout);
 
         await base.StopAsync(cancellationToken);
+        logger.LogInformation("IBE Agent stopped.");
     }
 }

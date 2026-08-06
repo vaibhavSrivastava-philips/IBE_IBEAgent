@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Configuration;
 
@@ -12,12 +13,14 @@ public sealed class ContractCompiler
     private readonly CatalogOptions _catalog;
     private readonly ComponentRegistry _registry;
     private readonly IForwardStore? _forwardStore;
+    private readonly ILoggerFactory? _loggerFactory;
 
-    public ContractCompiler(CatalogOptions catalog, ComponentRegistry registry, IForwardStore? forwardStore = null)
+    public ContractCompiler(CatalogOptions catalog, ComponentRegistry registry, IForwardStore? forwardStore = null, ILoggerFactory? loggerFactory = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _forwardStore = forwardStore;
+        _loggerFactory = loggerFactory;
     }
 
     public ContractRuntime Compile(ContractOptions contract)
@@ -40,7 +43,7 @@ public sealed class ContractCompiler
 
         var legs = contract.Outputs.Select(BuildLeg).ToList();
 
-        return new ContractRuntime(ingressQueues, pipeline, legs);
+        return new ContractRuntime(ingressQueues, pipeline, legs, _loggerFactory?.CreateLogger<ContractRuntime>());
     }
 
     private DeliveryLeg BuildLeg(OutputOptions output)
@@ -55,6 +58,6 @@ public sealed class ContractCompiler
         // (the source resends on a missing ack).
         var forward = output.DeliveryGuarantee == DeliveryGuarantee.AtLeastOnce ? _forwardStore : null;
 
-        return new DeliveryLeg(output.OutputId, output.Required, queue, endpoint, fromInputIds, forward);
+        return new DeliveryLeg(output.OutputId, output.Required, queue, endpoint, fromInputIds, output.RouteWhen, forward, _loggerFactory?.CreateLogger<DeliveryLeg>());
     }
 }

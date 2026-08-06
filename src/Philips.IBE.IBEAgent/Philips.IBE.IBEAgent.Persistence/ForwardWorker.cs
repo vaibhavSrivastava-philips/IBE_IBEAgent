@@ -26,13 +26,29 @@ public sealed class ForwardWorker : BackgroundService
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _targets = targets ?? throw new ArgumentNullException(nameof(targets));
-        _options = options?.Value ?? new ForwardOptions();
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+        if (options?.Value is { } configured)
+        {
+            _options = configured;
+        }
+        else
+        {
+            // Forward config is optional; run on defaults but make the substitution visible in ops.
+            _options = new ForwardOptions();
+            _logger.LogWarning(
+                "No Forward configuration found; using defaults (PollIntervalSeconds {PollIntervalSeconds}, MaxAttempts {MaxAttempts}).",
+                _options.PollIntervalSeconds, _options.MaxAttempts);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var interval = TimeSpan.FromSeconds(Math.Max(1, _options.PollIntervalSeconds));
+        _logger.LogInformation(
+            "ForwardWorker started (poll interval {IntervalSeconds}s, batch size {BatchSize}, max attempts {MaxAttempts}).",
+            interval.TotalSeconds, _options.FetchBatchSize, _options.MaxAttempts);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -47,6 +63,8 @@ public sealed class ForwardWorker : BackgroundService
             try { await Task.Delay(interval, stoppingToken); }
             catch (OperationCanceledException) { }
         }
+
+        _logger.LogInformation("ForwardWorker stopped.");
     }
 
     // Public for direct testability (a single sweep without waiting on the poll interval); the
@@ -54,6 +72,9 @@ public sealed class ForwardWorker : BackgroundService
     public async Task RunOneSweepAsync(CancellationToken cancellationToken)
     {
         var due = await _store.FetchDueAsync(_options.FetchBatchSize, cancellationToken);
+        if (due.Count > 0)
+            _logger.LogDebug("Forward sweep: {DueCount} entr(ies) due for replay.", due.Count);
+
         foreach (var entry in due)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -67,6 +88,9 @@ public sealed class ForwardWorker : BackgroundService
         // reason, never fatal to the worker.
         if (!_targets.TryGet(entry.OutputId, out var target) || target is null)
         {
+            _logger.LogWarning(
+                "Forward entry {EntryId} parked: output {OutputId} no longer resolves to a leg (config drift).",
+                entry.Id, entry.OutputId);
             await _store.ParkAsync(entry.Id, $"OutputId {entry.OutputId} no longer resolves to a leg.", cancellationToken);
             return;
         }
@@ -78,6 +102,11 @@ public sealed class ForwardWorker : BackgroundService
         }
         catch (Exception ex)
         {
+            // Log the failure class, not the raw exception: a deserialization error can embed the
+            // (decrypted) message content (PHI) in its message.
+            _logger.LogWarning(
+                "Forward entry {EntryId} parked: corrupt forward-store entry ({ParseError}).",
+                entry.Id, ex.GetType().Name);
             await _store.ParkAsync(entry.Id, $"Corrupt forward-store entry: {ex.Message}", cancellationToken);
             return;
         }
@@ -108,6 +137,9 @@ public sealed class ForwardWorker : BackgroundService
         var attempts = entry.Attempts + 1;
         if (attempts >= _options.MaxAttempts)
         {
+            _logger.LogWarning(
+                "Forward entry {EntryId} (output {OutputId}) parked after {Attempts} attempt(s): {Error}",
+                entry.Id, entry.OutputId, attempts, error);
             await _store.ParkAsync(entry.Id, $"Max attempts ({_options.MaxAttempts}) exceeded: {error}", cancellationToken);
             return;
         }
@@ -116,6 +148,9 @@ public sealed class ForwardWorker : BackgroundService
             ? TimeSpan.FromSeconds(_options.InitialBackoffSeconds * Math.Pow(2, attempts - 1))
             : TimeSpan.FromSeconds(_options.InitialBackoffSeconds);
 
+        _logger.LogDebug(
+            "Forward entry {EntryId} (output {OutputId}) rescheduled (attempt {Attempts}, retry in {DelaySeconds}s): {Error}",
+            entry.Id, entry.OutputId, attempts, delay.TotalSeconds, error);
         await _store.RescheduleAsync(entry.Id, attempts, DateTimeOffset.UtcNow.Add(delay), error, cancellationToken);
     }
 }

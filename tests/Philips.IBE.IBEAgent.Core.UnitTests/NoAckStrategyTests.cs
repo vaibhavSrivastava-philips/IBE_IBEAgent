@@ -18,7 +18,7 @@ public sealed class NoAckStrategyTests
         var token = new FakeAckToken();
         var ctx = MessageContextBuilder.Create(ack: token);
 
-        await new NoAckStrategy().WriteReplyAsync(ctx, new DeliveryResult(DeliveryOutcome.Accepted));
+        await new NoAckStrategy().WriteReplyAsync(ctx, ReplyOutcome.Received());
 
         Assert.Equal(0, token.WriteCount);
     }
@@ -29,7 +29,7 @@ public sealed class NoAckStrategyTests
         var token = new FakeAckToken();
         var ctx = MessageContextBuilder.Create(ack: token);
 
-        await new NoAckStrategy().WriteReplyAsync(ctx, new DeliveryResult(DeliveryOutcome.Failed, "boom"));
+        await new NoAckStrategy().WriteReplyAsync(ctx, ReplyOutcome.Failed("boom", []));
 
         Assert.Equal(0, token.WriteCount);
     }

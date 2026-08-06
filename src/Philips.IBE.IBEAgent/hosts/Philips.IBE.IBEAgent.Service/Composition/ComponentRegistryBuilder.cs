@@ -1,5 +1,7 @@
+using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Configuration;
 using Philips.IBE.IBEAgent.Core;
+using Philips.IBE.IBEAgent.Endpoints.File;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
 using Philips.IBE.IBEAgent.Formats.Hl7;
@@ -23,11 +25,14 @@ public static class ComponentRegistryBuilder
         // §3.8/§6 — Enhanced-ack rendering: HL7's own (Format x Shape) generated ack.
         registry.RegisterAckFormatter(new Hl7SingleAckFormatter(loggerFactory.CreateLogger<Hl7SingleAckFormatter>()));
 
-        // Codecs: any catalog entry whose Type is "hl7v2" resolves to the pass-through HL7 codec.
-        foreach (var (name, codec) in catalog.Codecs)
+        // §3.10 — register each configured codec by its Type (the key CreateMessageCodec resolves by),
+        // so every outbound leg draws its codec from here: hl7v2 (pass-through) or base64 (file content).
+        foreach (var codec in catalog.Codecs.Values)
         {
             if (codec.Type == "hl7v2")
-                registry.RegisterMessageCodec(name, _ => new Hl7v2Codec());
+                registry.RegisterMessageCodec(codec.Type, _ => new Hl7v2Codec());
+            else if (codec.Type == "base64")
+                registry.RegisterMessageCodec(codec.Type, _ => new Base64Codec());
         }
 
         foreach (var tcp in endpoints.TcpOutbound)
@@ -40,10 +45,7 @@ public static class ComponentRegistryBuilder
                     PoolSize = tcp.PoolSize,
                     ExpectReply = tcp.ExpectReply,
                 },
-                output.Encoding is { } tcpEncoding
-                    && catalog.Codecs.TryGetValue(tcpEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"
-                    ? new Hl7v2Codec()
-                    : null));
+                ResolveCodec(registry, catalog, output.Encoding)));
         }
 
         foreach (var http in endpoints.HttpOutbound)
@@ -58,12 +60,29 @@ public static class ComponentRegistryBuilder
                     PooledConnectionLifetime = TimeSpan.FromSeconds(http.PooledConnectionLifetimeSeconds),
                     PooledConnectionIdleTimeout = TimeSpan.FromSeconds(http.PooledConnectionIdleTimeoutSeconds),
                 },
-                output.Encoding is { } httpEncoding
-                    && catalog.Codecs.TryGetValue(httpEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"
-                    ? new Hl7v2Codec()
-                    : null));
+                ResolveCodec(registry, catalog, output.Encoding)));
+        }
+
+        foreach (var file in endpoints.FileOutbound)
+        {
+            registry.RegisterOutboundEndpoint(file.OutputId, output => new FileOutboundEndpoint(
+                new FileOutboundOptions
+                {
+                    Directory = file.Directory,
+                    FileNameTemplate = file.FileNameTemplate,
+                    DefaultExtension = file.DefaultExtension,
+                },
+                ResolveCodec(registry, catalog, output.Encoding)));
         }
 
         return registry;
     }
+
+    // §3.10 — resolve a leg's wire codec by name through the registry (register-by-Type/resolve-by-Type),
+    // so hl7v2/base64/any future codec flows from one place. A null Encoding (or a name absent from the
+    // catalog) means send the canonical payload unencoded.
+    private static IMessageCodec? ResolveCodec(ComponentRegistry registry, CatalogOptions catalog, string? encoding)
+        => encoding is { } name && catalog.Codecs.TryGetValue(name, out var codecOptions)
+            ? registry.CreateMessageCodec(name, codecOptions)
+            : null;
 }

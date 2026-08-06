@@ -2,8 +2,10 @@ using Microsoft.Extensions.Logging;
 using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Configuration;
 using Philips.IBE.IBEAgent.Core;
+using Philips.IBE.IBEAgent.Endpoints.File;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
+using Philips.IBE.IBEAgent.Security;
 
 namespace Philips.IBE.IBEAgent.Service;
 
@@ -22,10 +24,14 @@ internal sealed class CompiledEngine
         IReadOnlyList<ContractOptions> contracts,
         AgentEndpointsOptions endpoints,
         IForwardStore forwardStore,
+        IDataProtector protector,
         ILoggerFactory loggerFactory)
     {
+        var log = loggerFactory.CreateLogger<CompiledEngine>();
+        log.LogInformation("Compiling IBE agent engine: {ContractCount} contract(s).", contracts.Count);
+
         var componentRegistry = ComponentRegistryBuilder.Build(endpoints, catalog, loggerFactory);
-        var compiler = new ContractCompiler(catalog, componentRegistry, forwardStore);
+        var compiler = new ContractCompiler(catalog, componentRegistry, forwardStore, loggerFactory);
 
         var contractRegistry = new ContractRegistry();
         var runtimes = new List<IContractRuntime>();
@@ -47,20 +53,38 @@ internal sealed class CompiledEngine
                 replayTargets.Add(new KeyValuePair<int, IReplayTarget>(leg.OutputId, leg));
 
             // §6/§8 — one reply mode per contract (Ack XOR Response), shared by all its inputs.
-            var policy = AckStrategyResolver.Resolve(resolved, componentRegistry);
+            var policy = AckStrategyResolver.Resolve(resolved, componentRegistry, loggerFactory);
             foreach (var inputId in inputIds)
                 replyPoliciesBySource[inputId] = policy;
+
+            log.LogDebug(
+                "Compiled contract {ContractName}: {InputCount} input(s), {OutputCount} output(s).",
+                resolved.Name, inputIds.Count, runtime.Legs.Count);
         }
 
         // §6/§8 — per-source reply policy resolved per contract (Normal | Enhanced ack | Response).
         var dispatcher = new Dispatcher(new SourceBasedRouter(contractRegistry));
-        var replyContextFactory = new PerSourceReplyContextFactory(replyPoliciesBySource);
+        var replyContextFactory = new ReplyContextFactory(replyPoliciesBySource, loggerFactory.CreateLogger<ReplyContext>());
 
         var inboundEndpoints = new List<IInboundEndpoint>();
         foreach (var tcp in endpoints.TcpInbound)
-            inboundEndpoints.Add(new TcpInboundEndpoint(tcp, dispatcher, replyContextFactory));
+            inboundEndpoints.Add(new TcpInboundEndpoint(tcp, dispatcher, replyContextFactory, loggerFactory.CreateLogger<TcpInboundEndpoint>()));
         foreach (var http in endpoints.HttpInbound)
-            inboundEndpoints.Add(new HttpInboundEndpoint(http, dispatcher, replyContextFactory));
+            inboundEndpoints.Add(new HttpInboundEndpoint(http, dispatcher, replyContextFactory, loggerFactory.CreateLogger<HttpInboundEndpoint>()));
+        foreach (var file in endpoints.FileInbound)
+            inboundEndpoints.Add(new FileInboundEndpoint(file, dispatcher, replyContextFactory, trigger: null,
+                logger: loggerFactory.CreateLogger<FileInboundEndpoint>(), credential: BuildShareCredential(file, protector)));
+
+        log.LogInformation(
+            "Engine compiled: {ContractCount} contract(s), {InboundEndpointCount} inbound endpoint(s), {ReplayTargetCount} replay target(s).",
+            runtimes.Count, inboundEndpoints.Count, replayTargets.Count);
+
+        // Surface no-op deployments explicitly: without contracts nothing routes, and without inbound
+        // endpoints nothing is ever received. Both are almost always a configuration mistake.
+        if (runtimes.Count == 0)
+            log.LogWarning("No contracts are configured; the agent will not route any messages.");
+        if (inboundEndpoints.Count == 0)
+            log.LogWarning("No inbound endpoints are configured; the agent will not receive any messages.");
 
         return new CompiledEngine
         {
@@ -68,5 +92,15 @@ internal sealed class CompiledEngine
             InboundEndpoints = inboundEndpoints,
             ReplayTargets = replayTargets,
         };
+    }
+
+    // A UNC file source with credentials: decrypt the DPAPI-protected password into a plaintext
+    // FileShareCredential the endpoint uses to mount the share. No credentials -> local path -> null.
+    private static FileShareCredential? BuildShareCredential(FileInboundOptions file, IDataProtector protector)
+    {
+        if (string.IsNullOrWhiteSpace(file.Username) || string.IsNullOrWhiteSpace(file.PasswordProtected))
+            return null;
+        var password = System.Text.Encoding.UTF8.GetString(protector.Unprotect(Convert.FromBase64String(file.PasswordProtected)));
+        return new FileShareCredential(file.Username, file.Domain, password);
     }
 }

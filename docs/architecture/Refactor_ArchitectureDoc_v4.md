@@ -114,6 +114,7 @@ flowchart LR
 ### 3.3 ContractRuntime (`IContractRuntime`) — *shared reception + fan‑out*
 - **Responsibilities:** own **one ingress queue per input comm point** (keyed by input id — symmetric with per‑leg queues on the output side); each per‑input queue has its own consumer(s) that run the **shared pipeline** once per message (on the canonical model) and **fan out** (clone per leg, enqueue into each **applicable** leg queue concurrently); own the set of **Delivery Legs**. It **reports** each leg's `DeliveryResult` into the message's `ReplyContext` — it does **not** own the reply or decide reply timing.
 - **Per‑leg input filter (`FromInputIds`).** Each leg may optionally declare which input comm points it accepts. At fan‑out the ContractRuntime **skips** legs whose `FromInputIds` does not include the message's `SourceEndpointId`. A null/empty `FromInputIds` means "accept all inputs" (default — backward compatible). The **`requiredCount`** armed on the `ReplyContext` is computed **per‑message** (count of matching required legs), so the reply is correct regardless of which subset of legs runs.
+- **Per‑leg content filter (`RouteWhen`).** A leg may optionally declare a `RouteWhen` — a set of `key: value` facts matched (AND, exact ordinal) against the message **`Headers`**. At fan‑out a leg with `RouteWhen` is included only when **every** pair matches; legs without `RouteWhen` are unconditional (the catch‑all). Facts are written by a **classifier stage** in the shared pipeline (developer‑owned); Core does only a dumb string compare, so it stays content‑agnostic. `RouteWhen` composes with `FromInputIds` (a leg must pass **both**), and the per‑message `requiredCount` reflects the routed subset. A message matching **no** leg is a **filtered drop** (observable via the filtered‑message metric, `reason = "no route matched"`) — not a silent success; add a catch‑all output for guaranteed delivery. See §3.4a.
 - **Interface:** `ValueTask EnqueueAsync(MessageContext, ct)` (routes internally to the per‑input queue by `SourceEndpointId`), `Task RunAsync(ct)`, `Task DrainAsync(timeout)`.
 - **Per‑input isolation:** each input gets its own `Capacity`, `DegreeOfParallelism`, and `OverflowPolicy`. A bursty input fills only its own queue; other inputs' queues (and their consumers) are unaffected. This mirrors per‑leg isolation on the output side.
 - **Never does:** protocol/transport work, reply byte‑writing, reply timing (all owned by the `ReplyContext`, §3.8/§6).
@@ -121,9 +122,18 @@ flowchart LR
 
 ### 3.4 Delivery Leg (`DeliveryLeg`) — *one output*
 - **Responsibilities:** own **its own queue** (`IMessageChannel`, bounded or durable), its **outbound endpoint** (+ Retry/Batching decorators; the endpoint **serializes** the canonical model to the destination format via its codec), its **delivery guarantee**, **retry**, and **store‑and‑forward** (failure buffer). Report each message's `DeliveryResult` to the message's `ReplyContext`. Accept **leg‑targeted replays** from the `ForwardWorker` (§3.9). **No per‑leg processing pipeline** — processing runs once in the shared pipeline; a leg only encodes + delivers.
-- **Interface:** `ValueTask EnqueueAsync(MessageContext)`, `ValueTask ReplayAsync(MessageContext)`, `Task RunAsync(ct)`, `Task DrainAsync(timeout)`, `bool Required`, `IReadOnlySet<int>? FromInputIds`.
+- **Interface:** `ValueTask EnqueueAsync(MessageContext)`, `ValueTask ReplayAsync(MessageContext)`, `Task RunAsync(ct)`, `Task DrainAsync(timeout)`, `bool Required`, `IReadOnlySet<int>? FromInputIds`, `IReadOnlyDictionary<string,string>? RouteWhen`, `bool AcceptsMessage(headers)`.
 - **`FromInputIds`** (optional) — if set, this leg only accepts messages originating from the listed input comm points; the fan‑out in ContractRuntime skips it for other inputs. Null/empty = accepts all inputs (default).
+- **`RouteWhen`** (optional) — if set, this leg only accepts messages whose `Headers` match every `RouteWhen` fact (AND, exact ordinal); the fan‑out includes it per message. Null/empty = accepts all messages (default). See §3.4a.
 - **Never does:** write the reply to the source, know about other legs.
+
+### 3.4a Content routing (classify vs route)
+Content‑based routing is split so no single author needs to know **both** the message internals and the deployment topology:
+- **Classify (developer, code).** A classifier `IMessageStage` in the shared pipeline inspects the parsed message and writes **domain facts** into `MessageContext.Headers` using a documented, per‑format vocabulary (e.g. `hl7.messageType = "ADT"`). It **never references an output** — not by id, label, or type — so one classifier works across every deployment. (Protocol parsing stays in the format module; Core never parses content.)
+- **Route (FSE, config).** Each output declares an optional **`RouteWhen`** = the facts it accepts. The FSE — who owns the outputs — binds facts → outputs. Matching is dumb string equality (AND over all pairs) in Core.
+- **Fan‑out (engine).** Applicable legs = source‑applicable (`FromInputIds`) **∩** `RouteWhen` matches; the reply is armed with that subset's required count. Contracts declaring **no** `RouteWhen` keep the precomputed zero‑allocation fast path (**pay‑only‑if‑used**). A message matching no leg is a **filtered drop** (`reason = "no route matched"`); provide a `RouteWhen`‑less catch‑all output for guaranteed delivery.
+
+**Ownership:** code decides *what the message is*; config decides *where it goes* — the same split as pipelines/codecs (developer) vs topology (FSE). The concrete HL7 classifier stage is **future work** (see `docs/vaibhavToDoList.md`); the `RouteWhen` mechanism itself is in place.
 - **Why:** per‑output isolation of progress, durability, concurrency, ordering, retry, and ops. (Isolation is complete for **optional** legs; a slow **required** leg couples the contract via fan‑out backpressure — §5.)
 
 ### 3.5 Message Channel (`IMessageChannel`) — *queue + durability seam*
@@ -405,7 +415,7 @@ The source expects **one** reply — usually an ack, sometimes a **response** (�
 **Two configured ack modes (as today), set per contract via `{ IsEnabled, IsEnhanced }`:**
 - **`IsEnabled = false`** — no ack (fire‑and‑forget); the `ReplyContext` still tracks outcomes for metrics/store‑and‑forward.
 - **Normal / original ack** (`IsEnabled = true, IsEnhanced = false`) — a **generated** HL7 ACK ("AA") meaning *"received."* Sent as soon as the message is safely taken — i.e., on **durable receipt** (once required durable legs have journaled it; for at‑most‑once, on accept). It does **not** reflect the downstream result, so partial delivery is irrelevant to it.
-- **Enhanced ack** (`IsEnabled = true, IsEnhanced = true`) — the ack **reflects the actual delivery outcome**: on success it **passes the destination comm point's own acknowledgement straight back to the source** (the positive ack bytes come **from the output comm point**, never engine‑generated); on a required‑leg failure it generates a negative ACK (AE/AR). Sent **after delivery**. **This holds for single‑ and multi‑output contracts alike — the positive ack is always taken from the output comm point.** (For a multi‑output contract all required legs must still succeed, below; the relayed ack is that of the **last required leg to settle** — combining several downstream acks into one composite ack is a future refinement, out of scope today.) This is the only mode where multi‑output partial success matters (below). A configurable **`TimeoutMs`** (default 30 s) bounds the wait: if a required leg hangs, the `ReplyContext` fires a **negative ACK on timeout** and releases the source, so a stuck leg never blocks it forever (`TimeoutMs ≤ 0` opts out of the timeout).
+- **Enhanced ack** (`IsEnabled = true, IsEnhanced = true`) — the ack **reflects the actual delivery outcome**: on success it **passes the destination comm point's own acknowledgement straight back to the source** (the positive ack bytes come **from the output comm point**, never engine‑generated); on a required‑leg failure it generates a negative ACK (AE/AR). Sent **after delivery**. **This holds for single‑ and multi‑output contracts alike — the positive ack is always taken from the output comm point.** (For a multi‑output contract all required legs must still succeed, below; the `ReplyContext` collects every required leg's result and, for the **Single** ack shape, relays the **first required leg by `OutputId`** — deterministic, not timing‑dependent. Combining several downstream acks into **one composite ack** is the **Batch** shape, a future refinement — see the batch bullet below.) This is the only mode where multi‑output partial success matters (below). A configurable **`TimeoutMs`** (default 30 s) bounds the wait: if a required leg hangs, the `ReplyContext` fires a **negative ACK on timeout** and releases the source, so a stuck leg never blocks it forever (`TimeoutMs ≤ 0` opts out of the timeout).
 
 **Filtered messages (shared‑pipeline short‑circuit).** A message dropped by the pipeline (filter/dedup) reports `Filtered` to the `ReplyContext`. Whether the source is told is decided by **`ReplyOnFilter`** — a **developer default set on the catalog `Template`** (the developer who defines the filter pipeline best knows the intent), which an **FSE may override on the contract**. **`true`** sends an intentional‑**reject** ack carrying the filter reason (HL7 **`AR`** + reason — distinct from a delivery‑failure `AE`); **`false`** (the default when unset) is a **silent drop** (no reply, and the pending reply timer is cancelled), reproducing the legacy behavior. The reject *code* is the formatter's job (keyed on the `Filtered` outcome), so no HL7 specifics leak into the engine.
 
@@ -434,7 +444,7 @@ The source expects **one** reply — usually an ack, sometimes a **response** (�
 
 **Ack shape is a config choice, realized by a formatter subclass (`IAckFormatter`).** This governs **generated** replies only — **Normal** acks, an enhanced **negative** ACK, and batch ack shapes; a positive **enhanced** ack is **relayed from the output comm point** and skips the formatter (see the enhanced‑ack bullet above). For generated replies, *how many* acks and *what envelope* is a formatter concern — chosen by the source's `Format` and the contract's `AckShape` (config, **not** auto‑detected), independent of the when/what strategy:
 - **Single** (default, today) — one `ACK` with a single `MSA`. `Hl7SingleAckFormatter` (= `HL7AckGenerator`).
-- **Batch** — for an HL7 **batch** (`BHS`…`BTS`) source configured with `AckShape = Batch`, the reply is **one batch ACK** wrapping one `MSH`/`MSA`[/`ERR`] per message. The inbound endpoint groups the de‑batched messages under one *ack group* (a generic group id + expected count); the collected per‑message outcomes feed a drop‑in `Hl7BatchAckFormatter` once the group completes. Adding it changes **nothing** in the engine/strategy/token/`ReplyContext` (OCP). Example:
+- **Batch** — for an HL7 **batch** (`BHS`…`BTS`) source configured with `AckShape = Batch`, the reply is **one batch ACK** wrapping one `MSH`/`MSA`[/`ERR`] per message. The inbound endpoint groups the de‑batched messages under one *ack group* (a generic group id + expected count); the collected per‑message outcomes feed a drop‑in `Hl7BatchAckFormatter` once the group completes. The **same** batch formatter also serves the multi‑output enhanced case (one unit per required output leg). Adding it changes **nothing** in the engine/strategy/token/`ReplyContext` (OCP). **Not yet implemented — `AckShape.Batch` is rejected at config validation until `Hl7BatchAckFormatter` lands (see docs/vaibhavToDoList.md).** Example:
 ```text
 BHS|^~\&|RECV_APP|RECV_FAC|SEND_APP|SEND_FAC|202607161439||||BATCH_ACK_999
 MSH|^~\&|...|ACK^R01^ACK|ACK_MSG_001|P|2.4
@@ -1093,8 +1103,8 @@ public readonly record struct DeliveryResult(
 public interface IReplyContext
 {
     void OnFannedOut(int requiredTotal);          // arm per-message: count of APPLICABLE required legs for THIS message
-    void ReportFiltered();                        // shared-pipeline short-circuit -> reply "filtered"
-    void ReportLeg(bool required, in DeliveryResult result);
+    void ReportFiltered(string? reason = null);   // shared-pipeline short-circuit -> reply "filtered"
+    void ReportLeg(int outputId, bool required, in DeliveryResult result);
 }
 
 // ONE per RECEIVED message (created at reception, INV-6). The single reply authority: one-shot + timeout.
@@ -1104,37 +1114,40 @@ public sealed class ReplyContext : IReplyContext
     private readonly MessageContext _ctx;      // wired right after construction
     private readonly IAckStrategy _strategy;   // Normal | Enhanced | Response (chosen per contract/config)
     private readonly ITimer _timeout;          // fires a negative/error reply if required legs never finish
+    private readonly List<(int OutputId, DeliveryResult Result)> _legs = [];   // collected required-leg results
     private int _requiredTotal, _requiredDone, _replied;
 
     public void OnFannedOut(int requiredTotal)
     {
         _requiredTotal = requiredTotal;
         if (_strategy.RepliesOnReceipt)                       // Normal ack: "received" now (on durable accept)
-            FireOnce(new DeliveryResult(DeliveryOutcome.Accepted));
+            FireOnce(ReplyOutcome.Received());
     }
 
-    public void ReportFiltered() => FireOnce(new DeliveryResult(DeliveryOutcome.Filtered));
+    public void ReportFiltered(string? reason = null) => FireOnce(ReplyOutcome.Filtered(reason));
 
-    // Enhanced ack / Response: reflects real delivery; ALL required legs must succeed.
-    public void ReportLeg(bool required, in DeliveryResult result)
+    // Enhanced ack / Response: reflects real delivery; ALL required legs must succeed. Collect each
+    // required leg's result so the strategy can COMBINE them (Single relays one by OutputId; Batch wraps N).
+    public void ReportLeg(int outputId, bool required, in DeliveryResult result)
     {
         if (!required) return;                               // optional legs never gate the reply
+        lock (_legs) _legs.Add((outputId, result));          // record before incrementing so the completing leg sees all
         if (result.Outcome == DeliveryOutcome.Delivered)
         {
             if (Interlocked.Increment(ref _requiredDone) >= _requiredTotal)
-                FireOnce(result);                            // all required ok -> positive ack / response payload
+                FireOnce(ReplyOutcome.Delivered(OrderedByOutputId()));   // all required ok
         }
-        else FireOnce(new DeliveryResult(DeliveryOutcome.Failed, result.Error));  // one required failure -> NACK
+        else FireOnce(ReplyOutcome.Failed(result.Error, OrderedByOutputId()));  // one required failure -> NACK
     }
 
-    private void OnTimeout() => FireOnce(new DeliveryResult(DeliveryOutcome.Failed, "reply timeout"));
+    private void OnTimeout() => FireOnce(ReplyOutcome.Failed("reply timeout", OrderedByOutputId()));
 
-    private void FireOnce(in DeliveryResult r)               // exactly one reply per received message
+    private void FireOnce(in ReplyOutcome outcome)          // exactly one reply per received message
     {
         if (Interlocked.Exchange(ref _replied, 1) != 0) return;
         _timeout.Dispose();
-        // Strategy: Normal/Enhanced -> IAckFormatter renders bytes -> token; Response/pass-through -> token writes bytes as-is.
-        _ = _strategy.WriteReplyAsync(_ctx, r);
+        // Single: relay the first required leg's captured ack, or generate one ACK/NACK via IAckFormatter.
+        _ = _strategy.WriteReplyAsync(_ctx, outcome);
     }
 }
 ```
@@ -1161,6 +1174,7 @@ public sealed class OutputOptions
     public required int OutputId { get; init; }
     public bool Required { get; init; } = true;
     public IReadOnlyList<int>? FromInputIds { get; init; }             // per-leg input filter: null/empty = all inputs (default)
+    public IReadOnlyDictionary<string,string>? RouteWhen { get; init; } // per-leg content filter: facts matched against Headers (AND, exact); null/empty = all messages (default)
     public DeliveryGuarantee DeliveryGuarantee { get; init; } = DeliveryGuarantee.AtMostOnce;
     public ChannelOptions Channel { get; init; } = new();
     public string Encoding { get; init; } = "hl7v2";                  // names a catalog Codecs entry (IMessageCodec) -> per-message encoder

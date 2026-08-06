@@ -1,22 +1,26 @@
+using Microsoft.Extensions.Logging;
 using Philips.IBE.IBEAgent.Abstractions;
 
 namespace Philips.IBE.IBEAgent.Core;
 
-// Slice-1 factory: one Normal-ack strategy for every source. Phase 3+ resolves the strategy/formatter
-// per contract (Normal | Enhanced | Response) via the registries.
+// §6/§8 — per-contract reply policy dispatch: sourceEndpointId -> (strategy, timeout), because
+// each contract declares exactly one reply mode (Ack XOR Response) but a host runs many contracts
+// side by side over the shared IReplyContextFactory seam used by every inbound endpoint.
 public sealed class ReplyContextFactory : IReplyContextFactory
 {
-    private readonly IAckStrategy _strategy;
-    private readonly TimeSpan _timeout;
+    private readonly IReadOnlyDictionary<int, ReplyPolicy> _bySource;
+    private readonly ILogger<ReplyContext>? _logger;
 
-    public ReplyContextFactory(IAckStrategy strategy, TimeSpan? timeout = null)
+    public ReplyContextFactory(IReadOnlyDictionary<int, ReplyPolicy> bySource, ILogger<ReplyContext>? logger = null)
     {
-        _strategy = strategy;
-        _timeout = timeout ?? Timeout.InfiniteTimeSpan;   // Normal ack fires on receipt, so timeout is inert here
+        _bySource = bySource;
+        _logger = logger;
     }
 
-    // ackToken is passed for interface compliance / future strategies; this slice's ReplyContext obtains
-    // the token via the attached message (message.Ack), so it isn't stored separately.
     public IReplyContext Create(int sourceEndpointId, IAckToken ackToken)
-        => new ReplyContext(_strategy, _timeout);
+    {
+        if (!_bySource.TryGetValue(sourceEndpointId, out var policy))
+            throw new KeyNotFoundException($"No reply policy registered for source endpoint {sourceEndpointId}.");
+        return new ReplyContext(policy.Strategy, policy.Timeout, policy.ReplyOnFilter, _logger);
+    }
 }

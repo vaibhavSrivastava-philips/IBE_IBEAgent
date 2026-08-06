@@ -13,5 +13,5 @@ public sealed class RecordingReplyContext : IReplyContext
     public void Attach(MessageContext message) => Attached = message;
     public void OnFannedOut(int requiredTotal) => ArmedRequiredTotal = requiredTotal;
     public void ReportFiltered(string? reason = null) { WasFiltered = true; FilterReason = reason; }
-    public void ReportLeg(bool required, in DeliveryResult result) => Reports.Add((required, result));
+    public void ReportLeg(int outputId, bool required, in DeliveryResult result) => Reports.Add((required, result));
 }

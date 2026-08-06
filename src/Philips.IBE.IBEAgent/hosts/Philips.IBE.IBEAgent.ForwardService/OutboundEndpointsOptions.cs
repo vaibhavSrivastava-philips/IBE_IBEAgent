@@ -22,10 +22,20 @@ public sealed class HttpOutboundEndpointConfig
     public string Encoding { get; init; } = "hl7v2";
 }
 
-// §3.9 — binds "Ibe:Endpoints:TcpOutbound"/"HttpOutbound" so the out-of-process forward host can
-// re-create the SAME outbound endpoints (by OutputId) the in-process engine uses for replay.
+public sealed class FileOutboundEndpointConfig
+{
+    public required int OutputId { get; init; }
+    public required string Directory { get; init; }
+    public string? FileNameTemplate { get; init; }
+    public string DefaultExtension { get; init; } = "txt";
+    public string? Encoding { get; init; }
+}
+
+// §3.9 — binds "Ibe:Endpoints:TcpOutbound"/"HttpOutbound"/"FileOutbound" so the out-of-process forward
+// host can re-create the SAME outbound endpoints (by OutputId) the in-process engine uses for replay.
 public sealed class OutboundEndpointsOptions
 {
     public IReadOnlyList<TcpOutboundEndpointConfig> TcpOutbound { get; init; } = [];
     public IReadOnlyList<HttpOutboundEndpointConfig> HttpOutbound { get; init; } = [];
+    public IReadOnlyList<FileOutboundEndpointConfig> FileOutbound { get; init; } = [];
 }

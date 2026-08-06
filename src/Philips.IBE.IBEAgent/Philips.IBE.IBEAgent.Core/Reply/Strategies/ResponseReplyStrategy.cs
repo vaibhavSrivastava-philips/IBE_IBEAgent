@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 
 namespace Philips.IBE.IBEAgent.Core;
@@ -10,17 +12,30 @@ namespace Philips.IBE.IBEAgent.Core;
 // protocol error reply is written instead (no response payload was captured).
 public sealed class ResponseReplyStrategy : IAckStrategy
 {
+    private readonly ILogger<ResponseReplyStrategy> _logger;
+
+    public ResponseReplyStrategy(ILogger<ResponseReplyStrategy>? logger = null)
+        => _logger = logger ?? NullLogger<ResponseReplyStrategy>.Instance;
+
     public bool RepliesOnReceipt => false;   // must wait for the responder leg's captured payload
 
-    public Task WriteReplyAsync(MessageContext context, DeliveryResult result)
+    public Task WriteReplyAsync(MessageContext context, ReplyOutcome outcome)
     {
-        if (result.Outcome is DeliveryOutcome.Delivered or DeliveryOutcome.Accepted
-            && !result.ResponsePayload.IsEmpty)
+        if (outcome.Outcome is DeliveryOutcome.Delivered)
         {
-            return context.Ack.WriteAsync(result.ResponsePayload, CancellationToken.None);
+            foreach (var leg in outcome.LegResults)
+            {
+                if (!leg.ResponsePayload.IsEmpty)
+                    return context.Ack.WriteAsync(leg.ResponsePayload, CancellationToken.None);
+            }
         }
 
-        var error = result.Error ?? "no response received";
+        // No usable response captured (delivery failed/timed out, or delivered with an empty body):
+        // the request-reply peer gets a protocol error instead of the responder's bytes.
+        var error = outcome.Reason ?? "no response received";
+        _logger.LogWarning(
+            "Request-reply for source {SourceEndpointId} (correlation {CorrelationId}) produced no response ({Reason}); writing a protocol error reply.",
+            context.SourceEndpointId, context.CorrelationId, error);
         var protocolError = System.Text.Encoding.UTF8.GetBytes($"ERR|{error}");
         return context.Ack.WriteAsync(protocolError, CancellationToken.None);
     }

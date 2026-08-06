@@ -38,11 +38,14 @@ public sealed class Hl7SingleAckFormatter : IAckFormatter
         }
         catch (Exception ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to parse the inbound HL7 message (source {SourceEndpointId}, correlation {CorrelationId}); returning an AE NACK.",
+            // Do NOT log the raw exception: an HL7 parser's message can embed message content (PHI).
+            // The exception type identifies the failure class without leaking payload; the correlation
+            // id ties it back to the message in a secure store if a deeper look is needed.
+            _logger.LogWarning(
+                "Could not parse the inbound HL7 message (source {SourceEndpointId}, correlation {CorrelationId}); returning an AE NACK. Parse error: {ParseError}.",
                 context.SourceEndpointId,
-                context.CorrelationId);
+                context.CorrelationId,
+                ex.GetType().Name);
 
             // A message we can't parse is an error condition regardless of downstream delivery, so the
             // fallback is always a negative (AE) ack that hints the parse failure (MSA-3 + ERR).

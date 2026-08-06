@@ -1,3 +1,4 @@
+using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Configuration;
 
 namespace Philips.IBE.IBEAgent.Configuration.UnitTests;
@@ -18,6 +19,20 @@ public sealed class ContractOptionsValidatorTests
 
         Assert.True(result.IsValid);
         Assert.Empty(result.Errors);
+    }
+
+    [Fact]
+    public void Batch_ack_shape_is_rejected_as_unsupported()
+    {
+        var contract = ValidContract() with
+        {
+            Acknowledgement = new AckOptions { IsEnabled = true, Shape = AckShape.Batch },
+        };
+
+        var result = ContractOptionsValidator.Validate(contract);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("Batch is not supported"));
     }
 
     [Fact]
@@ -128,6 +143,47 @@ public sealed class ContractOptionsValidatorTests
             Inputs = [],
             InputIds = [1, 2],
             Outputs = [new OutputOptions { OutputId = 100 }],
+        };
+
+        var result = ContractOptionsValidator.Validate(contract);
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void RouteWhen_with_empty_key_fails()
+    {
+        var contract = ValidContract() with
+        {
+            Outputs = [new OutputOptions { OutputId = 100, RouteWhen = new Dictionary<string, string> { [" "] = "ADT" } }],
+        };
+
+        var result = ContractOptionsValidator.Validate(contract);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("RouteWhen has an empty key"));
+    }
+
+    [Fact]
+    public void RouteWhen_with_empty_value_fails()
+    {
+        var contract = ValidContract() with
+        {
+            Outputs = [new OutputOptions { OutputId = 100, RouteWhen = new Dictionary<string, string> { ["hl7.messageType"] = "" } }],
+        };
+
+        var result = ContractOptionsValidator.Validate(contract);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("empty value"));
+    }
+
+    [Fact]
+    public void RouteWhen_with_valid_facts_passes()
+    {
+        var contract = ValidContract() with
+        {
+            Outputs = [new OutputOptions { OutputId = 100, RouteWhen = new Dictionary<string, string> { ["hl7.messageType"] = "ADT" } }],
         };
 
         var result = ContractOptionsValidator.Validate(contract);
