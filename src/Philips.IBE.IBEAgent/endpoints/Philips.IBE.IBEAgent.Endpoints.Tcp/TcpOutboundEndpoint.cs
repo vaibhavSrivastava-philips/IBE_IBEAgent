@@ -1,5 +1,7 @@
 // TcpOutboundEndpoint.cs
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using Philips.IBE.IBEAgent.Abstractions;
 namespace Philips.IBE.IBEAgent.Endpoints.Tcp;
 
@@ -12,20 +14,20 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
     public TcpOutboundEndpoint(TcpOutboundOptions options, IMessageCodec? codec)
     {
         _options = options; _codec = codec;
-        _pool = new TcpConnectionPool(options.Host, options.Port, options.PoolSize);
+        _pool = new TcpConnectionPool(options.Host, options.Port, options.PoolSize, options.Ssl, options.Proxy);
     }
 
     public async Task<DeliveryResult> SendAsync(MessageContext context, CancellationToken cancellationToken)
     {
-        TcpClient? client = null;
+        TcpPooledConnection? connection = null;
         bool healthy = false;
         try
         {
             var wire = _codec?.Encode(context) ?? context.Payload;                    // canonical model -> destination bytes
             var framed = MllpFramer.Frame(wire.Span);
 
-            client = await _pool.RentAsync(cancellationToken);
-            var stream = client.GetStream();
+            connection = await _pool.RentAsync(cancellationToken);
+            var stream = connection.Stream;
             await stream.WriteAsync(framed, cancellationToken);
             await stream.FlushAsync(cancellationToken);
 
@@ -43,13 +45,13 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
             healthy = true;
             return new DeliveryResult(DeliveryOutcome.Delivered);
         }
-        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException)
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or AuthenticationException)
         {
             return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
         }
         finally
         {
-            if (client is not null) { if (healthy) _pool.Return(client); else _pool.Discard(client); }
+            if (connection is not null) { if (healthy) _pool.Return(connection); else _pool.Discard(connection); }
         }
     }
 
