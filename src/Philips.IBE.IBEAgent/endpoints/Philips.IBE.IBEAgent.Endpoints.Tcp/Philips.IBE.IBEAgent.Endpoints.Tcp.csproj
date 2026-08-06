@@ -6,6 +6,11 @@
     <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
   </ItemGroup>
 
+  <!-- Inbound endpoints log via ILogger directly, so depend on the abstraction explicitly. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Philips.IBE.IBEAgent.Endpoints.IntegrationTests" />
   </ItemGroup>
