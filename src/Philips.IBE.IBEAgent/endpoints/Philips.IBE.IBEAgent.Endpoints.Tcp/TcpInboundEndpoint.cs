@@ -75,7 +75,7 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                     await _admission.WaitAsync(ct);
                     try
                     {
-                        var token = new TcpConnectionAckToken(stream, writeLock);
+                        var token = new TcpConnectionAckToken(stream, writeLock, _logger);
                         var reply = _replyFactory.Create(_options.SourceEndpointId, token);
                         var ctx = new MessageContext(
                             correlationId: Guid.NewGuid().ToString("N"),
@@ -85,9 +85,17 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                             reply: reply,
                             payload: payload);
 
-                        _logger.LogDebug(
+                        // Monitoring (Information) — per-message receipt for the production flow.
+                        _logger.LogInformation(
                             "Received message {CorrelationId} ({ByteCount} bytes) on TCP source {SourceEndpointId}.",
                             ctx.CorrelationId, payload.Length, _options.SourceEndpointId);
+
+                        // Deepest level (Trace) — the full inbound message body. Guarded so the decode
+                        // only runs when Trace is enabled (zero cost in production / high-fidelity).
+                        if (_logger.IsEnabled(LogLevel.Trace))
+                            _logger.LogTrace(
+                                "Inbound message {CorrelationId} body: {Message}",
+                                ctx.CorrelationId, MessagePreview.ForLog(ctx.Payload.Span));
 
                         ctx.Reply.Attach(ctx);
                         await _dispatcher.DispatchAsync(ctx, ct); // backpressure comes from the ingress queue

@@ -21,7 +21,7 @@
       "Name": "Demo-Tcp-To-Tcp",
       "Template": "adt",
       "Inputs": [ { "InputId": 1 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false, "Shape": "Single" },
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
       "Outputs": [
         { "OutputId": 101 }
       ]

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Philips.IBE.IBEAgent.Abstractions;
 
 // P1 — one message, one envelope, no side-channels. INV-5 payload = canonical bytes; INV-6 Reply owned at reception.
@@ -5,6 +7,7 @@ public sealed class MessageContext
 {
     public Guid MessageId { get; } = Guid.NewGuid();
     public string CorrelationId { get; }
+    public long ReceivedTimestamp { get; }             // Stopwatch ticks at reception; end-to-end latency = Stopwatch.GetElapsedTime(ReceivedTimestamp) at delivery
     public int SourceEndpointId { get; }
     public string Format { get; }                      // per-input tag (INV-1): selects parser/stages/formatter
     public ReadOnlyMemory<byte> Payload { get; private set; }  // canonical source bytes (INV-5)
@@ -32,6 +35,7 @@ public sealed class MessageContext
         ArgumentNullException.ThrowIfNull(reply);
 
         CorrelationId = correlationId;
+        ReceivedTimestamp = Stopwatch.GetTimestamp();
         SourceEndpointId = sourceEndpointId;
         Format = format;
         Ack = ack;
@@ -45,6 +49,7 @@ public sealed class MessageContext
     private MessageContext(MessageContext source, int legOutputId)
     {
         CorrelationId = source.CorrelationId;
+        ReceivedTimestamp = source.ReceivedTimestamp;      // preserve the ORIGINAL reception time across leg clones
         SourceEndpointId = source.SourceEndpointId;
         Format = source.Format;
         Ack = source.Ack;

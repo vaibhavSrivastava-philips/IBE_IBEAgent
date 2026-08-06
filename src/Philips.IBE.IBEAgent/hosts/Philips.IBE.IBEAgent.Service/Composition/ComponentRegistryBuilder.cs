@@ -21,6 +21,7 @@ public static class ComponentRegistryBuilder
         // §3.10 — generic Core stages (name -> factory). Module-owned so the host stays thin (OCP);
         // protocol modules register their own stages the same way when they gain any.
         registry.AddCoreStages();
+        registry.AddHl7Stages(loggerFactory);   // protocol (HL7) stages, e.g. hl7-classify
 
         // §3.8/§6 — Enhanced-ack rendering: HL7's own (Format x Shape) generated ack.
         registry.RegisterAckFormatter(new Hl7SingleAckFormatter(loggerFactory.CreateLogger<Hl7SingleAckFormatter>()));
