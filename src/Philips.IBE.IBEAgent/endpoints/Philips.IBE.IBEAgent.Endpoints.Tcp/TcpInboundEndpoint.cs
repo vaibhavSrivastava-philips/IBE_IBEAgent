@@ -1,8 +1,12 @@
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Security;
 namespace Philips.IBE.IBEAgent.Endpoints.Tcp;
 
 public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
@@ -12,6 +16,7 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     private readonly IReplyContextFactory _replyFactory;
     private readonly SemaphoreSlim _admission;
     private readonly ILogger<TcpInboundEndpoint> _logger;
+    private readonly X509Certificate2? _serverCertificate;
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
@@ -21,6 +26,13 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         _options = options; _dispatcher = dispatcher; _replyFactory = replyFactory;
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
         _logger = logger ?? NullLogger<TcpInboundEndpoint>.Instance;
+
+        if (_options.Ssl.IsEnabled)
+        {
+            _serverCertificate = _options.Ssl.LoadLocalCertificate()
+                ?? throw new InvalidOperationException(
+                    $"TCP inbound endpoint (port {_options.Port}) has SSL mode {_options.Ssl.Mode} but no CertificatePath configured.");
+        }
     }
 
     public int BoundPort => ((IPEndPoint)_listener!.LocalEndpoint).Port; // handy for tests (port 0)
@@ -69,8 +81,28 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
             client.NoDelay = true;   // disable Nagle: the MLLP ack back to the source else stalls ~40ms (Nagle + delayed-ACK)
             var stream = client.GetStream();
             var writeLock = new SemaphoreSlim(1, 1);
+            Stream stream = client.GetStream();
+            SslStream? sslStream = null;
             try
             {
+                if (_options.Ssl.IsEnabled)
+                {
+                    sslStream = new SslStream(stream, leaveInnerStreamOpen: false,
+                        _options.Ssl.RequiresRemoteCertificate ? _options.Ssl.CreateRemoteCertificateValidator() : null);
+                    stream = sslStream;
+
+                    await sslStream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
+                    {
+                        ServerCertificate = _serverCertificate,
+                        ClientCertificateRequired = _options.Ssl.RequiresRemoteCertificate,
+                        EnabledSslProtocols = _options.Ssl.Protocols,
+                        CertificateRevocationCheckMode = _options.Ssl.CheckCertificateRevocation
+                            ? X509RevocationMode.Online
+                            : X509RevocationMode.NoCheck,
+                    }, ct);
+                }
+
+                var writeLock = new SemaphoreSlim(1, 1);
                 await foreach (var payload in MllpFramer.ReadMessagesAsync(stream, ct))
                 {
                     await _admission.WaitAsync(ct);
@@ -99,13 +131,17 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                                 ctx.CorrelationId, MessagePreview.ForLog(ctx.Payload.Span));
 
                         ctx.Reply.Attach(ctx);
+
+                        ctx.Reply.Attach(ctx);     
                         await _dispatcher.DispatchAsync(ctx, ct); // backpressure comes from the ingress queue
                     }
                     finally { _admission.Release(); }
                 }
             }
             catch (OperationCanceledException) { }               // expected on shutdown
-            catch (IOException) { }                              // peer reset; connection ends
+            catch (IOException) { }
+            catch (AuthenticationException) { }                  // TLS handshake failed; drop connection
+            // peer reset; connection ends
             catch (Exception ex)
             {
                 // A routing/dispatch failure (e.g. no contract for the source) would otherwise become an
@@ -114,6 +150,7 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                     "Unhandled error processing TCP connection on source {SourceEndpointId}; connection closed.",
                     _options.SourceEndpointId);
             }
+            finally { sslStream?.Dispose(); }
         }
     }
 

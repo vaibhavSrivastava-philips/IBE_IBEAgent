@@ -1,5 +1,7 @@
 // TcpOutboundEndpoint.cs
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
@@ -15,12 +17,14 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
     public TcpOutboundEndpoint(TcpOutboundOptions options, IMessageCodec? codec, ILogger<TcpOutboundEndpoint>? logger = null)
     {
         _options = options; _codec = codec;
+        _pool = new TcpConnectionPool(options.Host, options.Port, options.PoolSize, options.Ssl, options.Proxy);
         _logger = logger ?? NullLogger<TcpOutboundEndpoint>.Instance;
         _pool = new TcpConnectionPool(options.Host, options.Port, options.PoolSize);
     }
 
     public async Task<DeliveryResult> SendAsync(MessageContext context, CancellationToken cancellationToken)
     {
+        TcpPooledConnection? connection = null;
         var wire = _codec?.Encode(context) ?? context.Payload;   // canonical model -> destination bytes (once; reused across a reconnect)
         var framed = MllpFramer.Frame(wire.Span);
 
@@ -57,6 +61,11 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
         bool healthy = false;
         try
         {
+            var wire = _codec?.Encode(context) ?? context.Payload;                    // canonical model -> destination bytes
+            var framed = MllpFramer.Frame(wire.Span);
+
+            connection = await _pool.RentAsync(cancellationToken);
+            var stream = connection.Stream;
             var stream = client.GetStream();
             await stream.WriteAsync(framed, cancellationToken);
             await stream.FlushAsync(cancellationToken);
@@ -77,6 +86,7 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
             healthy = true;
             return (new DeliveryResult(DeliveryOutcome.Delivered), false);
         }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or AuthenticationException)
         catch (Exception ex) when (ex is SocketException or IOException)
         {
             return (new DeliveryResult(DeliveryOutcome.Failed, ex.Message),
@@ -84,6 +94,7 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
         }
         finally
         {
+            if (connection is not null) { if (healthy) _pool.Return(connection); else _pool.Discard(connection); }
             if (healthy) _pool.Return(client); else _pool.Discard(client);
         }
     }
