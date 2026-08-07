@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
@@ -13,6 +14,7 @@ public sealed class DeliveryLeg : IReplayTarget
     private readonly IOutboundEndpoint _endpoint;
     private readonly IForwardStore? _forward;   // null in the slice-1 in-memory path; wired in Phase 6
     private readonly ILogger<DeliveryLeg> _logger;
+    private readonly string _contractName;      // for per-message flow monitoring (contract identity)
     private Task? _runTask;
 
     public int OutputId { get; }
@@ -28,7 +30,8 @@ public sealed class DeliveryLeg : IReplayTarget
         IReadOnlySet<int>? fromInputIds = null,
         IReadOnlyDictionary<string, string>? routeWhen = null,
         IForwardStore? forward = null,
-        ILogger<DeliveryLeg>? logger = null)
+        ILogger<DeliveryLeg>? logger = null,
+        string? contractName = null)
     {
         OutputId = outputId;
         Required = required;
@@ -38,6 +41,7 @@ public sealed class DeliveryLeg : IReplayTarget
         RouteWhen = routeWhen;
         _forward = forward;
         _logger = logger ?? NullLogger<DeliveryLeg>.Instance;
+        _contractName = contractName ?? "unknown";
     }
 
     // Per-leg input filter: null/empty = accept all inputs (default, backward compatible).
@@ -86,6 +90,15 @@ public sealed class DeliveryLeg : IReplayTarget
         {
             AgentDiagnostics.QueueDepth.Add(-1, new KeyValuePair<string, object?>("queue", $"leg:{OutputId}"));
             using var activity = AgentDiagnostics.StartLegDelivery(OutputId);
+
+            // Deepest level (Trace) — the full outbound message body being delivered. Guarded so the
+            // decode only runs when Trace is enabled.
+            if (_logger.IsEnabled(LogLevel.Trace))
+                _logger.LogTrace(
+                    "Outbound message {CorrelationId} to output {OutputId} body: {Message}",
+                    ctx.CorrelationId, OutputId, MessagePreview.ForLog(ctx.Payload.Span));
+
+            var startedAt = Stopwatch.GetTimestamp();
             DeliveryResult result;
             Exception? failure = null;
             try
@@ -98,6 +111,7 @@ public sealed class DeliveryLeg : IReplayTarget
                 result = new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
             }
 
+            var sendMs = (long)Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds;
             AgentDiagnostics.Deliveries.Add(1,
                 new KeyValuePair<string, object?>("outputId", OutputId),
                 new KeyValuePair<string, object?>("outcome", result.Outcome.ToString()));
@@ -110,19 +124,25 @@ public sealed class DeliveryLeg : IReplayTarget
                 var disposition = _forward is not null ? "stored for retry" : "dropped (AtMostOnce, no retry)";
                 if (failure is not null)
                     _logger.LogError(failure,
-                        "Unexpected error delivering message {CorrelationId} to output {OutputId}; {Disposition}.",
-                        ctx.CorrelationId, OutputId, disposition);
+                        "Delivery of message {CorrelationId} for contract {ContractName} from source {SourceEndpointId} to output {OutputId} errored unexpectedly; {Disposition}.",
+                        ctx.CorrelationId, _contractName, ctx.SourceEndpointId, OutputId, disposition);
                 else
                     _logger.LogWarning(
-                        "Delivery of message {CorrelationId} to output {OutputId} failed ({Reason}); {Disposition}.",
-                        ctx.CorrelationId, OutputId, result.Error, disposition);
+                        "Delivery of message {CorrelationId} for contract {ContractName} from source {SourceEndpointId} to output {OutputId} failed ({Reason}); {Disposition}.",
+                        ctx.CorrelationId, _contractName, ctx.SourceEndpointId, OutputId, result.Error, disposition);
 
                 if (_forward is not null)
                     await _forward.StoreAsync(ctx, OutputId, result.Error, cancellationToken); // Pending (Phase 6)
             }
             else
             {
-                _logger.LogDebug("Delivered message {CorrelationId} to output {OutputId}.", ctx.CorrelationId, OutputId);
+                // Monitoring (Information) — one line per forwarded message (the primary production
+                // signal that a message reached its destination). ElapsedMs is END-TO-END (reception ->
+                // delivery, incl. queue + pipeline); SendMs isolates the outbound hop.
+                var e2eMs = (long)Stopwatch.GetElapsedTime(ctx.ReceivedTimestamp).TotalMilliseconds;
+                _logger.LogInformation(
+                    "Delivered message {CorrelationId} for contract {ContractName} from source {SourceEndpointId} to output {OutputId} in {ElapsedMs}ms (send {SendMs}ms).",
+                    ctx.CorrelationId, _contractName, ctx.SourceEndpointId, OutputId, e2eMs, sendMs);
                 if (ctx.IsReplay && _forward is not null)
                     await _forward.ResolveAsync(ctx, OutputId, cancellationToken); // replay delivered -> clear entry
             }

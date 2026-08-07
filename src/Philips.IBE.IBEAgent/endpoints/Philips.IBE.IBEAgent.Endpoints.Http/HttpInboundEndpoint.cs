@@ -74,7 +74,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     private async Task HandleRequestAsync(HttpListenerContext http, CancellationToken ct)
     {
         await _admission.WaitAsync(ct);
-        var token = new HttpResponseAckToken(http.Response);
+        var token = new HttpResponseAckToken(http.Response, _logger);
         try
         {
             if (_options.Ssl.RequiresRemoteCertificate && !await ValidateClientCertificateAsync(http, ct))
@@ -95,9 +95,16 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                 reply: reply,
                 payload: ms.ToArray());
 
-            _logger.LogDebug(
+            // Monitoring (Information) — per-message receipt for the production flow.
+            _logger.LogInformation(
                 "Received request {CorrelationId} ({ByteCount} bytes) on HTTP source {SourceEndpointId}.",
                 ctx.CorrelationId, ms.Length, _options.SourceEndpointId);
+
+            // Deepest level (Trace) — the full request body. Guarded so the decode only runs at Trace.
+            if (_logger.IsEnabled(LogLevel.Trace))
+                _logger.LogTrace(
+                    "Inbound request {CorrelationId} body: {Message}",
+                    ctx.CorrelationId, MessagePreview.ForLog(ctx.Payload.Span));
 
             ctx.Reply.Attach(ctx);
             await _dispatcher.DispatchAsync(ctx, ct);

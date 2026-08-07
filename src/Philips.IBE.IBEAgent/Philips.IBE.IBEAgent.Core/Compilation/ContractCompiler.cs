@@ -41,12 +41,12 @@ public sealed class ContractCompiler
 
         var pipeline = PipelineBuilder.Build(contract.Pipeline, _catalog, _registry);
 
-        var legs = contract.Outputs.Select(BuildLeg).ToList();
+        var legs = contract.Outputs.Select(o => BuildLeg(o, contract.Name)).ToList();
 
-        return new ContractRuntime(ingressQueues, pipeline, legs, _loggerFactory?.CreateLogger<ContractRuntime>());
+        return new ContractRuntime(ingressQueues, pipeline, legs, _loggerFactory?.CreateLogger<ContractRuntime>(), contract.Name);
     }
 
-    private DeliveryLeg BuildLeg(OutputOptions output)
+    private DeliveryLeg BuildLeg(OutputOptions output, string contractName)
     {
         var queue = new BoundedInMemoryChannel(output.Channel.Capacity, output.Channel.OverflowPolicy);
         var endpoint = _registry.CreateOutboundEndpoint(output);
@@ -58,6 +58,6 @@ public sealed class ContractCompiler
         // (the source resends on a missing ack).
         var forward = output.DeliveryGuarantee == DeliveryGuarantee.AtLeastOnce ? _forwardStore : null;
 
-        return new DeliveryLeg(output.OutputId, output.Required, queue, endpoint, fromInputIds, output.RouteWhen, forward, _loggerFactory?.CreateLogger<DeliveryLeg>());
+        return new DeliveryLeg(output.OutputId, output.Required, queue, endpoint, fromInputIds, output.RouteWhen, forward, _loggerFactory?.CreateLogger<DeliveryLeg>(), contractName);
     }
 }

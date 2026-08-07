@@ -254,6 +254,16 @@ The single reply to a source message is owned by the per‑message **`ReplyConte
   - **Compiler + registry (in `Core`):** `ContractCompiler`/`PipelineBuilder` (config → `IContractRuntime` + legs) and the **Component Registry** — name/type‑keyed factories for endpoint, stage, **codec (`IMessageCodec`/`IBatchCodec`)**, and **`IAckFormatter` (by `Format` × `Shape`)**. Name‑resolution validation (names → registered impls, encoding⇄format compatibility) runs at startup where the registry exists. New protocols, stages, codecs, and ack shapes stay plug‑and‑play (register + name, don't edit).
 - **Three lookups, three names (avoid confusion):** the **Contract Registry** (§3.2b — compiled contracts by input) ≠ the **Catalog** (§8 — config building blocks by name) ≠ the **Component Registry** (here — type→impl factories).
 - **Telemetry**: OTel metrics/spans per stage + per leg; per‑input and per‑leg queue depth gauges; store‑and‑forward counters (pending/parked); `contract.mode`, `leg.mode` diagnostics.
+- **Logging** — structured (named placeholders only, never string interpolation), correlated by `CorrelationId`, and driven by **`Logging:LogLevel` in `appsettings.json`** (the `NLog` rules stay permissive at `Trace`, so the `Microsoft.Extensions.Logging` category filter is the single gate). Full message‑body logging is confined to **Trace** and guarded by `ILogger.IsEnabled(LogLevel.Trace)`, so the payload decode/allocation never runs unless Trace is enabled — **zero cost otherwise**. No secrets/PII are logged except the full body at Trace (PHI; dev/troubleshooting only). The `Philips.IBE` category level selects the tier:
+
+  | Level | What you see |
+  |---|---|
+  | **Trace** | Full **inbound** message body (at receipt), full **outbound** message body (at delivery), and full **ack/response** body (at the ack token). |
+  | **Debug** | Internal diagnostics — accept‑loop shutdown, store‑and‑forward sweep/reschedule, and other infra detail not needed for normal production investigation. |
+  | **Information** | Per‑message flow — **received / delivered / filtered / ack‑sent** — correlation‑based, with **end‑to‑end** latency (reception → delivery); plus **HL7 id/type** (MSH‑10 / MSH‑9) when the opt‑in `hl7-classify` stage is in the contract's pipeline. The production monitoring level. |
+  | **Warning** | Problems only (delivery/reply failures, store‑and‑forward `Parked`, missing ack formatter). |
+
+  **High fidelity is a level, not a flag:** a max‑throughput deployment sets `Philips.IBE → Warning` (no per‑message lines) and omits the `hl7-classify` stage (no parse) — two independent knobs (log cost = level; parse cost = pipeline composition). Engine libraries log through the `ILogger` abstraction only; `NLog` is wired in the hosts.
 - **Host / composition root**: build config → compile `IContractRuntime`s+legs → register endpoints → start host.
 
 ---

@@ -88,26 +88,58 @@ public sealed class ReplyContext : IReplyContext, IDisposable
         if (message is null) return;                            // not attached => wiring bug; nothing to write
 
         // Fire-and-forget: the strategy owns the bytes + token write. The reply path is designed not to
-        // throw, but the underlying socket write can fault if the peer disconnected before we replied —
-        // observe that fault so it is not lost as an unobserved task exception.
+        // throw, but the underlying socket write can fault if the peer disconnected before we replied.
         var replyTask = _strategy.WriteReplyAsync(message, outcome);
-        if (!replyTask.IsCompletedSuccessfully)
-            ObserveReplyFault(replyTask, message.CorrelationId, message.SourceEndpointId);
+
+        // NoAck writes nothing back (fire-and-forget) so there is no reply to log. Every other strategy
+        // writes an ack/nack/reject — log it (a pending write that faults becomes a Warning).
+        if (_strategy is not NoAckStrategy)
+        {
+            var kind = MapReplyKind(outcome.Outcome);
+            if (replyTask.IsCompletedSuccessfully)
+                LogReplySent(kind, message.CorrelationId, message.SourceEndpointId);
+            else
+                ObserveReply(replyTask, kind, message.CorrelationId, message.SourceEndpointId);
+        }
 
         CompleteSource(message, MapCompletion(outcome.Outcome));
     }
 
-    private void ObserveReplyFault(Task replyTask, string correlationId, int sourceEndpointId)
+    // ReplyOutcome -> the kind of reply the source receives (used for monitoring, not the wire code).
+    private static string MapReplyKind(DeliveryOutcome outcome) => outcome switch
+    {
+        DeliveryOutcome.Delivered => "ack",
+        DeliveryOutcome.Failed => "nack",
+        DeliveryOutcome.Filtered => "reject",
+        _ => "ack",                                            // Accepted = ack on receipt (Normal)
+    };
+
+    private void LogReplySent(string kind, string correlationId, int sourceEndpointId) =>
+        _logger.LogInformation(
+            "Reply ({ReplyKind}) sent for message {CorrelationId} to source {SourceEndpointId}.",
+            kind, correlationId, sourceEndpointId);
+
+    // Pending reply write: log ack-sent on success, or a Warning if it faulted (peer likely gone).
+    private void ObserveReply(Task replyTask, string kind, string correlationId, int sourceEndpointId)
     {
         _ = replyTask.ContinueWith(
-            t => _logger.LogDebug(
-                t.Exception,
-                "Reply for message {CorrelationId} (source {SourceEndpointId}) could not be written (peer likely disconnected before the reply).",
-                correlationId, sourceEndpointId),
+            t =>
+            {
+                if (t.IsFaulted)
+                    LogReplyFault(t.Exception, correlationId, sourceEndpointId);
+                else
+                    LogReplySent(kind, correlationId, sourceEndpointId);
+            },
             CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
     }
+
+    private void LogReplyFault(Exception? exception, string correlationId, int sourceEndpointId) =>
+        _logger.LogWarning(
+            exception,
+            "Reply for message {CorrelationId} (source {SourceEndpointId}) could not be written (peer likely disconnected before the reply).",
+            correlationId, sourceEndpointId);
 
     // Legacy "silent drop": consume the one-shot and kill the timeout so NO reply is written (not even a
     // later timeout NACK). Used when ReplyOnFilter is disabled.
