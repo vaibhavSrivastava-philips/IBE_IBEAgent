@@ -13,6 +13,7 @@
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.File/Philips.IBE.IBEAgent.Endpoints.File.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Http/Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Tcp/Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.WebSocket/Philips.IBE.IBEAgent.Endpoints.WebSocket.csproj" />
   </Folder>
   <Folder Name="/src/Philips.IBE.IBEAgent/formats/">
     <Project Path="src/Philips.IBE.IBEAgent/formats/Philips.IBE.IBEAgent.Formats.Hl7/Philips.IBE.IBEAgent.Formats.Hl7.csproj" />

@@ -1,5 +1,7 @@
 // HttpOutboundEndpoint.cs
+using System.Net;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Security;
 namespace Philips.IBE.IBEAgent.Endpoints.Http;
 
 public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
@@ -29,6 +31,35 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
                 PooledConnectionLifetime     = _options.PooledConnectionLifetime,
                 PooledConnectionIdleTimeout  = _options.PooledConnectionIdleTimeout,
             };
+
+            if (_options.Ssl.IsEnabled)
+            {
+                handler.SslOptions.EnabledSslProtocols = _options.Ssl.Protocols;
+                handler.SslOptions.RemoteCertificateValidationCallback = _options.Ssl.CreateRemoteCertificateValidator();
+                handler.SslOptions.CertificateRevocationCheckMode = _options.Ssl.CheckCertificateRevocation
+                    ? System.Security.Cryptography.X509Certificates.X509RevocationMode.Online
+                    : System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck;
+
+                if (_options.Ssl.RequiresRemoteCertificate)
+                {
+                    var clientCertificate = _options.Ssl.LoadLocalCertificate()
+                        ?? throw new InvalidOperationException(
+                            $"HTTP outbound endpoint ({_options.Endpoint}) has SSL mode TwoWay but no CertificatePath configured.");
+                    handler.SslOptions.ClientCertificates = [clientCertificate];
+                }
+            }
+
+            if (_options.Proxy.IsEnabled)
+            {
+                var proxyUri = new Uri($"http://{_options.Proxy.Host}:{_options.Proxy.Port}");
+                var webProxy = new WebProxy(proxyUri);
+                if (_options.Proxy.HasCredentials)
+                    webProxy.Credentials = new NetworkCredential(_options.Proxy.Username, _options.Proxy.Password);
+
+                handler.Proxy = webProxy;
+                handler.UseProxy = true;
+            }
+
             _http = new HttpClient(handler) { Timeout = _options.Timeout };
             _ownsClient = true;                  // disposing HttpClient disposes the handler too
         }

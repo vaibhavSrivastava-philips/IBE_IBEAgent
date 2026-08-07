@@ -4,6 +4,7 @@ using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Endpoints.File;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
+using Philips.IBE.IBEAgent.Endpoints.WebSocket;
 using Philips.IBE.IBEAgent.Formats.Hl7;
 using Microsoft.Extensions.Logging;
 
@@ -44,6 +45,8 @@ public static class ComponentRegistryBuilder
                     Port = tcp.Port,
                     PoolSize = tcp.PoolSize,
                     ExpectReply = tcp.ExpectReply,
+                    Ssl = tcp.Ssl,
+                    Proxy = tcp.Proxy,
                 },
                 ResolveCodec(registry, catalog, output.Encoding)));
         }
@@ -59,6 +62,8 @@ public static class ComponentRegistryBuilder
                     MaxConnectionsPerServer = http.MaxConnectionsPerServer,
                     PooledConnectionLifetime = TimeSpan.FromSeconds(http.PooledConnectionLifetimeSeconds),
                     PooledConnectionIdleTimeout = TimeSpan.FromSeconds(http.PooledConnectionIdleTimeoutSeconds),
+                    Ssl = http.Ssl,
+                    Proxy = http.Proxy,
                 },
                 ResolveCodec(registry, catalog, output.Encoding)));
         }
@@ -73,6 +78,24 @@ public static class ComponentRegistryBuilder
                     DefaultExtension = file.DefaultExtension,
                 },
                 ResolveCodec(registry, catalog, output.Encoding)));
+        }
+
+        foreach (var ws in endpoints.WebSocketOutbound)
+        {
+            registry.RegisterOutboundEndpoint(ws.OutputId, output => new WebSocketOutboundEndpoint(
+                new WebSocketOutboundOptions
+                {
+                    Endpoint = ws.Endpoint,
+                    ExpectReply = ws.ExpectReply,
+                    PoolSize = ws.PoolSize,
+                    ReceiveBufferSize = ws.ReceiveBufferSize,
+                    Ssl = ws.Ssl,
+                    Proxy = ws.Proxy,
+                },
+                output.Encoding is { } wsEncoding
+                    && catalog.Codecs.TryGetValue(wsEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"
+                    ? new Hl7v2Codec()
+                    : null));
         }
 
         return registry;
