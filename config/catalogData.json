@@ -20,7 +20,7 @@
     // are rejected by validation. "passthrough" is a TEMPORARY no-op stage (Core) that passes the
     // message through unchanged, until real stages (validate/filter/enrich) exist.
     "Pipelines": {
-      "main": [ "hl7-classify", "passthrough" ]
+      "main": [ "passthrough" ]
     },
 
     // Per-leg encoding bundles. Codec names a Codecs entry (one message -> bytes).

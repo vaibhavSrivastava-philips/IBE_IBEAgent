@@ -46,7 +46,8 @@ public static class ComponentRegistryBuilder
                     PoolSize = tcp.PoolSize,
                     ExpectReply = tcp.ExpectReply,
                 },
-                ResolveCodec(registry, catalog, output.Encoding)));
+                ResolveCodec(registry, catalog, output.Encoding),
+                loggerFactory.CreateLogger<TcpOutboundEndpoint>()));
         }
 
         foreach (var http in endpoints.HttpOutbound)

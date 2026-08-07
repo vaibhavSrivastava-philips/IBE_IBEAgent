@@ -66,6 +66,7 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     {
         using (client)
         {
+            client.NoDelay = true;   // disable Nagle: the MLLP ack back to the source else stalls ~40ms (Nagle + delayed-ACK)
             var stream = client.GetStream();
             var writeLock = new SemaphoreSlim(1, 1);
             try

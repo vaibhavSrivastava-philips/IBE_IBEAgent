@@ -7,14 +7,29 @@ internal sealed class TcpConnectionPool(string host, int port, int size) : IAsyn
     private readonly SemaphoreSlim _slots = new(size, size);
     private readonly ConcurrentQueue<TcpClient> _idle = new();
 
-    public async Task<TcpClient> RentAsync(CancellationToken ct)
+    // Returns a connection plus whether it was REUSED from the pool. A transport failure on a reused
+    // connection is a likely stale-socket artifact (the peer closed it while idle — TcpClient.Connected
+    // can't detect that), which the caller retries once with forceFresh; a freshly-dialed connection
+    // failing is a genuine downstream error.
+    public async Task<(TcpClient client, bool reused)> RentAsync(bool forceFresh, CancellationToken ct)
     {
         await _slots.WaitAsync(ct);
-        if (_idle.TryDequeue(out var c) && c.Connected) return c;
-        c?.Dispose();
-        var client = new TcpClient();
-        await client.ConnectAsync(host, port, ct);
-        return client;
+        try
+        {
+            if (!forceFresh && _idle.TryDequeue(out var pooled))
+            {
+                if (pooled.Connected) return (pooled, true);
+                pooled.Dispose();                            // obviously-dead idle connection; fall through to a fresh dial
+            }
+            var client = new TcpClient { NoDelay = true };   // disable Nagle: MLLP request-reply else stalls ~40ms/msg (Nagle + delayed-ACK)
+            await client.ConnectAsync(host, port, ct);
+            return (client, false);
+        }
+        catch
+        {
+            _slots.Release();                                // dial/connect (or cancellation) failed before returning a client: don't leak the slot
+            throw;
+        }
     }
 
     public void Return(TcpClient client)                          // healthy -> reuse

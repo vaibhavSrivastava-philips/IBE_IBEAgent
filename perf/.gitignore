@@ -1,0 +1,5 @@
+# Perf harness build artifacts and results (never committed).
+results/
+bundle/
+.agent/
+*.zip

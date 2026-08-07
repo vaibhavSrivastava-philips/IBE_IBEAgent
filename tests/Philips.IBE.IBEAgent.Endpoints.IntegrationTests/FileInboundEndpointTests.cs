@@ -109,6 +109,25 @@ public sealed class FileInboundEndpointTests
         finally { Directory.Delete(dir, recursive: true); }
     }
 
+    [Fact]
+    public async Task Sets_forwardable_source_file_headers()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            await IoFile.WriteAllTextAsync(Path.Combine(dir, "a.hl7"), "MSH|x");
+            var dispatcher = new FakeMessageDispatcher();
+            var endpoint = NewEndpoint(dir, dispatcher);
+
+            await endpoint.ScanOnceAsync(CancellationToken.None);
+
+            var headers = dispatcher.Dispatched[0].Headers;
+            Assert.Equal("a.hl7", headers[ForwardHeaders.Key("filesourcepath")]);   // bare name (legacy wire header)
+            Assert.EndsWith("a.hl7", headers[ForwardHeaders.Key("FilePath")]);       // full source path
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     private static FileInboundEndpoint NewEndpoint(string dir, FakeMessageDispatcher dispatcher, string? pattern = null)
         => new(
             new FileInboundOptions { SourceEndpointId = 7, Directory = dir, FilePattern = pattern },

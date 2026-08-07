@@ -36,6 +36,7 @@ try {
         }
 
         $client = $listener.AcceptTcpClient()
+        $client.NoDelay = $true   # disable Nagle: MLLP ack else stalls ~40ms (Nagle + delayed-ACK)
         $remote = $client.Client.RemoteEndPoint.ToString()
         Write-DemoLog -Component $component -Level INFO -Message "IBE Agent connected from $remote."
 

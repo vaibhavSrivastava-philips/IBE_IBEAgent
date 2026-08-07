@@ -25,6 +25,7 @@ $component = 'tcp-upstream'
 Write-DemoLog -Component $component -Level INFO -Message "Connecting to the IBE Agent TCP input at ${HostName}:${Port} ..."
 
 $client = New-Object System.Net.Sockets.TcpClient
+$client.NoDelay = $true   # disable Nagle: MLLP request-reply else stalls ~40ms (Nagle + delayed-ACK)
 $client.Connect($HostName, $Port)
 $stream = $client.GetStream()
 Write-DemoLog -Component $component -Level INFO -Message "Connected. Press Enter to send an HL7 message, or type Q then Enter to quit."
