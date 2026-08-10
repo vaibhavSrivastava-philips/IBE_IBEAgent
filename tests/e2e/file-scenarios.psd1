@@ -12,7 +12,8 @@
 #   Output      - outbound transport: 'file' | 'tcp' | 'http'.
 #   Ack         - reply mode: 'none' | 'normal' | 'enhanced'. (Response is
 #                 degenerate for a File source and is not exercised here.)
-#   Disposition - File input only: 'Move' (default) | 'Watermark' | 'Delete'.
+#   Disposition - File input only: 'Move' (default) | 'Watermark'. Maps to the
+#                 KeepOriginalFiles config knob (Watermark = KeepOriginalFiles true).
 #   Dead        - route the TCP output at a closed port to force a delivery
 #                 failure (used to prove the input file lands in error/).
 #   Content     - 'plain' (HL7) | 'envelope' (base64 blob envelope, decoded by
@@ -33,7 +34,6 @@
         @{ Name = 'File in (Move) -> processed on delivery';    Input = 'file'; Output = 'tcp';  Ack = 'enhanced'; Disposition = 'Move' }
         @{ Name = 'File in (Move) -> error on failed delivery'; Input = 'file'; Output = 'tcp';  Ack = 'enhanced'; Disposition = 'Move'; Dead = $true }
         @{ Name = 'File in (Watermark) -> file left in place';  Input = 'file'; Output = 'file'; Ack = 'none';     Disposition = 'Watermark' }
-        @{ Name = 'File in (Delete) -> file removed';           Input = 'file'; Output = 'file'; Ack = 'none';     Disposition = 'Delete' }
 
         # ---- Content (base64 codec + blob envelope) -------------------------
         @{ Name = 'File in -> File out, base64 blob envelope';  Input = 'file'; Output = 'file'; Ack = 'none'; Content = 'envelope' }

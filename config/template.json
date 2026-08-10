@@ -52,7 +52,7 @@
     ],
 
     // A File INPUT source polls a folder and feeds each new file into the pipeline like any other
-    // inbound comm point. A consumed file is "disposed" (moved/marked/deleted) exactly once at settle.
+    // inbound comm point. A consumed file is "disposed" (moved or marked) exactly once at settle.
     "FileInbound": [
       {
         "SourceEndpointId": 3,            // REQUIRED, unique. Referenced by Inputs[].InputId.
@@ -61,8 +61,8 @@
         "Recursive": false,               // Optional. Poll subfolders too. Default false.
         "PollIntervalSeconds": 10,        // Optional. Seconds between directory scans. Default 10.
         "Format": "hl7v2",                // Optional. Message format tag (parser/stages/ack). Default "hl7v2".
-        "Disposition": "Move",            // Optional. Consumed file handling: "Move" (default; -> processed/ on success, error/ on failure) | "Watermark" (leave in place, advance a .lastProcessedTime marker - use for READ-ONLY shares) | "Delete".
-        "RetentionDays": 0                // Optional. Delete disposed files under processed/ and error/ older than N days. Default 0 = keep forever (no sweep). Ignored for "Watermark".
+        "KeepOriginalFiles": false,        // Optional. false (default) -> move consumed files to processed/ (success) or error/ (failure). true -> leave files in place and advance a hidden .lastProcessedTime marker (use for READ-ONLY shares); the marker is auto-armed to "now" on first start, so a pre-existing backlog is skipped.
+        "RetentionDays": 0                // Optional. Delete disposed files under processed/ and error/ older than N days. Default 0 = keep forever (no sweep). Ignored when KeepOriginalFiles is true.
         // Network share (UNC "\\\\server\\share") auth - Windows only. Omit all three for local paths.
         // "Username": "svc-ibe",         // Optional. Share user.
         // "Domain": "CORP",              // Optional. Share domain.

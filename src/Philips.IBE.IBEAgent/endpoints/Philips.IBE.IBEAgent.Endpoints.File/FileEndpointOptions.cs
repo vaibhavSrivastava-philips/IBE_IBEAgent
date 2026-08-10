@@ -18,8 +18,8 @@ public sealed class FileInboundOptions
     public bool Recursive { get; init; }
     public int PollIntervalSeconds { get; init; } = 10;
     public string Format { get; init; } = Abstractions.MessageFormats.Hl7v2;
-    public FileDispositionMode Disposition { get; init; } = FileDispositionMode.Move;   // consumed file -> processed/error
-    public int RetentionDays { get; init; }                 // 0 = keep disposed files forever (no retention sweep)
+    public bool KeepOriginalFiles { get; init; }            // false (default) -> move consumed files to processed/error; true -> leave in place, advance .lastProcessedTime (read-only shares)
+    public int RetentionDays { get; init; }                 // 0 = keep disposed files forever (no retention sweep of processed/error)
     public string? Username { get; init; }                  // network-share auth (UNC directories); host builds the credential
     public string? Domain { get; init; }
     public string? PasswordProtected { get; init; }         // DPAPI-protected (base64); decrypted by the host at composition
