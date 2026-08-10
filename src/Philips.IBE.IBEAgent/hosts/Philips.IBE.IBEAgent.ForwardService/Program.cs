@@ -11,8 +11,9 @@ using Philips.IBE.IBEAgent.ForwardService;
 var builder = Host.CreateApplicationBuilder(args);
 
 // Route all Microsoft.Extensions.Logging output through NLog (targets/rules in nlog.config next to the exe).
+// RemoveLoggerFactoryFilter=false so NLog HONORS the appsettings Logging:LogLevel filters (see Service host).
 builder.Logging.ClearProviders();
-builder.Logging.AddNLog();
+builder.Logging.AddNLog(new NLogProviderOptions { RemoveLoggerFactoryFilter = false });
 
 builder.Services.AddWindowsService(options => options.ServiceName = "Philips.IBE.Forward");
 

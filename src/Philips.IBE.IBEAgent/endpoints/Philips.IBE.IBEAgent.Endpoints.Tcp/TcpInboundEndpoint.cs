@@ -26,13 +26,14 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         _options = options; _dispatcher = dispatcher; _replyFactory = replyFactory;
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
 
+        _logger = logger ?? NullLogger<TcpInboundEndpoint>.Instance;
+
         if (_options.Ssl.IsEnabled)
         {
             _serverCertificate = _options.Ssl.LoadLocalCertificate()
                 ?? throw new InvalidOperationException(
                     $"TCP inbound endpoint (port {_options.Port}) has SSL mode {_options.Ssl.Mode} but no CertificatePath configured.");
         }
-        _logger = logger ?? NullLogger<TcpInboundEndpoint>.Instance;
     }
 
     public int BoundPort => ((IPEndPoint)_listener!.LocalEndpoint).Port; // handy for tests (port 0)
@@ -78,6 +79,7 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     {
         using (client)
         {
+            client.NoDelay = true;   // disable Nagle: the MLLP ack back to the source else stalls ~40ms (Nagle + delayed-ACK)
             Stream stream = client.GetStream();
             SslStream? sslStream = null;
             try
@@ -128,7 +130,6 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                                 "Inbound message {CorrelationId} body: {Message}",
                                 ctx.CorrelationId, MessagePreview.ForLog(ctx.Payload.Span));
 
-                        ctx.Reply.Attach(ctx);
                         await _dispatcher.DispatchAsync(ctx, ct); // backpressure comes from the ingress queue
                     }
                     finally { _admission.Release(); }

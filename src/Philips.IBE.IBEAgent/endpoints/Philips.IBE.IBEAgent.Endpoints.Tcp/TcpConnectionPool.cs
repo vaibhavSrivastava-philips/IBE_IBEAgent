@@ -29,10 +29,11 @@ internal sealed class TcpConnectionPool(string host, int port, int size, SslOpti
     private readonly ProxyOptions _proxy = proxy ?? new ProxyOptions();
     private readonly X509Certificate2? _clientCertificate = ssl?.RequiresRemoteCertificate == true ? ssl.LoadLocalCertificate() : null;
 
-    public async Task<TcpPooledConnection> RentAsync(CancellationToken ct)
+    public async Task<(TcpPooledConnection connection, bool reused)> RentAsync(bool forceFresh, CancellationToken ct)
     {
         await _slots.WaitAsync(ct);
-        if (_idle.TryDequeue(out var pooled) && pooled.Connected) return pooled;
+        TcpPooledConnection? pooled = null;
+        if (!forceFresh && _idle.TryDequeue(out pooled) && pooled.Connected) return (pooled, true);
         pooled?.Dispose();
 
         var client = new TcpClient();
@@ -67,7 +68,7 @@ internal sealed class TcpConnectionPool(string host, int port, int size, SslOpti
             stream = sslStream;
         }
 
-        return new TcpPooledConnection(client, stream);
+        return (new TcpPooledConnection(client, stream), false);
     }
 
     // Forward proxy support via the standard HTTP CONNECT tunnel (RFC 7231 §4.3.6), used to reach

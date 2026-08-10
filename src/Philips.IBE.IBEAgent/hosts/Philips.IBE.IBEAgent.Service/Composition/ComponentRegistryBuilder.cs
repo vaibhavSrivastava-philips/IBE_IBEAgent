@@ -49,7 +49,8 @@ public static class ComponentRegistryBuilder
                     Ssl = tcp.Ssl,
                     Proxy = tcp.Proxy,
                 },
-                ResolveCodec(registry, catalog, output.Encoding)));
+                ResolveCodec(registry, catalog, output.Encoding),
+                loggerFactory.CreateLogger<TcpOutboundEndpoint>()));
         }
 
         foreach (var http in endpoints.HttpOutbound)

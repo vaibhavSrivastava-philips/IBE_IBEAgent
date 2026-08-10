@@ -44,7 +44,7 @@ public sealed class TcpSslEndpointTests
             var replyFrame = await TestSupport.ReadOneFrameAsync(ssl, TimeSpan.FromSeconds(5));
             Assert.Equal(ack, replyFrame);
         }
-        finally { File.Delete(certPath); }
+        finally { System.IO.File.Delete(certPath); }
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class TcpSslEndpointTests
                 throw new IOException("unexpected data received; connection was not rejected");
             });
         }
-        finally { File.Delete(certPath); }
+        finally { System.IO.File.Delete(certPath); }
     }
 
     [Fact]
@@ -130,8 +130,8 @@ public sealed class TcpSslEndpointTests
         }
         finally
         {
-            File.Delete(serverCertPath);
-            File.Delete(clientCertPath);
+            System.IO.File.Delete(serverCertPath);
+            System.IO.File.Delete(clientCertPath);
         }
     }
 }

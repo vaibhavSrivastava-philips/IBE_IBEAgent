@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "IBE Agent performance harness config",
+  "type": "object",
+  "properties": {
+    "build": {
+      "type": "object",
+      "properties": {
+        "configuration": { "type": "string", "enum": [ "Release", "Debug" ], "description": "Build configuration for the agent + tool." },
+        "serverGc": { "type": "boolean", "description": "Enable .NET Server GC (throughput-oriented). Baked into the Release build (serverGcMode=publish) or applied at runtime (serverGcMode=runtime)." },
+        "concurrentGc": { "type": "boolean", "description": "Enable background/concurrent GC." },
+        "serverGcMode": { "type": "string", "enum": [ "publish", "runtime" ], "description": "publish = bake -p:ServerGarbageCollection into the build (default); runtime = set DOTNET_gcServer env at launch." },
+        "rebuild": { "type": "boolean", "description": "Republish the agent + tool before running (dev mode)." },
+        "runtime": { "type": "string", "description": "RID for the portable/self-contained export bundle, e.g. win-x64, linux-x64." },
+        "selfContained": { "type": "boolean", "description": "Publish the export bundle self-contained (no .NET runtime required on the target)." }
+      }
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "projectPath": { "type": "string", "description": "Path (repo-relative) to the agent host csproj to publish in dev mode." },
+        "exeName": { "type": "string", "description": "Published agent executable name." },
+        "configDir": { "type": "string", "description": "Folder holding the live appsettings/catalogData/contractData/nlog.config the harness reads for topology and copies next to the agent." },
+        "startupTimeoutSec": { "type": "integer", "description": "Max seconds to wait for the agent inbound port to open." },
+        "restartPerScenario": { "type": "boolean", "description": "Restart the agent for each scenario for full isolation." }
+      }
+    },
+    "report": {
+      "type": "object",
+      "properties": {
+        "outputDir": { "type": "string", "description": "Root folder for timestamped session results." },
+        "openAfter": { "type": "boolean", "description": "Open the HTML report when the run finishes." },
+        "baselineDir": { "type": [ "string", "null" ], "description": "Optional previous session folder to diff against (regression %)." },
+        "captureCounters": { "type": "boolean", "description": "Capture GC/CPU via dotnet-counters if available." }
+      }
+    },
+    "slo": {
+      "type": "object",
+      "properties": {
+        "p99RoundTripMs": { "type": "number", "description": "Pass threshold for p99 client round-trip latency (ms)." },
+        "zeroLoss": { "type": "boolean", "description": "Fail a scenario if any message is lost." },
+        "maxThroughputRegressionPct": { "type": "number", "description": "Baseline diff: flag throughput drops beyond this %." }
+      }
+    },
+    "defaults": { "$ref": "#/definitions/scenario" },
+    "scenarios": { "type": "array", "items": { "$ref": "#/definitions/scenario" } }
+  },
+  "definitions": {
+    "scenario": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "mode": { "type": "string", "enum": [ "closed", "open" ], "description": "closed = wait for ack before next send (latency); open = paced at rateMsgsPerSec (throughput/backpressure)." },
+        "connections": { "type": "integer", "minimum": 1 },
+        "durationSec": { "type": "integer", "minimum": 1 },
+        "warmupSec": { "type": "integer", "minimum": 0, "description": "Discarded warm-up window (excludes JIT + cold-connection from percentiles)." },
+        "rateMsgsPerSec": { "type": "number", "description": "Open-loop target rate across all connections; 0 = unbounded." },
+        "inputId": { "type": "integer", "description": "SourceEndpointId to drive; defaults to the first contract's first input." },
+        "idleGapSec": { "type": "integer", "description": "Idle gap between bursts (exercises the stale-connection reconnect)." },
+        "burstSize": { "type": "integer", "description": "Messages per burst before the idle gap." },
+        "messageMix": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": [ "ADT^A01", "ORU^R01", "ORM^O01" ] },
+              "sizeBytes": { "type": "integer", "description": "Pad the message to this size (0 = template size)." },
+              "weightPct": { "type": "number" }
+            }
+          }
+        },
+        "sink": {
+          "type": "object",
+          "properties": {
+            "ackDelayMs": { "type": "integer", "description": "Downstream ack delay (simulate a slow destination)." },
+            "jitterMs": { "type": "integer" },
+            "failure": {
+              "type": "object",
+              "properties": {
+                "closeAfterN": { "type": "integer", "description": "Close each connection after N messages." },
+                "nackPct": { "type": "number", "description": "Return an AE NACK for this % of messages." },
+                "idleCloseMs": { "type": "integer", "description": "Close a connection idle for this many ms (like the demo receiver)." },
+                "refuse": { "type": "boolean" },
+                "resetMidFrame": { "type": "boolean" }
+              }
+            }
+          }
+        },
+        "agentOverrides": {
+          "type": "object",
+          "description": "Optional per-scenario agent config overrides (patched into a sandbox + agent restart). Omit to test the CURRENT contractData as-is.",
+          "properties": {
+            "loggingTier": { "type": "string", "enum": [ "Trace", "Debug", "Information", "Warning" ] }
+          }
+        }
+      }
+    }
+  }
+}

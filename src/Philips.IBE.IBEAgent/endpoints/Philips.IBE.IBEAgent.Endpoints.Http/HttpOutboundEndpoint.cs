@@ -73,7 +73,12 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
             using var content = new ByteArrayContent(wire.ToArray());
             content.Headers.TryAddWithoutValidation("Content-Type", _options.ContentType);
 
-            using var response = await _http.PostAsync(_options.Endpoint, content, cancellationToken);
+            using var request = new HttpRequestMessage(HttpMethod.Post, _options.Endpoint) { Content = content };
+            foreach (var (key, value) in context.Headers)   // opt-in metadata (fwd.*) -> protocol headers
+                if (ForwardHeaders.TryGetName(key, out var name))
+                    request.Headers.TryAddWithoutValidation(name, value);
+
+            using var response = await _http.SendAsync(request, cancellationToken);
             var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 
             return response.IsSuccessStatusCode

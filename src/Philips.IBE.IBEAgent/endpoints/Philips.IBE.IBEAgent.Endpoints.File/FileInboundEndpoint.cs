@@ -103,7 +103,7 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
                     ack: token,
                     reply: reply,
                     payload: payload,
-                    headers: null,
+                    headers: BuildSourceHeaders(path),
                     disposition: token);
 
                 _logger.LogDebug(
@@ -188,6 +188,14 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
             .Where(p => p.Length > 0)
             .ToArray();
     }
+
+    // Legacy-parity source provenance, opted into wire forwarding: a header-capable output (HTTP)
+    // relays the file name (bare) + path (full) to the downstream; TCP/File outputs ignore them.
+    private static Dictionary<string, string> BuildSourceHeaders(string path) => new(StringComparer.Ordinal)
+    {
+        [ForwardHeaders.Key("filesourcepath")] = Path.GetFileName(path),
+        [ForwardHeaders.Key("FilePath")] = path,
+    };
 
     private bool MatchesExtension(string path)
     {

@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/perf/" />
+  <Folder Name="/perf/tools/">
+    <Project Path="perf/tools/IbePerf/IbePerf.csproj" />
+  </Folder>
   <Folder Name="/src/" />
   <Folder Name="/src/Philips.IBE.IBEAgent/">
     <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Abstractions/Philips.IBE.IBEAgent.Abstractions.csproj" />

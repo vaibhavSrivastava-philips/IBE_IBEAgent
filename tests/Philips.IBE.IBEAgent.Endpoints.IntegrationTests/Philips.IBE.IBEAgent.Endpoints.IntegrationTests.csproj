@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\endpoints\Philips.IBE.IBEAgent.Endpoints.Http\Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
     <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\Philips.IBE.IBEAgent.Security\Philips.IBE.IBEAgent.Security.csproj" />
     <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\endpoints\Philips.IBE.IBEAgent.Endpoints.File\Philips.IBE.IBEAgent.Endpoints.File.csproj" />
+    <ProjectReference Include="..\..\src\Philips.IBE.IBEAgent\Philips.IBE.IBEAgent.Security\Philips.IBE.IBEAgent.Security.csproj" />
     <ProjectReference Include="..\..\testkit\Philips.IBE.IBEAgent.TestKit\Philips.IBE.IBEAgent.TestKit.csproj" />
   </ItemGroup>
   <ItemGroup>

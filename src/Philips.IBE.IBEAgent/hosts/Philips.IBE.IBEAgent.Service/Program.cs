@@ -22,8 +22,11 @@ builder.Configuration
     .AddJsonFile("contractData.json", optional: true, reloadOnChange: true);
 
 // Route all Microsoft.Extensions.Logging output through NLog (targets/rules in nlog.config next to the exe).
+// RemoveLoggerFactoryFilter=false so NLog HONORS the appsettings Logging:LogLevel filters — the Philips.IBE
+// category level is then the single gate (and ILogger.IsEnabled reflects it, so Trace body decodes are
+// skipped when Trace is off). Without it, NLog ignores those filters and only nlog.config rules apply.
 builder.Logging.ClearProviders();
-builder.Logging.AddNLog();
+builder.Logging.AddNLog(new NLogProviderOptions { RemoveLoggerFactoryFilter = false });
 
 builder.Services.AddWindowsService(options => options.ServiceName = "Philips.IBE.Agent");
 
