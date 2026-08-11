@@ -4,12 +4,12 @@ using IoFile = System.IO.File;   // the enclosing namespace ends in ".File", whi
 
 namespace Philips.IBE.IBEAgent.Endpoints.File;
 
-public enum FileDispositionMode { Move, Watermark, Delete }
+public enum FileDispositionMode { Move, Watermark }
 
 // How a consumed source file is retired when its message settles. Move (default, legacy parity)
 // relocates the file to processed/ (Completed/Filtered) or error/ (Faulted), preserving its relative
 // path under the polled root; Watermark leaves the file and advances .lastProcessedTime (read-only
-// shares); Delete removes it. Best-effort: a failed disposition is logged, never thrown.
+// shares). Best-effort: a failed disposition is logged, never thrown.
 public sealed class FileDisposition
 {
     public const string ProcessedFolder = "processed";
@@ -36,9 +36,6 @@ public sealed class FileDisposition
             {
                 case FileDispositionMode.Watermark:
                     await _watermark.AdvanceToAsync(effectiveTimeUtc, cancellationToken);
-                    break;
-                case FileDispositionMode.Delete:
-                    if (IoFile.Exists(sourcePath)) IoFile.Delete(sourcePath);
                     break;
                 default:
                     MoveToOutcomeFolder(sourcePath, outcome);

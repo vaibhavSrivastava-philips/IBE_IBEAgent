@@ -59,23 +59,6 @@ public sealed class FileDispositionTests
         finally { Directory.Delete(dir, recursive: true); }
     }
 
-    [Fact]
-    public async Task Delete_removes_the_source()
-    {
-        var dir = CreateTempDir();
-        try
-        {
-            var src = Path.Combine(dir, "a.hl7");
-            await IoFile.WriteAllTextAsync(src, "x");
-            var disposition = new FileDisposition(FileDispositionMode.Delete, dir, new LastProcessedWatermark(dir), NullLogger.Instance);
-
-            await disposition.ApplyAsync(src, DateTime.UtcNow, MessageCompletion.Completed, CancellationToken.None);
-
-            Assert.False(IoFile.Exists(src));
-        }
-        finally { Directory.Delete(dir, recursive: true); }
-    }
-
     private static FileDisposition NewMove(string dir)
         => new(FileDispositionMode.Move, dir, new LastProcessedWatermark(dir), NullLogger.Instance);
 

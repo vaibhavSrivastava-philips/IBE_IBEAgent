@@ -6,7 +6,7 @@
     Companion to Invoke-E2EWorkflow.ps1 (TCP/HTTP). Exercises the File inbound
     (folder poller) and File outbound (file writer) comm points against a real
     published agent, including cross-transport relays (File <-> TCP/HTTP), the
-    three input dispositions (Move -> processed/, Watermark, Delete), the
+    three input dispositions (Move -> processed/, Watermark), the
     error path (Move -> error/ on a failed delivery), and the content path
     (base64 payload codec + blob-envelope-extract pipeline).
 
@@ -144,7 +144,7 @@ function New-FileContractData {
     switch ($Scenario.Input) {
         'file' {
             $endpoints['FileInbound'] = @(
-                @{ SourceEndpointId = $inputId; Directory = $InDir; FilePattern = '*.hl7;*.dat;*.txt'; PollIntervalSeconds = 1; Format = 'hl7v2'; Disposition = $disposition }
+                @{ SourceEndpointId = $inputId; Directory = $InDir; FilePattern = '*.hl7;*.dat;*.txt'; PollIntervalSeconds = 1; Format = 'hl7v2'; KeepOriginalFiles = ($disposition -eq 'Watermark') }
             )
         }
         'tcp' {
@@ -357,14 +357,6 @@ function Invoke-Scenario {
                 $watermarkFile = Test-Path -LiteralPath (Join-Path $inDir '.lastProcessedTime')
                 $sourceOk = $stillThere -and ($count -eq 1) -and $watermarkFile
                 $record.Source = "left in place=$stillThere, deliveries=$count, watermark=$watermarkFile"
-            }
-            elseif ($disposition -eq 'Delete') {
-                $deadline = (Get-Date).AddSeconds(6)
-                while ((Get-Date) -lt $deadline -and (Test-InputHasMarker -InputDir $inDir -Marker $messageId)) { Start-Sleep -Milliseconds 150 }
-                $gone = -not (Test-InputHasMarker -InputDir $inDir -Marker $messageId)
-                $notInProcessed = -not (Wait-ForDisposition -InputDir $inDir -Marker $messageId -Outcome 'processed' -TimeoutMs 500).Found
-                $sourceOk = $gone -and $notInProcessed
-                $record.Source = if ($sourceOk) { 'deleted' } else { "gone=$gone, notInProcessed=$notInProcessed" }
             }
             else {
                 $disp = Wait-ForDisposition -InputDir $inDir -Marker $messageId -Outcome 'processed' -TimeoutMs 15000

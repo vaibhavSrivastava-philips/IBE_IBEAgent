@@ -16,6 +16,7 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
     private readonly IReplyContextFactory _replyFactory;
     private readonly IFileArrivalTrigger _trigger;
     private readonly LastProcessedWatermark _watermark;
+    private readonly FileDispositionMode _dispositionMode;
     private readonly FileDisposition _disposition;
     private readonly RetentionSweeper? _retention;
     private readonly ILogger<FileInboundEndpoint> _logger;
@@ -41,19 +42,24 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
         _watermark = new LastProcessedWatermark(options.Directory);
         _logger = logger ?? NullLogger<FileInboundEndpoint>.Instance;
         _extensions = ParseExtensions(options.FilePattern);
-        _disposition = new FileDisposition(options.Disposition, options.Directory, _watermark, _logger);
+        _dispositionMode = ResolveDisposition(options);
+        _disposition = new FileDisposition(_dispositionMode, options.Directory, _watermark, _logger);
         _retention = options.RetentionDays > 0 ? new RetentionSweeper(options.Directory, options.RetentionDays, _logger) : null;
         _credential = credential;
     }
 
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         ConnectShareIfConfigured();
         Directory.CreateDirectory(_options.Directory);
+        // Watermark mode: on first start, arm the marker to "now" so a pre-existing backlog is not ingested
+        // (an operator-set marker is preserved). Legacy KeepOriginalFiles parity, without the manual arming step.
+        if (_dispositionMode == FileDispositionMode.Watermark)
+            await _watermark.ArmAsync(DateTime.UtcNow, cancellationToken);
         _logger.LogInformation(
             "File inbound endpoint (source {SourceEndpointId}) polling {Directory}.",
             _options.SourceEndpointId, _options.Directory);
-        return _trigger.StartAsync(SafeScanAsync, cancellationToken);
+        await _trigger.StartAsync(SafeScanAsync, cancellationToken);
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -196,6 +202,11 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
         [ForwardHeaders.Key("filesourcepath")] = Path.GetFileName(path),
         [ForwardHeaders.Key("FilePath")] = path,
     };
+
+    // KeepOriginalFiles selects how a consumed file is retired: true -> Watermark (keep the file + advance
+    // the .lastProcessedTime marker), false -> Move (relocate to processed/ or error/).
+    private static FileDispositionMode ResolveDisposition(FileInboundOptions options) =>
+        options.KeepOriginalFiles ? FileDispositionMode.Watermark : FileDispositionMode.Move;
 
     private bool MatchesExtension(string path)
     {

@@ -128,6 +128,36 @@ public sealed class FileInboundEndpointTests
         finally { Directory.Delete(dir, recursive: true); }
     }
 
+    [Fact]
+    public async Task Watermark_mode_arms_on_start_and_skips_the_pre_existing_backlog()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            var backlog = Path.Combine(dir, "old.hl7");
+            await IoFile.WriteAllTextAsync(backlog, "OLD");
+            IoFile.SetLastWriteTimeUtc(backlog, DateTime.UtcNow.AddMinutes(-5));   // clearly before the arm point
+
+            var dispatcher = new FakeMessageDispatcher();
+            var endpoint = new FileInboundEndpoint(
+                new FileInboundOptions { SourceEndpointId = 7, Directory = dir, KeepOriginalFiles = true },
+                dispatcher, new FakeReplyContextFactory(), new NoOpTrigger());
+
+            await endpoint.StartAsync(CancellationToken.None);   // arms .lastProcessedTime to ~now
+            await endpoint.ScanOnceAsync(CancellationToken.None);
+            Assert.Empty(dispatcher.Dispatched);                 // backlog older than the arm point is skipped
+            Assert.True(IoFile.Exists(Path.Combine(dir, LastProcessedWatermark.FileName)));
+
+            var fresh = Path.Combine(dir, "new.hl7");
+            await IoFile.WriteAllTextAsync(fresh, "NEW");
+            IoFile.SetLastWriteTimeUtc(fresh, DateTime.UtcNow.AddMinutes(5));       // clearly after the arm point
+            await endpoint.ScanOnceAsync(CancellationToken.None);
+            Assert.Single(dispatcher.Dispatched);
+            Assert.Equal("NEW", Encoding.UTF8.GetString(dispatcher.Dispatched[0].Payload.Span));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     private static FileInboundEndpoint NewEndpoint(string dir, FakeMessageDispatcher dispatcher, string? pattern = null)
         => new(
             new FileInboundOptions { SourceEndpointId = 7, Directory = dir, FilePattern = pattern },
@@ -139,5 +169,12 @@ public sealed class FileInboundEndpointTests
         var dir = Path.Combine(Path.GetTempPath(), "ibe-filein-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
+    }
+
+    // Captures the tick callback but never loops, so a test can drive ScanOnceAsync manually after StartAsync.
+    private sealed class NoOpTrigger : IFileArrivalTrigger
+    {
+        public Task StartAsync(Func<CancellationToken, Task> onTick, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
