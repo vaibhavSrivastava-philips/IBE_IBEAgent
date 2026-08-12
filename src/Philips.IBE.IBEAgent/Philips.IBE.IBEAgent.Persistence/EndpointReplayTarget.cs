@@ -6,7 +6,7 @@ namespace Philips.IBE.IBEAgent.Persistence;
 // ForwardWorker already serializes replays one at a time) and resolves/re-parks directly against
 // the SAME IForwardStore row the in-process DeliveryLeg would have used. Used only by the
 // out-of-process ForwardService host; the in-process host reuses the compiled DeliveryLeg instead.
-public sealed class EndpointReplayTarget : IReplayTarget
+public sealed class EndpointReplayTarget : IReplayTarget, IAsyncDisposable
 {
     private readonly int _outputId;
     private readonly IOutboundEndpoint _endpoint;
@@ -28,5 +28,13 @@ public sealed class EndpointReplayTarget : IReplayTarget
             await _store.ResolveAsync(context, _outputId, cancellationToken);
         else
             throw new InvalidOperationException(result.Error ?? "delivery failed"); // ForwardWorker reschedules/parks
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_endpoint is IAsyncDisposable asyncDisposable)
+            await asyncDisposable.DisposeAsync();
+        else if (_endpoint is IDisposable disposable)
+            disposable.Dispose();
     }
 }

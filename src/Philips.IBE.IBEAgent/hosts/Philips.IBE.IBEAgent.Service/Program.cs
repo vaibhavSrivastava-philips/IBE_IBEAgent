@@ -16,8 +16,10 @@ var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
 });
 
 // catalogData.json (developer-owned: pipelines/codecs) and contractData.json (FSE-owned:
-// communication endpoints + contract topology) layer on top of appsettings.json.
+// communication endpoints + contract topology) layer on top of appsettings.json. Environment-specific
+// appsettings can opt into deep diagnostics in dev without making production payload/body logging noisy.
 builder.Configuration
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
     .AddJsonFile("catalogData.json", optional: true, reloadOnChange: true)
     .AddJsonFile("contractData.json", optional: true, reloadOnChange: true);
 

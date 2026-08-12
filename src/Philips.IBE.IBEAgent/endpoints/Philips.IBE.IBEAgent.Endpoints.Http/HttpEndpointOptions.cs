@@ -1,9 +1,12 @@
 using Philips.IBE.IBEAgent.Security;
+using Philips.IBE.IBEAgent.Abstractions;
 
 namespace Philips.IBE.IBEAgent.Endpoints.Http;
 
 public sealed class HttpInboundOptions
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Inbound;
+    public string? LogicalEndpointId { get; init; }
     public required int SourceEndpointId { get; init; }
     public required string Prefix { get; init; }             // e.g. "http://localhost:8080/ibe/" or "https://..." when Ssl is enabled
     public string Format { get; init; } = "hl7v2";
@@ -18,6 +21,8 @@ public sealed class HttpInboundOptions
 
 public sealed class HttpOutboundOptions
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Outbound;
+    public string? LogicalEndpointId { get; init; }
     public required Uri Endpoint { get; init; }
     public string ContentType { get; init; } = "application/octet-stream";
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);

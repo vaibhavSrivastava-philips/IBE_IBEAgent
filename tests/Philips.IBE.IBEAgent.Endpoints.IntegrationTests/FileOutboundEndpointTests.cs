@@ -82,6 +82,53 @@ public sealed class FileOutboundEndpointTests
         finally { Directory.Delete(dir, recursive: true); }
     }
 
+    [Fact]
+    public async Task DuplexOutbound_file_uses_logical_pair_for_output_directory_and_inbound_poll_directory()
+    {
+        var root = CreateTempDir();
+        try
+        {
+            var inboundDir = Path.Combine(root, "in");
+            var outboundDir = Path.Combine(root, "out");
+            Directory.CreateDirectory(inboundDir);
+
+            var dispatcher = new FakeMessageDispatcher();
+            var inbound = new FileInboundEndpoint(
+                new FileInboundOptions
+                {
+                    Mode = CommunicationMode.DuplexInbound,
+                    LogicalEndpointId = "folder-pair-a",
+                    SourceEndpointId = 7,
+                    Directory = inboundDir,
+                    FilePattern = "*.hl7",
+                },
+                dispatcher,
+                new FakeReplyContextFactory());
+            var outbound = new FileOutboundEndpoint(
+                new FileOutboundOptions
+                {
+                    Mode = CommunicationMode.DuplexOutbound,
+                    LogicalEndpointId = "folder-pair-a",
+                    Directory = outboundDir,
+                    FileNameTemplate = "{correlationId}.hl7",
+                },
+                codec: null);
+
+            await IoFile.WriteAllTextAsync(Path.Combine(inboundDir, "from-partner.hl7"), "MSH|INBOUND");
+            await inbound.ScanOnceAsync(CancellationToken.None);
+
+            Assert.Single(dispatcher.Dispatched);
+            Assert.Equal(7, dispatcher.Dispatched[0].SourceEndpointId);
+            Assert.Equal("MSH|INBOUND", Encoding.UTF8.GetString(dispatcher.Dispatched[0].Payload.Span));
+
+            var result = await outbound.SendAsync(Message("cid-1", "MSH|OUTBOUND"), CancellationToken.None);
+
+            Assert.Equal(DeliveryOutcome.Delivered, result.Outcome);
+            Assert.Equal("MSH|OUTBOUND", await IoFile.ReadAllTextAsync(Path.Combine(outboundDir, "cid-1.hl7")));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
     private static string CreateTempDir()
     {
         var dir = Path.Combine(Path.GetTempPath(), "ibe-file-" + Guid.NewGuid().ToString("N"));

@@ -9,14 +9,18 @@ public sealed class FileSourceToken : IAckToken, IMessageDisposition
 {
     private readonly string _sourcePath;
     private readonly DateTime _effectiveTimeUtc;
+    private readonly long _length;
+    private readonly string _payloadHash;
     private readonly FileDisposition _disposition;
     private readonly Action _onCompleted;
     private int _completed;
 
-    public FileSourceToken(string sourcePath, DateTime effectiveTimeUtc, FileDisposition disposition, Action onCompleted)
+    public FileSourceToken(string sourcePath, DateTime effectiveTimeUtc, long length, string payloadHash, FileDisposition disposition, Action onCompleted)
     {
         _sourcePath = sourcePath ?? throw new ArgumentNullException(nameof(sourcePath));
         _effectiveTimeUtc = effectiveTimeUtc;
+        _length = length;
+        _payloadHash = payloadHash ?? throw new ArgumentNullException(nameof(payloadHash));
         _disposition = disposition ?? throw new ArgumentNullException(nameof(disposition));
         _onCompleted = onCompleted ?? throw new ArgumentNullException(nameof(onCompleted));
     }
@@ -29,7 +33,7 @@ public sealed class FileSourceToken : IAckToken, IMessageDisposition
         if (Interlocked.Exchange(ref _completed, 1) != 0) return;   // settle once
         try
         {
-            await _disposition.ApplyAsync(_sourcePath, _effectiveTimeUtc, outcome, cancellationToken);
+            await _disposition.ApplyAsync(_sourcePath, _effectiveTimeUtc, _length, _payloadHash, outcome, cancellationToken);
         }
         finally
         {

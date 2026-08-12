@@ -43,7 +43,18 @@ internal static class MllpFramer
                         yield return acc.WrittenSpan.ToArray();
                         inMessage = false; sawFs = false;
                     }
+                    else if (b == Mllp.StartBlock)   // malformed terminator followed by a fresh frame: drop partial and resync
+                    {
+                        acc.Clear();
+                        inMessage = true; sawFs = false;
+                    }
                     else { Append(acc, Mllp.EndBlock1); Append(acc, b); sawFs = false; }
+                    continue;
+                }
+                if (b == Mllp.StartBlock)            // nested start block: previous frame was incomplete/corrupt; resync
+                {
+                    acc.Clear();
+                    sawFs = false;
                     continue;
                 }
                 if (b == Mllp.EndBlock1) { sawFs = true; continue; }

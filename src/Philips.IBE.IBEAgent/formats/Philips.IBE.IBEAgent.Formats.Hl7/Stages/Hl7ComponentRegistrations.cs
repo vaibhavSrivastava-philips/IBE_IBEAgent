@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Philips.IBE.IBEAgent.Core;
+using Philips.IBE.IBEAgent.Formats.Hl7.Filtering;
 
 namespace Philips.IBE.IBEAgent.Formats.Hl7;
 
@@ -15,6 +16,8 @@ public static class Hl7ComponentRegistrations
 
         var classifyLogger = loggerFactory.CreateLogger<Hl7ClassifyStage>();
         registry.RegisterStage(Hl7ClassifyStage.Name, () => new Hl7ClassifyStage(classifyLogger));
+        var filterLogger = loggerFactory.CreateLogger<Hl7FilterStage>();
+        registry.RegisterStage(Hl7FilterStage.Name, () => new Hl7FilterStage(logger: filterLogger));
 
         return registry;
     }

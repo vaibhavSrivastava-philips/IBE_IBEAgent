@@ -27,12 +27,13 @@ public sealed class Hl7SingleAckFormatter : IAckFormatter
         try
         {
             // Outcome -> HL7 ack code: delivered/accepted = AA; a FILTERED message is an intentional
-            // reject = AR (carrying the filter reason); any other terminal outcome is an error = AE.
+            // reject = AR (carrying the filter reason); any other terminal outcome is an error = AE
+            // carrying the downstream/timeout reason when available.
             var ack = result.Outcome switch
             {
                 DeliveryOutcome.Delivered or DeliveryOutcome.Accepted => HL7AckGenerator.GenerateHL7Ack(source, true),
                 DeliveryOutcome.Filtered => HL7AckGenerator.GenerateHL7Reject(source, "AR", result.Error),
-                _ => HL7AckGenerator.GenerateHL7Ack(source, false),
+                _ => HL7AckGenerator.GenerateHL7Reject(source, "AE", result.Error),
             };
             return Encoding.UTF8.GetBytes(ack);
         }

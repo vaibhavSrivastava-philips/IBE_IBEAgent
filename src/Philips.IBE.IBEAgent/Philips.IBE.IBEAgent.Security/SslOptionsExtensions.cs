@@ -7,33 +7,46 @@ namespace Philips.IBE.IBEAgent.Security;
 // SocketsHttpHandler / HttpListener actually need (X509Certificate2 + RemoteCertificateValidationCallback).
 public static class SslOptionsExtensions
 {
+    private static readonly ICertificateProvider DefaultProvider = new DefaultCertificateProvider();
+
     public static X509Certificate2? LoadLocalCertificate(this SslOptions options)
+        => options.LoadLocalCertificate(DefaultProvider);
+
+    public static X509Certificate2? LoadLocalCertificate(this SslOptions options, ICertificateProvider certificateProvider)
     {
-        if (string.IsNullOrEmpty(options.CertificatePath)) return null;
-
-        // PKCS#12 containers (.pfx/.p12) carry the private key and must go through
-        // LoadPkcs12FromFile even when there's no password; LoadCertificateFromFile only
-        // understands public-key-only formats (DER/PEM) and would fail on a PFX.
-        var extension = Path.GetExtension(options.CertificatePath);
-        var isPkcs12 = extension.Equals(".pfx", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".p12", StringComparison.OrdinalIgnoreCase);
-
-        return isPkcs12 || !string.IsNullOrEmpty(options.CertificatePassword)
-            ? X509CertificateLoader.LoadPkcs12FromFile(options.CertificatePath, options.CertificatePassword)
-            : X509CertificateLoader.LoadCertificateFromFile(options.CertificatePath);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(certificateProvider);
+        return certificateProvider.LoadCertificate(options.EffectiveLocalCertificate, requirePrivateKey: true);
     }
 
     public static X509Certificate2? LoadTrustedAuthority(this SslOptions options)
-        => string.IsNullOrEmpty(options.TrustedCertificateAuthorityPath)
-            ? null
-            : X509CertificateLoader.LoadCertificateFromFile(options.TrustedCertificateAuthorityPath);
+        => options.LoadTrustedAuthority(DefaultProvider);
+
+    public static X509Certificate2? LoadTrustedAuthority(this SslOptions options, ICertificateProvider certificateProvider)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(certificateProvider);
+        return certificateProvider.LoadCertificate(options.EffectiveTrustedAuthority);
+    }
+
+    public static bool RequiresClientCertificate(this SslOptions options)
+        => options.RequireClientCertificate || options.Mode == SslMode.TwoWay;
+
+    public static bool HasLocalCertificate(this SslOptions options)
+        => options.EffectiveLocalCertificate is not null;
+
+    public static bool HasTrustedAuthority(this SslOptions options)
+        => options.EffectiveTrustedAuthority is not null;
 
     // Validates the remote peer's certificate: honours AllowUntrustedCertificate (dev/test), and,
     // when a TrustedCertificateAuthorityPath is configured, requires the chain to build to that CA
     // instead of relying solely on the machine trust store.
     public static RemoteCertificateValidationCallback CreateRemoteCertificateValidator(this SslOptions options)
+        => options.CreateRemoteCertificateValidator(DefaultProvider);
+
+    public static RemoteCertificateValidationCallback CreateRemoteCertificateValidator(this SslOptions options, ICertificateProvider certificateProvider)
     {
-        var trustedCa = options.LoadTrustedAuthority();
+        var trustedCa = options.LoadTrustedAuthority(certificateProvider);
 
         return (_, certificate, chain, errors) =>
         {

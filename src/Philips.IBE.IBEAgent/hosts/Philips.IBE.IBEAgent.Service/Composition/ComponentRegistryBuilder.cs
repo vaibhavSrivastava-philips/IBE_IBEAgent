@@ -6,6 +6,7 @@ using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
 using Philips.IBE.IBEAgent.Endpoints.WebSocket;
 using Philips.IBE.IBEAgent.Formats.Hl7;
+using Philips.IBE.IBEAgent.Formats.Hl7.Cim;
 using Microsoft.Extensions.Logging;
 
 namespace Philips.IBE.IBEAgent.Service;
@@ -15,7 +16,7 @@ namespace Philips.IBE.IBEAgent.Service;
 // added here (register + name), never by editing Core.
 public static class ComponentRegistryBuilder
 {
-    public static ComponentRegistry Build(AgentEndpointsOptions endpoints, CatalogOptions catalog, ILoggerFactory loggerFactory)
+    public static ComponentRegistry Build(AgentEndpointsOptions endpoints, CatalogOptions catalog, ILoggerFactory loggerFactory, TcpDuplexSessionRegistry? tcpDuplexSessions = null, WebSocketDuplexSessionRegistry? webSocketDuplexSessions = null)
     {
         var registry = new ComponentRegistry();
 
@@ -25,7 +26,9 @@ public static class ComponentRegistryBuilder
         registry.AddHl7Stages(loggerFactory);   // protocol (HL7) stages, e.g. hl7-classify
 
         // §3.8/§6 — Enhanced-ack rendering: HL7's own (Format x Shape) generated ack.
-        registry.RegisterAckFormatter(new Hl7SingleAckFormatter(loggerFactory.CreateLogger<Hl7SingleAckFormatter>()));
+        var hl7SingleAckFormatter = new Hl7SingleAckFormatter(loggerFactory.CreateLogger<Hl7SingleAckFormatter>());
+        registry.RegisterAckFormatter(hl7SingleAckFormatter);
+        registry.RegisterAckFormatter(new Hl7BatchAckFormatter(hl7SingleAckFormatter));
 
         // §3.10 — register each configured codec by its Type (the key CreateMessageCodec resolves by),
         // so every outbound leg draws its codec from here: hl7v2 (pass-through) or base64 (file content).
@@ -33,6 +36,10 @@ public static class ComponentRegistryBuilder
         {
             if (codec.Type == "hl7v2")
                 registry.RegisterMessageCodec(codec.Type, _ => new Hl7v2Codec());
+            else if (codec.Type == "cim-json")
+                registry.RegisterMessageCodec(codec.Type, _ => new CimJsonCodec());
+            else if (codec.Type == "cim-avro")
+                registry.RegisterMessageCodec(codec.Type, _ => new CimAvroCodec());
             else if (codec.Type == "base64")
                 registry.RegisterMessageCodec(codec.Type, _ => new Base64Codec());
         }
@@ -42,6 +49,12 @@ public static class ComponentRegistryBuilder
             registry.RegisterOutboundEndpoint(tcp.OutputId, output => new TcpOutboundEndpoint(
                 new TcpOutboundOptions
                 {
+                    Mode = tcp.Mode,
+                    SourceEndpointId = tcp.SourceEndpointId,
+                    DuplexInboundSourceEndpointId = tcp.DuplexInboundSourceEndpointId,
+                    InboundFormat = tcp.InboundFormat,
+                    ReplyCorrelationTimeout = TimeSpan.FromSeconds(tcp.ReplyCorrelationTimeoutSeconds),
+                    ReconnectDelay = TimeSpan.FromSeconds(tcp.ReconnectDelaySeconds),
                     Host = tcp.Host,
                     Port = tcp.Port,
                     PoolSize = tcp.PoolSize,
@@ -50,7 +63,8 @@ public static class ComponentRegistryBuilder
                     Proxy = tcp.Proxy,
                 },
                 ResolveCodec(registry, catalog, output.Encoding),
-                loggerFactory.CreateLogger<TcpOutboundEndpoint>()));
+                loggerFactory.CreateLogger<TcpOutboundEndpoint>(),
+                tcpDuplexSessions));
         }
 
         foreach (var http in endpoints.HttpOutbound)
@@ -58,6 +72,8 @@ public static class ComponentRegistryBuilder
             registry.RegisterOutboundEndpoint(http.OutputId, output => new HttpOutboundEndpoint(
                 new HttpOutboundOptions
                 {
+                    Mode = http.Mode,
+                    LogicalEndpointId = http.LogicalEndpointId,
                     Endpoint = http.Endpoint,
                     ContentType = http.ContentType,
                     Timeout = TimeSpan.FromSeconds(http.TimeoutSeconds),
@@ -75,6 +91,8 @@ public static class ComponentRegistryBuilder
             registry.RegisterOutboundEndpoint(file.OutputId, output => new FileOutboundEndpoint(
                 new FileOutboundOptions
                 {
+                    Mode = file.Mode,
+                    LogicalEndpointId = file.LogicalEndpointId,
                     Directory = file.Directory,
                     FileNameTemplate = file.FileNameTemplate,
                     DefaultExtension = file.DefaultExtension,
@@ -87,8 +105,14 @@ public static class ComponentRegistryBuilder
             registry.RegisterOutboundEndpoint(ws.OutputId, output => new WebSocketOutboundEndpoint(
                 new WebSocketOutboundOptions
                 {
+                    Mode = ws.Mode,
+                    SourceEndpointId = ws.SourceEndpointId,
+                    DuplexInboundSourceEndpointId = ws.DuplexInboundSourceEndpointId,
+                    InboundFormat = ws.InboundFormat,
                     Endpoint = ws.Endpoint,
                     ExpectReply = ws.ExpectReply,
+                    ReplyCorrelationTimeout = TimeSpan.FromSeconds(ws.ReplyCorrelationTimeoutSeconds),
+                    ReconnectDelay = TimeSpan.FromSeconds(ws.ReconnectDelaySeconds),
                     PoolSize = ws.PoolSize,
                     ReceiveBufferSize = ws.ReceiveBufferSize,
                     Ssl = ws.Ssl,
@@ -97,7 +121,8 @@ public static class ComponentRegistryBuilder
                 output.Encoding is { } wsEncoding
                     && catalog.Codecs.TryGetValue(wsEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"
                     ? new Hl7v2Codec()
-                    : null));
+                    : null,
+                webSocketDuplexSessions));
         }
 
         return registry;

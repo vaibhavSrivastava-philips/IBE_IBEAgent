@@ -5,6 +5,7 @@ using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Endpoints.File;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
+using Philips.IBE.IBEAgent.Endpoints.WebSocket;
 using Philips.IBE.IBEAgent.Formats.Hl7;
 using Philips.IBE.IBEAgent.Persistence;
 
@@ -21,13 +22,14 @@ public static class ServiceCollectionExtensions
         var endpoints = configuration.GetSection("Ibe:Endpoints").Get<OutboundEndpointsOptions>()
             ?? throw new InvalidOperationException("Required configuration section 'Ibe:Endpoints' is missing.");
 
-        // AddForwardStore registers IForwardStore via DI type registration; build one instance up
-        // front instead (mirrors Philips.IBE.IBEAgent.Service's own composition-time wiring) so the
-        // replay targets below and DI resolve the SAME store instance.
+        // Build the configured store up front so replay targets below and DI resolve the SAME durable
+        // instance as the ForwardWorker.
+        var forwardOptions = configuration.GetSection("Forward").Get<Configuration.ForwardOptions>() ?? new Configuration.ForwardOptions();
         var protector = Security.DataProtectorFactory.Create();
-        var store = new InMemoryForwardStore(protector);
+        var (store, management) = ForwardStoreFactory.Create(forwardOptions, protector);
         services.AddSingleton(protector);
         services.AddSingleton<IForwardStore>(store);
+        services.AddSingleton<IForwardStoreManagement>(management);
 
         var targets = new List<KeyValuePair<int, IReplayTarget>>();
 
@@ -36,10 +38,13 @@ public static class ServiceCollectionExtensions
             var endpoint = new TcpOutboundEndpoint(
                 new TcpOutboundOptions
                 {
+                    Mode = tcp.Mode,
                     Host = tcp.Host,
                     Port = tcp.Port,
                     PoolSize = tcp.PoolSize,
                     ExpectReply = tcp.ExpectReply,
+                    Ssl = tcp.Ssl,
+                    Proxy = tcp.Proxy,
                 },
                 tcp.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
             targets.Add(new KeyValuePair<int, IReplayTarget>(tcp.OutputId, new EndpointReplayTarget(tcp.OutputId, endpoint, store)));
@@ -50,12 +55,35 @@ public static class ServiceCollectionExtensions
             var endpoint = new HttpOutboundEndpoint(
                 new HttpOutboundOptions
                 {
+                    Mode = http.Mode,
                     Endpoint = http.Endpoint,
                     ContentType = http.ContentType,
                     Timeout = TimeSpan.FromSeconds(http.TimeoutSeconds),
+                    MaxConnectionsPerServer = http.MaxConnectionsPerServer,
+                    PooledConnectionLifetime = TimeSpan.FromSeconds(http.PooledConnectionLifetimeSeconds),
+                    PooledConnectionIdleTimeout = TimeSpan.FromSeconds(http.PooledConnectionIdleTimeoutSeconds),
+                    Ssl = http.Ssl,
+                    Proxy = http.Proxy,
                 },
                 http.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
             targets.Add(new KeyValuePair<int, IReplayTarget>(http.OutputId, new EndpointReplayTarget(http.OutputId, endpoint, store)));
+        }
+
+        foreach (var ws in endpoints.WebSocketOutbound)
+        {
+            var endpoint = new WebSocketOutboundEndpoint(
+                new WebSocketOutboundOptions
+                {
+                    Mode = ws.Mode,
+                    Endpoint = ws.Endpoint,
+                    ExpectReply = ws.ExpectReply,
+                    PoolSize = ws.PoolSize,
+                    ReceiveBufferSize = ws.ReceiveBufferSize,
+                    Ssl = ws.Ssl,
+                    Proxy = ws.Proxy,
+                },
+                ws.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
+            targets.Add(new KeyValuePair<int, IReplayTarget>(ws.OutputId, new EndpointReplayTarget(ws.OutputId, endpoint, store)));
         }
 
         foreach (var file in endpoints.FileOutbound)
@@ -69,6 +97,7 @@ public static class ServiceCollectionExtensions
             var endpoint = new FileOutboundEndpoint(
                 new FileOutboundOptions
                 {
+                    Mode = file.Mode,
                     Directory = file.Directory,
                     FileNameTemplate = file.FileNameTemplate,
                     DefaultExtension = file.DefaultExtension,

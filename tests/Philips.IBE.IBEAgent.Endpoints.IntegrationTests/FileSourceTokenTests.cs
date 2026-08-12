@@ -16,7 +16,7 @@ public sealed class FileSourceTokenTests
             var disposition = new FileDisposition(FileDispositionMode.Watermark, dir, watermark, NullLogger.Instance);
             var released = false;
             var time = DateTime.UtcNow;
-            var token = new FileSourceToken(Path.Combine(dir, "x.hl7"), time, disposition, onCompleted: () => released = true);
+            var token = new FileSourceToken(Path.Combine(dir, "x.hl7"), time, length: 0, payloadHash: "hash", disposition, onCompleted: () => released = true);
 
             await token.CompleteAsync(MessageCompletion.Completed, CancellationToken.None);
 
@@ -34,7 +34,7 @@ public sealed class FileSourceTokenTests
         {
             var watermark = new LastProcessedWatermark(dir);
             var disposition = new FileDisposition(FileDispositionMode.Watermark, dir, watermark, NullLogger.Instance);
-            var token = new FileSourceToken(Path.Combine(dir, "x.hl7"), DateTime.UtcNow, disposition, onCompleted: () => { });
+            var token = new FileSourceToken(Path.Combine(dir, "x.hl7"), DateTime.UtcNow, length: 0, payloadHash: "hash", disposition, onCompleted: () => { });
 
             await token.WriteAsync(new byte[] { 1, 2, 3 }, CancellationToken.None);   // no reply channel
 
@@ -52,7 +52,7 @@ public sealed class FileSourceTokenTests
             var watermark = new LastProcessedWatermark(dir);
             var disposition = new FileDisposition(FileDispositionMode.Watermark, dir, watermark, NullLogger.Instance);
             var releases = 0;
-            var token = new FileSourceToken(Path.Combine(dir, "x.hl7"), DateTime.UtcNow, disposition, onCompleted: () => releases++);
+            var token = new FileSourceToken(Path.Combine(dir, "x.hl7"), DateTime.UtcNow, length: 0, payloadHash: "hash", disposition, onCompleted: () => releases++);
 
             await token.CompleteAsync(MessageCompletion.Completed, CancellationToken.None);
             await token.CompleteAsync(MessageCompletion.Completed, CancellationToken.None);

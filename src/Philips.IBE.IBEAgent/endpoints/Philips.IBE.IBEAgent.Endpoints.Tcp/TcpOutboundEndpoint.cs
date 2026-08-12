@@ -7,24 +7,75 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 namespace Philips.IBE.IBEAgent.Endpoints.Tcp;
 
-public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
+public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle, IRequiresInboundDispatch, IAsyncDisposable
 {
     private readonly TcpOutboundOptions _options;
     private readonly IMessageCodec? _codec;
     private readonly ILogger<TcpOutboundEndpoint> _logger;
     private readonly TcpConnectionPool _pool;
+    private readonly TcpDuplexSessionRegistry? _duplexSessions;
+    private readonly SemaphoreSlim _duplexWriteLock = new(1, 1);
+    private readonly SemaphoreSlim _duplexConnectGate = new(1, 1);
+    private TcpPooledConnection? _duplexConnection;
+    private TaskCompletionSource<ReadOnlyMemory<byte>>? _pendingDuplexReply;
+    private CancellationTokenSource? _duplexCts;
+    private Task? _duplexReader;
+    private IMessageDispatcher? _dispatcher;
+    private IReplyContextFactory? _replyFactory;
 
-    public TcpOutboundEndpoint(TcpOutboundOptions options, IMessageCodec? codec, ILogger<TcpOutboundEndpoint>? logger = null)
+    public TcpOutboundEndpoint(TcpOutboundOptions options, IMessageCodec? codec, ILogger<TcpOutboundEndpoint>? logger = null, TcpDuplexSessionRegistry? duplexSessions = null)
     {
         _options = options; _codec = codec;
         _logger = logger ?? NullLogger<TcpOutboundEndpoint>.Instance;
-        _pool = new TcpConnectionPool(options.Host, options.Port, options.PoolSize, options.Ssl, options.Proxy);
+        _duplexSessions = duplexSessions;
+        _pool = new TcpConnectionPool(options.Host, options.Port,
+            options.Mode == CommunicationMode.DuplexOutbound ? 1 : options.PoolSize,
+            options.Ssl, options.Proxy);
+    }
+
+    public void ConfigureInboundDispatch(IMessageDispatcher dispatcher, IReplyContextFactory replyFactory)
+    {
+        _dispatcher = dispatcher;
+        _replyFactory = replyFactory;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (_options.Mode != CommunicationMode.DuplexOutbound) return Task.CompletedTask;
+        if (_options.SourceEndpointId is null)
+            throw new InvalidOperationException($"TCP DuplexOutbound endpoint {_options.Host}:{_options.Port} requires SourceEndpointId.");
+        if (_dispatcher is null || _replyFactory is null)
+            throw new InvalidOperationException($"TCP DuplexOutbound endpoint {_options.Host}:{_options.Port} requires inbound dispatch services.");
+
+        _duplexCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _duplexReader = RunDuplexReaderAsync(_duplexCts.Token);
+        return Task.CompletedTask;
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        if (_duplexCts is null) return;
+        await _duplexCts.CancelAsync();
+        if (_duplexReader is not null)
+        {
+            try { await _duplexReader.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken); }
+            catch (OperationCanceledException) { }
+            catch (TimeoutException) { }
+        }
+
+        var connection = Interlocked.Exchange(ref _duplexConnection, null);
+        if (connection is not null) _pool.Discard(connection);
     }
 
     public async Task<DeliveryResult> SendAsync(MessageContext context, CancellationToken cancellationToken)
     {
         var wire = _codec?.Encode(context) ?? context.Payload;   // canonical model -> destination bytes (once; reused across a reconnect)
         var framed = MllpFramer.Frame(wire.Span);
+
+        if (_options.Mode == CommunicationMode.DuplexOutbound)
+            return await SendDuplexOutboundAsync(framed, context, cancellationToken);
+        if (_options.Mode == CommunicationMode.DuplexInbound)
+            return await SendDuplexInboundAsync(framed, context, cancellationToken);
 
         // The first attempt may draw a POOLED connection the peer silently closed while idle. If it
         // fails at the transport, reconnect ONCE on a fresh dial. This is duplicate-safe: bytes written
@@ -37,6 +88,151 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
 
         (result, _) = await TrySendOnceAsync(framed, context, forceFresh: true, cancellationToken);
         return result;
+    }
+
+    private async Task<DeliveryResult> SendDuplexInboundAsync(
+        ReadOnlyMemory<byte> framed, MessageContext context, CancellationToken cancellationToken)
+    {
+        if (_options.DuplexInboundSourceEndpointId is null)
+            return new DeliveryResult(DeliveryOutcome.Failed, "DuplexInboundSourceEndpointId is not configured.");
+
+        if (_duplexSessions is null || !_duplexSessions.TryGet(_options.DuplexInboundSourceEndpointId.Value, out var session) || session is null)
+            return new DeliveryResult(DeliveryOutcome.Failed, $"No active TCP DuplexInbound session for source {_options.DuplexInboundSourceEndpointId.Value}.");
+
+        return await session.SendAsync(
+            framed,
+            _options.ExpectReply,
+            _options.ReplyCorrelationTimeout,
+            context.Format,
+            cancellationToken);
+    }
+
+    private async Task<DeliveryResult> SendDuplexOutboundAsync(
+        ReadOnlyMemory<byte> framed, MessageContext context, CancellationToken cancellationToken)
+    {
+        TaskCompletionSource<ReadOnlyMemory<byte>>? pending = null;
+        if (_options.ExpectReply)
+        {
+            pending = new TaskCompletionSource<ReadOnlyMemory<byte>>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var previous = Interlocked.Exchange(ref _pendingDuplexReply, pending);
+            previous?.TrySetCanceled(cancellationToken);
+        }
+
+        try
+        {
+            await _duplexWriteLock.WaitAsync(cancellationToken);
+            try
+            {
+                var stream = await GetDuplexStreamAsync(cancellationToken);
+                await stream.WriteAsync(framed, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+            }
+            finally { _duplexWriteLock.Release(); }
+
+            if (pending is null)
+                return new DeliveryResult(DeliveryOutcome.Delivered);
+
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(_options.ReplyCorrelationTimeout);
+            var replyBytes = await pending.Task.WaitAsync(timeoutCts.Token);
+            return new DeliveryResult(DeliveryOutcome.Delivered, ResponsePayload: replyBytes, ResponseFormat: context.Format);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            if (pending is not null)
+                Interlocked.CompareExchange(ref _pendingDuplexReply, null, pending);
+            return new DeliveryResult(DeliveryOutcome.Failed, "no MLLP ack received");
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or AuthenticationException)
+        {
+            if (pending is not null)
+                Interlocked.CompareExchange(ref _pendingDuplexReply, null, pending);
+            return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
+        }
+    }
+
+    private async Task<Stream> GetDuplexStreamAsync(CancellationToken cancellationToken)
+    {
+        var existing = _duplexConnection;
+        if (existing is { Connected: true }) return existing.Stream;
+
+        await _duplexConnectGate.WaitAsync(cancellationToken);
+        try
+        {
+            existing = _duplexConnection;
+            if (existing is { Connected: true }) return existing.Stream;
+
+            if (existing is not null)
+            {
+                _pool.Discard(existing);
+                _duplexConnection = null;
+            }
+
+            var (connection, _) = await _pool.RentAsync(forceFresh: true, cancellationToken);
+            _duplexConnection = connection;
+            return connection.Stream;
+        }
+        finally { _duplexConnectGate.Release(); }
+    }
+
+    private async Task RunDuplexReaderAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            TcpPooledConnection? connection = null;
+            try
+            {
+                await GetDuplexStreamAsync(cancellationToken);
+                connection = _duplexConnection;
+                if (connection is null) continue;
+
+                await foreach (var frame in MllpFramer.ReadMessagesAsync(connection.Stream, cancellationToken))
+                {
+                    var pending = Interlocked.Exchange(ref _pendingDuplexReply, null);
+                    if (pending is not null)
+                    {
+                        pending.TrySetResult(frame);
+                        continue;
+                    }
+
+                    await DispatchDuplexInboundAsync(frame, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+            catch (Exception ex) when (ex is SocketException or IOException or AuthenticationException)
+            {
+                _logger.LogDebug(ex, "TCP DuplexOutbound reader disconnected from {Host}:{Port}; reconnecting.", _options.Host, _options.Port);
+            }
+            finally
+            {
+                var current = Interlocked.Exchange(ref _duplexConnection, null);
+                if (current is not null) _pool.Discard(current);
+                var pending = Interlocked.Exchange(ref _pendingDuplexReply, null);
+                pending?.TrySetCanceled(cancellationToken);
+            }
+
+            try { await Task.Delay(_options.ReconnectDelay, cancellationToken); }
+            catch (OperationCanceledException) { break; }
+        }
+    }
+
+    private async Task DispatchDuplexInboundAsync(byte[] frame, CancellationToken cancellationToken)
+    {
+        var envelope = TransportMessageEnvelope.ParseJson(frame);
+        var stream = _duplexConnection?.Stream ?? throw new IOException("TCP DuplexOutbound connection is not available.");
+        var token = new TcpConnectionAckToken(stream, _duplexWriteLock, _logger);
+        var reply = _replyFactory!.Create(_options.SourceEndpointId!.Value, token);
+        var ctx = new MessageContext(
+            correlationId: envelope.CorrelationId ?? Guid.NewGuid().ToString("N"),
+            sourceEndpointId: _options.SourceEndpointId.Value,
+            format: _options.InboundFormat,
+            ack: token,
+            reply: reply,
+            payload: envelope.Payload,
+            headers: envelope.Headers);
+
+        ctx.Reply.Attach(ctx);
+        await _dispatcher!.DispatchAsync(ctx, cancellationToken);
     }
 
     // One delivery attempt; fully owns the rented connection's lifecycle (return on success, discard on
@@ -90,5 +286,12 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IAsyncDisposable
         }
     }
 
-    public ValueTask DisposeAsync() => _pool.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await StopAsync(CancellationToken.None);
+        _duplexCts?.Dispose();
+        _duplexWriteLock.Dispose();
+        _duplexConnectGate.Dispose();
+        await _pool.DisposeAsync();
+    }
 }

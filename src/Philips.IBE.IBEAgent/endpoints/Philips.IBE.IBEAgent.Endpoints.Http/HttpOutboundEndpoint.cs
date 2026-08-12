@@ -40,11 +40,11 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
                     ? System.Security.Cryptography.X509Certificates.X509RevocationMode.Online
                     : System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck;
 
-                if (_options.Ssl.RequiresRemoteCertificate)
+                if (_options.Ssl.HasLocalCertificate())
                 {
                     var clientCertificate = _options.Ssl.LoadLocalCertificate()
                         ?? throw new InvalidOperationException(
-                            $"HTTP outbound endpoint ({_options.Endpoint}) has SSL mode TwoWay but no CertificatePath configured.");
+                            $"HTTP outbound endpoint ({_options.Endpoint}) has a client certificate reference that could not be resolved.");
                     handler.SslOptions.ClientCertificates = [clientCertificate];
                 }
             }
@@ -74,6 +74,11 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
             content.Headers.TryAddWithoutValidation("Content-Type", _options.ContentType);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, _options.Endpoint) { Content = content };
+            request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireRequestId, context.CorrelationId);
+            request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireMessageId, context.MessageId.ToString("N"));
+            if (!string.IsNullOrWhiteSpace(_options.LogicalEndpointId))
+                request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireLogicalEndpointId, _options.LogicalEndpointId);
+
             foreach (var (key, value) in context.Headers)   // opt-in metadata (fwd.*) -> protocol headers
                 if (ForwardHeaders.TryGetName(key, out var name))
                     request.Headers.TryAddWithoutValidation(name, value);

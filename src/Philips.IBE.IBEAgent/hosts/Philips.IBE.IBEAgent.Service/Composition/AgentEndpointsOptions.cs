@@ -1,4 +1,5 @@
 using Philips.IBE.IBEAgent.Security;
+using Philips.IBE.IBEAgent.Abstractions;
 
 namespace Philips.IBE.IBEAgent.Service;
 
@@ -6,6 +7,12 @@ namespace Philips.IBE.IBEAgent.Service;
 // that TcpOutboundOptions itself doesn't need to know about (it's purely transport config).
 public sealed class TcpOutboundEndpointConfig
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Outbound;
+    public int? SourceEndpointId { get; init; }
+    public int? DuplexInboundSourceEndpointId { get; init; }
+    public string InboundFormat { get; init; } = "hl7v2";
+    public int ReplyCorrelationTimeoutSeconds { get; init; } = 30;
+    public int ReconnectDelaySeconds { get; init; } = 2;
     public required int OutputId { get; init; }
     public required string Host { get; init; }
     public required int Port { get; init; }
@@ -17,6 +24,8 @@ public sealed class TcpOutboundEndpointConfig
 
 public sealed class HttpOutboundEndpointConfig
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Outbound;
+    public string? LogicalEndpointId { get; init; }
     public required int OutputId { get; init; }
     public required Uri Endpoint { get; init; }
     public string ContentType { get; init; } = "application/octet-stream";
@@ -35,9 +44,15 @@ public sealed class HttpOutboundEndpointConfig
 // identity) that WebSocketOutboundOptions itself doesn't need to know about.
 public sealed class WebSocketOutboundEndpointConfig
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Outbound;
+    public int? SourceEndpointId { get; init; }
+    public int? DuplexInboundSourceEndpointId { get; init; }
+    public string InboundFormat { get; init; } = "hl7v2";
     public required int OutputId { get; init; }
     public required Uri Endpoint { get; init; }              // ws:// or wss://
     public bool ExpectReply { get; init; } = true;
+    public int ReplyCorrelationTimeoutSeconds { get; init; } = 30;
+    public int ReconnectDelaySeconds { get; init; } = 2;
     public int PoolSize { get; init; } = 8;                   // ~ TCP PoolSize
     public int ReceiveBufferSize { get; init; } = 8192;
     public SslOptions Ssl { get; init; } = new();            // None (default) | OneWay | TwoWay (mutual TLS via client cert)
@@ -46,6 +61,8 @@ public sealed class WebSocketOutboundEndpointConfig
 
 public sealed class FileOutboundEndpointConfig
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Outbound;
+    public string? LogicalEndpointId { get; init; }
     public required int OutputId { get; init; }
     public required string Directory { get; init; }
     public string? FileNameTemplate { get; init; }        // null/blank -> FileNameResolver default (timestamp+correlationId)

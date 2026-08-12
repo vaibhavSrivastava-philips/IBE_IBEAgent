@@ -16,16 +16,19 @@ public sealed class ForwardWorker : BackgroundService
     private readonly IForwardStore _store;
     private readonly IReplayTargetRegistry _targets;
     private readonly ForwardOptions _options;
+    private readonly ForwardWorkerHealthReporter _health;
     private readonly ILogger<ForwardWorker> _logger;
 
     public ForwardWorker(
         IForwardStore store,
         IReplayTargetRegistry targets,
         IOptions<ForwardOptions> options,
+        ForwardWorkerHealthReporter health,
         ILogger<ForwardWorker> logger)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _targets = targets ?? throw new ArgumentNullException(nameof(targets));
+        _health = health ?? throw new ArgumentNullException(nameof(health));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         if (options?.Value is { } configured)
@@ -48,6 +51,7 @@ public sealed class ForwardWorker : BackgroundService
         _logger.LogInformation(
             "ForwardWorker started (poll interval {IntervalSeconds}s, batch size {BatchSize}, max attempts {MaxAttempts}).",
             interval.TotalSeconds, _options.FetchBatchSize, _options.MaxAttempts);
+        _health.ReportStarted(_options.FetchBatchSize, _options.MaxAttempts);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -57,6 +61,7 @@ public sealed class ForwardWorker : BackgroundService
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                _health.ReportSweepFailure(ex.GetType().Name);
                 _logger.LogError(ex, "ForwardWorker sweep failed; will retry next interval.");
             }
 
@@ -64,6 +69,7 @@ public sealed class ForwardWorker : BackgroundService
             catch (OperationCanceledException) { }
         }
 
+        _health.ReportStopped();
         _logger.LogInformation("ForwardWorker stopped.");
     }
 

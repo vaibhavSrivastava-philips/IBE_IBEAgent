@@ -27,7 +27,7 @@ internal sealed class TcpConnectionPool(string host, int port, int size, SslOpti
     private readonly ConcurrentQueue<TcpPooledConnection> _idle = new();
     private readonly SslOptions _ssl = ssl ?? new SslOptions();
     private readonly ProxyOptions _proxy = proxy ?? new ProxyOptions();
-    private readonly X509Certificate2? _clientCertificate = ssl?.RequiresRemoteCertificate == true ? ssl.LoadLocalCertificate() : null;
+    private readonly X509Certificate2? _clientCertificate = ssl?.HasLocalCertificate() == true ? ssl.LoadLocalCertificate() : null;
 
     public async Task<(TcpPooledConnection connection, bool reused)> RentAsync(bool forceFresh, CancellationToken ct)
     {

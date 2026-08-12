@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\formats\Philips.IBE.IBEAgent.Formats.Hl7\Philips.IBE.IBEAgent.Formats.Hl7.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.Tcp\Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.Http\Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
+    <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.WebSocket\Philips.IBE.IBEAgent.Endpoints.WebSocket.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.File\Philips.IBE.IBEAgent.Endpoints.File.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.CimS3\Philips.IBE.IBEAgent.Endpoints.CimS3.csproj" />
   </ItemGroup>

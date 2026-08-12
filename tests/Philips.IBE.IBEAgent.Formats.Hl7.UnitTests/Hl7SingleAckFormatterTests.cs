@@ -61,6 +61,7 @@ public sealed class Hl7SingleAckFormatterTests
             formatter.Render(ctx, new DeliveryResult(DeliveryOutcome.Failed, "boom")).Span);
 
         Assert.Contains("MSA|AE", ack);
+        Assert.Contains("boom", ack);
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Endpoints.File;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
+using Philips.IBE.IBEAgent.Endpoints.WebSocket;
 using Philips.IBE.IBEAgent.Security;
 
 namespace Philips.IBE.IBEAgent.Service;
@@ -13,10 +14,11 @@ namespace Philips.IBE.IBEAgent.Service;
 // host start rather than at registration, so the ComponentRegistry (and the HL7 ack formatter's
 // logger) resolve the host's real ILoggerFactory. Still fail-fast: it is materialized before any
 // message is processed (when AgentRuntimeHost/ForwardWorker are constructed).
-internal sealed class CompiledEngine
+internal sealed class CompiledEngine : IAsyncDisposable
 {
     public required IReadOnlyList<IContractRuntime> Runtimes { get; init; }
     public required IReadOnlyList<IInboundEndpoint> InboundEndpoints { get; init; }
+    public required IReadOnlyList<IEndpointLifecycle> OutboundEndpointLifecycles { get; init; }
     public required IReadOnlyList<KeyValuePair<int, IReplayTarget>> ReplayTargets { get; init; }
 
     public static CompiledEngine Build(
@@ -30,7 +32,9 @@ internal sealed class CompiledEngine
         var log = loggerFactory.CreateLogger<CompiledEngine>();
         log.LogInformation("Compiling IBE agent engine: {ContractCount} contract(s).", contracts.Count);
 
-        var componentRegistry = ComponentRegistryBuilder.Build(endpoints, catalog, loggerFactory);
+        var tcpDuplexSessions = new TcpDuplexSessionRegistry();
+        var webSocketDuplexSessions = new WebSocketDuplexSessionRegistry();
+        var componentRegistry = ComponentRegistryBuilder.Build(endpoints, catalog, loggerFactory, tcpDuplexSessions, webSocketDuplexSessions);
         var compiler = new ContractCompiler(catalog, componentRegistry, forwardStore, loggerFactory);
 
         var contractRegistry = new ContractRegistry();
@@ -66,11 +70,16 @@ internal sealed class CompiledEngine
         var dispatcher = new Dispatcher(new SourceBasedRouter(contractRegistry));
         var replyContextFactory = new ReplyContextFactory(replyPoliciesBySource, loggerFactory.CreateLogger<ReplyContext>());
 
+        foreach (var endpoint in componentRegistry.OutboundEndpointLifecycles.OfType<IRequiresInboundDispatch>())
+            endpoint.ConfigureInboundDispatch(dispatcher, replyContextFactory);
+
         var inboundEndpoints = new List<IInboundEndpoint>();
         foreach (var tcp in endpoints.TcpInbound)
-            inboundEndpoints.Add(new TcpInboundEndpoint(tcp, dispatcher, replyContextFactory, loggerFactory.CreateLogger<TcpInboundEndpoint>()));
+            inboundEndpoints.Add(new TcpInboundEndpoint(tcp, dispatcher, replyContextFactory, loggerFactory.CreateLogger<TcpInboundEndpoint>(), tcpDuplexSessions));
         foreach (var http in endpoints.HttpInbound)
             inboundEndpoints.Add(new HttpInboundEndpoint(http, dispatcher, replyContextFactory, loggerFactory.CreateLogger<HttpInboundEndpoint>()));
+        foreach (var ws in endpoints.WebSocketInbound)
+            inboundEndpoints.Add(new WebSocketInboundEndpoint(ws, dispatcher, replyContextFactory, webSocketDuplexSessions));
         foreach (var file in endpoints.FileInbound)
             inboundEndpoints.Add(new FileInboundEndpoint(file, dispatcher, replyContextFactory, trigger: null,
                 logger: loggerFactory.CreateLogger<FileInboundEndpoint>(), credential: BuildShareCredential(file, protector)));
@@ -90,8 +99,26 @@ internal sealed class CompiledEngine
         {
             Runtimes = runtimes,
             InboundEndpoints = inboundEndpoints,
+            OutboundEndpointLifecycles = componentRegistry.OutboundEndpointLifecycles,
             ReplayTargets = replayTargets,
         };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        foreach (var endpoint in InboundEndpoints)
+            await DisposeAsync(endpoint);
+
+        foreach (var endpoint in OutboundEndpointLifecycles)
+            await DisposeAsync(endpoint);
+    }
+
+    private static async ValueTask DisposeAsync(object instance)
+    {
+        if (instance is IAsyncDisposable asyncDisposable)
+            await asyncDisposable.DisposeAsync();
+        else if (instance is IDisposable disposable)
+            disposable.Dispose();
     }
 
     // A UNC file source with credentials: decrypt the DPAPI-protected password into a plaintext

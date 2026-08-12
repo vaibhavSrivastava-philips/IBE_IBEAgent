@@ -30,6 +30,7 @@
     <!-- Shared runtime config lives in /config (repo root, doc §10). Copy it next to the exe so it is
          found in dev (bin) and after publish; the installer ships /config alongside the service. -->
     <Content Include="..\..\..\..\config\appsettings.json" Link="appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\..\config\appsettings.Development.json" Link="appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\..\config\catalogData.json" Link="catalogData.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\..\config\contractData.json" Link="contractData.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\..\config\nlog.config" Link="nlog.config" CopyToOutputDirectory="PreserveNewest" />

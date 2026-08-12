@@ -16,7 +16,7 @@ public sealed class FileDispositionTests
             var src = Path.Combine(dir, "a.hl7");
             await IoFile.WriteAllTextAsync(src, "x");
 
-            await NewMove(dir).ApplyAsync(src, DateTime.UtcNow, MessageCompletion.Completed, CancellationToken.None);
+            await NewMove(dir).ApplyAsync(src, DateTime.UtcNow, length: 1, payloadHash: "hash", MessageCompletion.Completed, CancellationToken.None);
 
             Assert.False(IoFile.Exists(src));
             Assert.True(IoFile.Exists(Path.Combine(dir, "processed", "a.hl7")));
@@ -33,7 +33,7 @@ public sealed class FileDispositionTests
             var src = Path.Combine(dir, "a.hl7");
             await IoFile.WriteAllTextAsync(src, "x");
 
-            await NewMove(dir).ApplyAsync(src, DateTime.UtcNow, MessageCompletion.Faulted, CancellationToken.None);
+            await NewMove(dir).ApplyAsync(src, DateTime.UtcNow, length: 1, payloadHash: "hash", MessageCompletion.Faulted, CancellationToken.None);
 
             Assert.False(IoFile.Exists(src));
             Assert.True(IoFile.Exists(Path.Combine(dir, "error", "a.hl7")));
@@ -52,7 +52,7 @@ public sealed class FileDispositionTests
             var src = Path.Combine(sub, "a.hl7");
             await IoFile.WriteAllTextAsync(src, "x");
 
-            await NewMove(dir).ApplyAsync(src, DateTime.UtcNow, MessageCompletion.Completed, CancellationToken.None);
+            await NewMove(dir).ApplyAsync(src, DateTime.UtcNow, length: 1, payloadHash: "hash", MessageCompletion.Completed, CancellationToken.None);
 
             Assert.True(IoFile.Exists(Path.Combine(dir, "processed", "unitA", "a.hl7")));
         }

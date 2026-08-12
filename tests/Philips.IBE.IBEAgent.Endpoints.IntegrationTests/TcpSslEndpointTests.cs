@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
+using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Endpoints.Tcp;
 using Philips.IBE.IBEAgent.Security;
 using Philips.IBE.IBEAgent.TestKit;
@@ -120,6 +121,59 @@ public sealed class TcpSslEndpointTests
             await using var outbound = new TcpOutboundEndpoint(outboundOptions, codec: null);
 
             var sendTask = outbound.SendAsync(MessageContextBuilder.Create(payload: "MUTUAL-TLS"), CancellationToken.None);
+
+            await TestSupport.WaitForAsync(() => dispatcher.Dispatched.Count == 1, TimeSpan.FromSeconds(5));
+            await dispatcher.Dispatched[0].Ack.WriteAsync(Encoding.UTF8.GetBytes("MSA|AA"), CancellationToken.None);
+
+            var result = await sendTask;
+            Assert.Equal(Abstractions.DeliveryOutcome.Delivered, result.Outcome);
+            Assert.Equal("MSA|AA", Encoding.UTF8.GetString(result.ResponsePayload.ToArray()));
+        }
+        finally
+        {
+            System.IO.File.Delete(serverCertPath);
+            System.IO.File.Delete(clientCertPath);
+        }
+    }
+
+    [Fact]
+    public async Task Mutual_tls_is_inferred_from_client_certificate_and_server_requirement()
+    {
+        var serverCertPath = TestCertificateFactory.CreateSelfSignedPfxFile();
+        var clientCertPath = TestCertificateFactory.CreateSelfSignedPfxFile();
+        try
+        {
+            var dispatcher = new FakeMessageDispatcher();
+            var inboundOptions = new TcpInboundOptions
+            {
+                SourceEndpointId = 1,
+                Port = 0,
+                Ssl = new SslOptions
+                {
+                    Enabled = true,
+                    CertificatePath = serverCertPath,
+                    RequireClientCertificate = true,
+                    AllowUntrustedCertificate = true,
+                },
+            };
+            await using var inbound = new TcpInboundEndpoint(inboundOptions, dispatcher, new FakeReplyContextFactory());
+            await inbound.StartAsync(CancellationToken.None);
+
+            var outboundOptions = new TcpOutboundOptions
+            {
+                Host = "127.0.0.1",
+                Port = inbound.BoundPort,
+                ExpectReply = true,
+                Ssl = new SslOptions
+                {
+                    Enabled = true,
+                    CertificatePath = clientCertPath,
+                    AllowUntrustedCertificate = true,
+                },
+            };
+            await using var outbound = new TcpOutboundEndpoint(outboundOptions, codec: null);
+
+            var sendTask = outbound.SendAsync(MessageContextBuilder.Create(payload: "MUTUAL-TLS-INFERRED"), CancellationToken.None);
 
             await TestSupport.WaitForAsync(() => dispatcher.Dispatched.Count == 1, TimeSpan.FromSeconds(5));
             await dispatcher.Dispatched[0].Ack.WriteAsync(Encoding.UTF8.GetBytes("MSA|AA"), CancellationToken.None);

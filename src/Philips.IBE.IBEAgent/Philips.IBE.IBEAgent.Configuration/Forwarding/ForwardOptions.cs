@@ -6,6 +6,9 @@ namespace Philips.IBE.IBEAgent.Configuration;
 // Pending store-and-forward rows. Read from "Forward".
 public sealed record ForwardOptions
 {
+    public ForwardStoreKind Store { get; init; } = ForwardStoreKind.File;
+    public string StoreDirectory { get; init; } = "forward-store";
+    public int LeaseSeconds { get; init; } = 300;
     public ForwardOwner Owner { get; init; } = ForwardOwner.InProcess;
     public int PollIntervalSeconds { get; init; } = 5;
     public int MaxAttempts { get; init; } = 5;
