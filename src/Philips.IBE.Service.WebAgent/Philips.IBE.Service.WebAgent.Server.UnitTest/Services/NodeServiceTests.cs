@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Configuration;
@@ -34,6 +34,8 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Services
                 { "CommonConfiguration:CertificateFolderName", "certs" },
                 { "CommonConfiguration:DatabaseFileName", "testdb" },
                 { "CommonConfiguration:DatabaseEnabled", "true" },
+                { "CommonConfiguration:ServiceConfigPath", _tempFolder },
+                { "CommonConfiguration:License", "test-license" },
                 { "AuthenticationConfiguration:AdminUserGroup", "AdminGroup" },
                 { "AuthenticationConfiguration:NormalUserGroup", "UserGroup" },
                 { "AuthenticationConfiguration:AuthenticationMode", "ActiveDirectory" },
@@ -49,7 +51,7 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Services
 
             _loggerMock = new Mock<ILogger<NodeService>>();
             _mockDataProtectionLogger = new Mock<ILogger<DataProtectionUtility>>();
-            _protectionMock = new Mock<DataProtectionUtility>(_mockDataProtectionLogger.Object); _protectionMock.Setup(p => p.ProtectValue(It.IsAny<string>())).Returns((string s) => $"protected-{s}");
+            _protectionMock = new Mock<DataProtectionUtility>(); _protectionMock.Setup(p => p.ProtectValue(It.IsAny<string>())).Returns((string s) => $"protected-{s}");
 
             _configPath = Path.Combine(_tempFolder, "appsettings.json");
         }

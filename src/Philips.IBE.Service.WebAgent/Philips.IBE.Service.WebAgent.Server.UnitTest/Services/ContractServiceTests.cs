@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using Microsoft.Extensions.Configuration;
@@ -33,7 +33,9 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Services
         {"CommonConfiguration:FolderPath", _testFolder},
         {"CommonConfiguration:DatabaseEnabled", "false"},
         {"CommonConfiguration:CertificateFolderName", "certs"},
-        {"CommonConfiguration:DatabaseFileName", "testdb.json"}
+        {"CommonConfiguration:DatabaseFileName", "testdb.json"},
+        {"CommonConfiguration:ServiceConfigPath", "servicesettings.json"},
+        {"CommonConfiguration:License", "test-license"}
     };
             var configuration = new ConfigurationBuilder()
 .AddInMemoryCollection(inMemorySettings.Select(kv => new KeyValuePair<string, string?>(kv.Key, kv.Value)))

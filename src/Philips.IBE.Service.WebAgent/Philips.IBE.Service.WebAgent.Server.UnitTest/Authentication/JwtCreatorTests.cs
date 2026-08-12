@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
@@ -33,7 +33,8 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Authentication
     {"CommonConfiguration:DatabaseEnabled", "false"},
     {"CommonConfiguration:CertificateFolderName", "certs"},
     {"CommonConfiguration:DatabaseFileName", "testdb.json"},
-    {"CommonConfiguration:FolderPath", "testfolder"}
+    {"CommonConfiguration:FolderPath", "testfolder"},
+    {"CommonConfiguration:ServiceConfigPath", "servicesettings.json"}
 };
 
             var configuration = new ConfigurationBuilder()

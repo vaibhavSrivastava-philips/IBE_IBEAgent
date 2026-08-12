@@ -73,14 +73,14 @@ public sealed class ServiceCollectionExtensionsTests
         .Build();
 
     [Fact]
-    public void AddIbeAgentEngine_compiles_configured_contracts_and_registers_runtimes()
+    public async Task AddIbeAgentEngine_compiles_configured_contracts_and_registers_runtimes()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         services.AddIbeAgentEngine(BuildConfiguration());
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();
 
         Assert.Single(runtimes);
@@ -106,7 +106,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddIbeAgentEngine_accepts_valid_configured_license_before_compiling_endpoints()
+    public async Task AddIbeAgentEngine_accepts_valid_configured_license_before_compiling_endpoints()
     {
         var licensePath = Path.Combine(Path.GetTempPath(), $"ibe-license-{Guid.NewGuid():N}.json");
         var expiresAt = DateTimeOffset.UtcNow.AddDays(1).ToString("O");
@@ -126,7 +126,7 @@ public sealed class ServiceCollectionExtensionsTests
 
             services.AddIbeAgentEngine(configuration);
 
-            using var provider = services.BuildServiceProvider();
+            await using var provider = services.BuildServiceProvider();
             Assert.Single(provider.GetRequiredService<IReadOnlyList<IContractRuntime>>());
         }
         finally
@@ -136,14 +136,14 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddIbeAgentEngine_registers_the_runtime_host_as_a_hosted_service()
+    public async Task AddIbeAgentEngine_registers_the_runtime_host_as_a_hosted_service()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         services.AddIbeAgentEngine(BuildConfiguration());
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var hosted = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
 
         Assert.Contains(hosted, h => h is AgentRuntimeHost);
@@ -188,28 +188,28 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddIbeAgentEngine_supports_legacy_inline_contracts_without_a_template()
+    public async Task AddIbeAgentEngine_supports_legacy_inline_contracts_without_a_template()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         services.AddIbeAgentEngine(BuildInlineConfiguration());
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();
 
         Assert.Single(runtimes);
     }
 
     [Fact]
-    public void AddIbeAgentEngine_compiles_a_contract_with_a_non_empty_pipeline()
+    public async Task AddIbeAgentEngine_compiles_a_contract_with_a_non_empty_pipeline()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         services.AddIbeAgentEngine(BuildPipelineConfiguration());
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();
 
         Assert.Single(runtimes);
@@ -237,14 +237,14 @@ public sealed class ServiceCollectionExtensionsTests
         .Build();
 
     [Fact]
-    public void AddIbeAgentEngine_compiles_a_file_input_and_output_contract()
+    public async Task AddIbeAgentEngine_compiles_a_file_input_and_output_contract()
     {
         var services = new ServiceCollection();
         services.AddLogging();
 
         services.AddIbeAgentEngine(BuildFileConfiguration());
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var inbound = provider.GetRequiredService<IReadOnlyList<IInboundEndpoint>>();
         var runtimes = provider.GetRequiredService<IReadOnlyList<IContractRuntime>>();
 

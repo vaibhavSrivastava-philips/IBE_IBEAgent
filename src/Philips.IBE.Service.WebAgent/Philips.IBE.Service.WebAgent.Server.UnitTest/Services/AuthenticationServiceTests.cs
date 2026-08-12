@@ -41,7 +41,8 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Services
                 { "CommonConfiguration:FolderPath", "C:\\Temp" },
                 { "CommonConfiguration:DatabaseEnabled", "true" },
                 { "CommonConfiguration:CertificateFolderName", "certs" },
-                { "CommonConfiguration:DatabaseFileName", "testdb" }
+                { "CommonConfiguration:DatabaseFileName", "testdb" },
+                { "CommonConfiguration:ServiceConfigPath", "servicesettings.json" }
             };
             var configuration = new Microsoft.Extensions.Configuration.ConfigurationBuilder()
                 .AddInMemoryCollection(inMemorySettings)

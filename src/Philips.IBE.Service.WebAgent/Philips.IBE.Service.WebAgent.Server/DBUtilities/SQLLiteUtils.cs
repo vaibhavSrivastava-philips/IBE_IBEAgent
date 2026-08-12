@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using Npgsql;
 using Philips.IBE.Service.WebAgent.Server.Configuration;
 using Philips.IBE.Service.WebAgent.Server.Models;
@@ -20,10 +20,17 @@ namespace Philips.IBE.Service.WebAgent.Server.DBUtilities
         public SQLLiteUtils(AppConfiguration configuration, ILogger<SQLLiteUtils> logger)
         {
             _logger = logger;
-            
+
+            if (configuration?.CommonConfiguration == null
+                || string.IsNullOrWhiteSpace(configuration.CommonConfiguration.FolderPath)
+                || string.IsNullOrWhiteSpace(configuration.CommonConfiguration.DatabaseFileName))
+            {
+                throw new ArgumentNullException(nameof(configuration), "CommonConfiguration, FolderPath and DatabaseFileName must be provided.");
+            }
+
             var serviceConfigurationsPath = configuration.CommonConfiguration.ServiceConfigPath+"\\appSettings.json";
             ServiceConfigurations serviceConfigurations;
-            
+
                 if (string.IsNullOrEmpty(serviceConfigurationsPath) || !File.Exists(serviceConfigurationsPath))
                 {
                     throw new FileNotFoundException($"Service configuration file not found at path: {serviceConfigurationsPath}");
