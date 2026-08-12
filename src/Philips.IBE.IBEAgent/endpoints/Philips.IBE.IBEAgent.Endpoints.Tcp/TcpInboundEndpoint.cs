@@ -17,16 +17,18 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     private readonly SemaphoreSlim _admission;
     private readonly X509Certificate2? _serverCertificate;
     private readonly ILogger<TcpInboundEndpoint> _logger;
+    private readonly TcpDuplexSessionRegistry? _duplexSessions;
     private TcpListener? _listener;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
-    public TcpInboundEndpoint(TcpInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory, ILogger<TcpInboundEndpoint>? logger = null)
+    public TcpInboundEndpoint(TcpInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory, ILogger<TcpInboundEndpoint>? logger = null, TcpDuplexSessionRegistry? duplexSessions = null)
     {
         _options = options; _dispatcher = dispatcher; _replyFactory = replyFactory;
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
 
         _logger = logger ?? NullLogger<TcpInboundEndpoint>.Instance;
+        _duplexSessions = duplexSessions;
 
         if (_options.Ssl.IsEnabled)
         {
@@ -82,18 +84,19 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
             client.NoDelay = true;   // disable Nagle: the MLLP ack back to the source else stalls ~40ms (Nagle + delayed-ACK)
             Stream stream = client.GetStream();
             SslStream? sslStream = null;
+            TcpDuplexSession? duplexSession = null;
             try
             {
                 if (_options.Ssl.IsEnabled)
                 {
                     sslStream = new SslStream(stream, leaveInnerStreamOpen: false,
-                        _options.Ssl.RequiresRemoteCertificate ? _options.Ssl.CreateRemoteCertificateValidator() : null);
+                        _options.Ssl.RequiresClientCertificate() ? _options.Ssl.CreateRemoteCertificateValidator() : null);
                     stream = sslStream;
 
                     await sslStream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
                     {
                         ServerCertificate = _serverCertificate,
-                        ClientCertificateRequired = _options.Ssl.RequiresRemoteCertificate,
+                        ClientCertificateRequired = _options.Ssl.RequiresClientCertificate(),
                         EnabledSslProtocols = _options.Ssl.Protocols,
                         CertificateRevocationCheckMode = _options.Ssl.CheckCertificateRevocation
                             ? X509RevocationMode.Online
@@ -102,26 +105,38 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                 }
 
                 var writeLock = new SemaphoreSlim(1, 1);
+                duplexSession = _options.Mode == CommunicationMode.DuplexInbound
+                    ? new TcpDuplexSession(_options.SourceEndpointId, stream, writeLock)
+                    : null;
+                if (duplexSession is not null)
+                    _duplexSessions?.Register(duplexSession);
+
                 await foreach (var payload in MllpFramer.ReadMessagesAsync(stream, ct))
                 {
+                    if (duplexSession is not null && duplexSession.TryCompletePendingReply(payload))
+                        continue;
+
+                    var envelope = TransportMessageEnvelope.ParseJson(payload);
+
                     await _admission.WaitAsync(ct);
                     try
                     {
                         var token = new TcpConnectionAckToken(stream, writeLock, _logger);
                         var reply = _replyFactory.Create(_options.SourceEndpointId, token);
                         var ctx = new MessageContext(
-                            correlationId: Guid.NewGuid().ToString("N"),
+                            correlationId: envelope.CorrelationId ?? Guid.NewGuid().ToString("N"),
                             sourceEndpointId: _options.SourceEndpointId,
                             format: _options.Format,
                             ack: token,
                             reply: reply,
-                            payload: payload);
+                            payload: envelope.Payload,
+                            headers: envelope.Headers);
 
                         ctx.Reply.Attach(ctx);
                         // Monitoring (Information) — per-message receipt for the production flow.
                         _logger.LogInformation(
                             "Received message {CorrelationId} ({ByteCount} bytes) on TCP source {SourceEndpointId}.",
-                            ctx.CorrelationId, payload.Length, _options.SourceEndpointId);
+                            ctx.CorrelationId, ctx.Payload.Length, _options.SourceEndpointId);
 
                         // Deepest level (Trace) — the full inbound message body. Guarded so the decode
                         // only runs when Trace is enabled (zero cost in production / high-fidelity).
@@ -146,7 +161,12 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                     "Unhandled error processing TCP connection on source {SourceEndpointId}; connection closed.",
                     _options.SourceEndpointId);
             }
-            finally { sslStream?.Dispose(); }
+            finally
+            {
+                if (duplexSession is not null)
+                    _duplexSessions?.Unregister(duplexSession);
+                sslStream?.Dispose();
+            }
         }
     }
 

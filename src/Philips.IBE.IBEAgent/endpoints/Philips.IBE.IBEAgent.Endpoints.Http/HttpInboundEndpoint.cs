@@ -28,7 +28,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                 $"HTTP inbound endpoint has SSL mode {options.Ssl.Mode} configured but Prefix '{options.Prefix}' is not https://. " +
                 "The server certificate itself must be bound to the port out-of-process (e.g. via netsh http add sslcert).");
 
-        if (options.Ssl.RequiresRemoteCertificate)
+        if (options.Ssl.RequiresClientCertificate())
             _clientCertValidator = options.Ssl.CreateRemoteCertificateValidator();
 
         _logger = logger ?? NullLogger<HttpInboundEndpoint>.Instance;
@@ -77,7 +77,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         var token = new HttpResponseAckToken(http.Response, _logger);
         try
         {
-            if (_options.Ssl.RequiresRemoteCertificate && !await ValidateClientCertificateAsync(http, ct))
+            if (_options.Ssl.RequiresClientCertificate() && !await ValidateClientCertificateAsync(http, ct))
             {
                 token.CompleteWithError(403);
                 return;
@@ -87,13 +87,18 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
             await http.Request.InputStream.CopyToAsync(ms, ct);
 
             var reply = _replyFactory.Create(_options.SourceEndpointId, token);
+            var headers = BuildHeaders(http.Request);
+            var correlationId = headers.TryGetValue(TransportCorrelationHeaders.RequestId, out var requestId) && !string.IsNullOrWhiteSpace(requestId)
+                ? requestId
+                : Guid.NewGuid().ToString("N");
             var ctx = new MessageContext(
-                correlationId: Guid.NewGuid().ToString("N"),
+                correlationId: correlationId,
                 sourceEndpointId: _options.SourceEndpointId,
                 format: _options.Format,
                 ack: token,
                 reply: reply,
-                payload: ms.ToArray());
+                payload: ms.ToArray(),
+                headers: headers);
 
             // Monitoring (Information) — per-message receipt for the production flow.
             _logger.LogInformation(
@@ -140,6 +145,24 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         var built = chain.Build(clientCert);
         var errors = built ? SslPolicyErrors.None : SslPolicyErrors.RemoteCertificateChainErrors;
         return _clientCertValidator!(this, clientCert, chain, errors);
+    }
+
+    private Dictionary<string, string> BuildHeaders(HttpListenerRequest request)
+    {
+        var headers = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        AddIfPresent(TransportCorrelationHeaders.WireRequestId, TransportCorrelationHeaders.RequestId);
+        AddIfPresent(TransportCorrelationHeaders.WireMessageId, TransportCorrelationHeaders.MessageId);
+        AddIfPresent(TransportCorrelationHeaders.WireLogicalEndpointId, TransportCorrelationHeaders.LogicalEndpointId);
+
+        return headers;
+
+        void AddIfPresent(string wireName, string headerName)
+        {
+            var value = request.Headers[wireName];
+            if (!string.IsNullOrWhiteSpace(value))
+                headers[headerName] = value;
+        }
     }
 
     public async ValueTask DisposeAsync()

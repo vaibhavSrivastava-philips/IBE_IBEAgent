@@ -35,8 +35,12 @@ public sealed class ForwardWorkerTests
         }
     }
 
-    private static ForwardWorker CreateWorker(IForwardStore store, IReplayTargetRegistry targets, ForwardOptions? options = null)
-        => new(store, targets, Options.Create(options ?? new ForwardOptions()), NullLogger<ForwardWorker>.Instance);
+    private static ForwardWorker CreateWorker(
+        IForwardStore store,
+        IReplayTargetRegistry targets,
+        ForwardOptions? options = null,
+        ForwardWorkerHealthReporter? health = null)
+        => new(store, targets, Options.Create(options ?? new ForwardOptions()), health ?? new ForwardWorkerHealthReporter(), NullLogger<ForwardWorker>.Instance);
 
     [Fact]
     public async Task RunOneSweepAsync_replays_a_due_entry_into_its_leg()
@@ -110,5 +114,32 @@ public sealed class ForwardWorkerTests
 
         var due = await store.FetchDueAsync(10, CancellationToken.None);
         Assert.Empty(due); // parked
+    }
+
+    [Fact]
+    public void ForwardWorkerHealthReporter_defaults_to_degraded_until_worker_starts()
+    {
+        var health = new ForwardWorkerHealthReporter();
+
+        var snapshot = health.GetSnapshot();
+
+        Assert.Equal("forward-worker", snapshot.Component);
+        Assert.Equal(HealthStatus.Degraded, snapshot.Status);
+        Assert.Contains("not started", snapshot.Detail);
+    }
+
+    [Fact]
+    public void ForwardWorkerHealthReporter_reports_started_and_stopped_states()
+    {
+        var health = new ForwardWorkerHealthReporter();
+
+        health.ReportStarted(batchSize: 10, maxAttempts: 5);
+        var started = health.GetSnapshot();
+        health.ReportStopped();
+        var stopped = health.GetSnapshot();
+
+        Assert.Equal(HealthStatus.Healthy, started.Status);
+        Assert.Contains("batch size 10", started.Detail);
+        Assert.Equal(HealthStatus.Unhealthy, stopped.Status);
     }
 }

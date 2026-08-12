@@ -13,13 +13,15 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     private readonly SemaphoreSlim _admission;
     private readonly HttpListener _listener = new();
     private readonly RemoteCertificateValidationCallback? _clientCertValidator;
+    private readonly WebSocketDuplexSessionRegistry? _duplexSessions;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
-    public WebSocketInboundEndpoint(WebSocketInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory)
+    public WebSocketInboundEndpoint(WebSocketInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory, WebSocketDuplexSessionRegistry? duplexSessions = null)
     {
         _options = options; _dispatcher = dispatcher; _replyFactory = replyFactory;
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
+        _duplexSessions = duplexSessions;
 
         if (options.Ssl.IsEnabled && !options.Prefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
@@ -27,7 +29,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
                 "The server certificate itself must be bound to the port out-of-process (e.g. via netsh http add sslcert); " +
                 "clients then connect with wss://.");
 
-        if (options.Ssl.RequiresRemoteCertificate)
+        if (options.Ssl.RequiresClientCertificate())
             _clientCertValidator = options.Ssl.CreateRemoteCertificateValidator();
 
         _listener.Prefixes.Add(options.Prefix);
@@ -65,7 +67,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     {
         if (!http.Request.IsWebSocketRequest) { http.Response.StatusCode = 400; http.Response.Close(); return; }
 
-        if (_options.Ssl.RequiresRemoteCertificate && !await ValidateClientCertificateAsync(http, ct))
+        if (_options.Ssl.RequiresClientCertificate() && !await ValidateClientCertificateAsync(http, ct))
         {
             http.Response.StatusCode = 403;
             http.Response.Close();
@@ -78,6 +80,11 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
 
         var socket = wsContext.WebSocket;
         var writeLock = new SemaphoreSlim(1, 1);
+        var duplexSession = _options.Mode == CommunicationMode.DuplexInbound
+            ? new WebSocketDuplexSession(_options.SourceEndpointId, socket, writeLock)
+            : null;
+        if (duplexSession is not null)
+            _duplexSessions?.Register(duplexSession);
         try
         {
             var buffer = new byte[_options.ReceiveBufferSize];
@@ -96,18 +103,27 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
                     acc.Write(buffer, 0, result.Count);
                 } while (!result.EndOfMessage);
 
+                var payload = acc.ToArray();
+                if (duplexSession is not null && duplexSession.TryCompletePendingReply(payload))
+                    continue;
+
+                var envelope = result.MessageType == WebSocketMessageType.Text
+                    ? TransportMessageEnvelope.ParseJson(payload, requireJsonObjectPrefix: false)
+                    : TransportMessageEnvelope.Raw(payload);
+
                 await _admission.WaitAsync(ct);
                 try
                 {
-                    var token = new WebSocketAckToken(socket, writeLock);
+                    var token = duplexSession?.CreateAckToken() ?? new WebSocketAckToken(socket, writeLock);
                     var reply = _replyFactory.Create(_options.SourceEndpointId, token);
                     var ctx = new MessageContext(
-                        correlationId: Guid.NewGuid().ToString("N"),
+                        correlationId: envelope.CorrelationId ?? Guid.NewGuid().ToString("N"),
                         sourceEndpointId: _options.SourceEndpointId,
                         format: _options.Format,
                         ack: token,
                         reply: reply,
-                        payload: acc.ToArray());
+                        payload: envelope.Payload,
+                        headers: envelope.Headers);
 
                     ctx.Reply.Attach(ctx);
                     await _dispatcher.DispatchAsync(ctx, ct); // backpressure comes from the ingress queue
@@ -117,7 +133,14 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         }
         catch (OperationCanceledException) { }
         catch (WebSocketException) { }                          // peer reset; connection ends
-        finally { socket.Dispose(); }
+        finally
+        {
+            if (duplexSession is not null)
+                _duplexSessions?.Unregister(duplexSession);
+            else
+                writeLock.Dispose();
+            socket.Dispose();
+        }
     }
 
     // TwoWay mode: HttpListener performs the TLS handshake itself (certificate bound to the port at

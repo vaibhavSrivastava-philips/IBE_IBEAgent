@@ -158,6 +158,41 @@ public sealed class FileInboundEndpointTests
         finally { Directory.Delete(dir, recursive: true); }
     }
 
+    [Fact]
+    public async Task Watermark_mode_processed_journal_prevents_duplicate_after_restart_when_file_timestamp_moves_forward()
+    {
+        var dir = CreateTempDir();
+        try
+        {
+            var file = Path.Combine(dir, "a.hl7");
+            await IoFile.WriteAllTextAsync(file, "one");
+            IoFile.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddSeconds(1));
+
+            var firstDispatcher = new FakeMessageDispatcher();
+            var firstEndpoint = new FileInboundEndpoint(
+                new FileInboundOptions { SourceEndpointId = 7, Directory = dir, KeepOriginalFiles = true },
+                firstDispatcher,
+                new FakeReplyContextFactory());
+
+            await firstEndpoint.ScanOnceAsync(CancellationToken.None);
+            var first = Assert.Single(firstDispatcher.Dispatched);
+            await first.Disposition!.CompleteAsync(MessageCompletion.Completed, CancellationToken.None);
+
+            IoFile.SetLastWriteTimeUtc(file, DateTime.UtcNow.AddMinutes(5));
+            var secondDispatcher = new FakeMessageDispatcher();
+            var secondEndpoint = new FileInboundEndpoint(
+                new FileInboundOptions { SourceEndpointId = 7, Directory = dir, KeepOriginalFiles = true },
+                secondDispatcher,
+                new FakeReplyContextFactory());
+
+            await secondEndpoint.ScanOnceAsync(CancellationToken.None);
+
+            Assert.Empty(secondDispatcher.Dispatched);
+            Assert.True(IoFile.Exists(Path.Combine(dir, ProcessedFileJournal.FileName)));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     private static FileInboundEndpoint NewEndpoint(string dir, FakeMessageDispatcher dispatcher, string? pattern = null)
         => new(
             new FileInboundOptions { SourceEndpointId = 7, Directory = dir, FilePattern = pattern },

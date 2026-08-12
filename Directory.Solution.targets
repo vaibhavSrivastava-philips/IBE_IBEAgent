@@ -1,0 +1,13 @@
+<Project>
+  <Target Name="CoverageReport">
+    <PropertyGroup>
+      <CoverageConfiguration Condition="'$(Configuration)' != ''">$(Configuration)</CoverageConfiguration>
+      <CoverageConfiguration Condition="'$(CoverageConfiguration)' == ''">Debug</CoverageConfiguration>
+      <CoverageOutputDirectory Condition="'$(CoverageOutputDirectory)' == ''">$(MSBuildThisFileDirectory)artifacts\coverage</CoverageOutputDirectory>
+      <CoverageSkipBuild Condition="'$(CoverageSkipBuild)' == ''">false</CoverageSkipBuild>
+      <CoverageSkipBuildArgument Condition="'$(CoverageSkipBuild)' == 'true'">-SkipBuild</CoverageSkipBuildArgument>
+    </PropertyGroup>
+
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)tools\coverage\Invoke-CoverageReport.ps1&quot; -Configuration &quot;$(CoverageConfiguration)&quot; -OutputDirectory &quot;$(CoverageOutputDirectory)&quot; $(CoverageSkipBuildArgument)" />
+  </Target>
+</Project>

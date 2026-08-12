@@ -8,7 +8,6 @@ public static class DataProtectorFactory
     {
         if (!OperatingSystem.IsWindows())
         {
-            // TODO(logging): emit a critical log here once this project references a logging seam.
             throw new PlatformNotSupportedException(
                 "DPAPI at-rest protection requires Windows; the IBE Agent supports Windows hosts only.");
         }

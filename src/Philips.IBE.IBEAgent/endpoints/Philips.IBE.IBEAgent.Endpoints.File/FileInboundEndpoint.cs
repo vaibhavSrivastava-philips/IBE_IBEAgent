@@ -16,6 +16,7 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
     private readonly IReplyContextFactory _replyFactory;
     private readonly IFileArrivalTrigger _trigger;
     private readonly LastProcessedWatermark _watermark;
+    private readonly ProcessedFileJournal? _processedJournal;
     private readonly FileDispositionMode _dispositionMode;
     private readonly FileDisposition _disposition;
     private readonly RetentionSweeper? _retention;
@@ -43,7 +44,8 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
         _logger = logger ?? NullLogger<FileInboundEndpoint>.Instance;
         _extensions = ParseExtensions(options.FilePattern);
         _dispositionMode = ResolveDisposition(options);
-        _disposition = new FileDisposition(_dispositionMode, options.Directory, _watermark, _logger);
+        _processedJournal = _dispositionMode == FileDispositionMode.Watermark ? new ProcessedFileJournal(options.Directory) : null;
+        _disposition = new FileDisposition(_dispositionMode, options.Directory, _watermark, _logger, _processedJournal);
         _retention = options.RetentionDays > 0 ? new RetentionSweeper(options.Directory, options.RetentionDays, _logger) : null;
         _credential = credential;
     }
@@ -84,7 +86,7 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
     {
         EnsureShareConnected();
         var since = _watermark.Read();
-        foreach (var (path, timeUtc) in EnumerateEligible(since))
+        foreach (var (path, timeUtc, length) in EnumerateEligible(since))
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!_inFlight.TryAdd(path, 0)) continue;   // dispatched by an earlier scan, not yet settled
@@ -100,7 +102,12 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
                     continue;
                 }
 
-                var token = new FileSourceToken(path, timeUtc, _disposition, () => _inFlight.TryRemove(path, out _));
+                if (_processedJournal is not null && await _processedJournal.ContainsAsync(path, length, payload, cancellationToken))
+                    continue;
+
+                var payloadHash = ProcessedFileJournal.ComputePayloadHash(payload);
+
+                var token = new FileSourceToken(path, timeUtc, length, payloadHash, _disposition, () => _inFlight.TryRemove(path, out _));
                 var reply = _replyFactory.Create(_options.SourceEndpointId, token);
                 var ctx = new MessageContext(
                     correlationId: Guid.NewGuid().ToString("N"),
@@ -166,7 +173,7 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
         _share = null;
     }
 
-    private List<(string Path, DateTime TimeUtc)> EnumerateEligible(DateTime since)
+    private List<(string Path, DateTime TimeUtc, long Length)> EnumerateEligible(DateTime since)
     {
         var searchOption = _options.Recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
         List<string> files;
@@ -174,12 +181,13 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
         catch (IOException) { return []; }
         catch (UnauthorizedAccessException) { return []; }
 
-        var eligible = new List<(string Path, DateTime TimeUtc)>();
+        var eligible = new List<(string Path, DateTime TimeUtc, long Length)>();
         foreach (var path in files)
         {
             if (IsInternal(path) || !MatchesExtension(path)) continue;
             var timeUtc = EffectiveTimeUtc(path);
-            if (timeUtc > since) eligible.Add((path, timeUtc));
+            var length = FileLength(path);
+            if (timeUtc > since) eligible.Add((path, timeUtc, length));
         }
         eligible.Sort(static (a, b) => a.TimeUtc.CompareTo(b.TimeUtc));   // oldest first
         return eligible;
@@ -219,6 +227,8 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
     {
         if (Path.GetFileName(path).StartsWith(LastProcessedWatermark.FileName, StringComparison.OrdinalIgnoreCase))
             return true;
+        if (Path.GetFileName(path).StartsWith(ProcessedFileJournal.FileName, StringComparison.OrdinalIgnoreCase))
+            return true;
         foreach (var segment in path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
         {
             if (segment.Equals("processed", StringComparison.OrdinalIgnoreCase) ||
@@ -238,5 +248,12 @@ public sealed class FileInboundEndpoint : IInboundEndpoint
         }
         catch (IOException) { return DateTime.MinValue; }
         catch (UnauthorizedAccessException) { return DateTime.MinValue; }
+    }
+
+    private static long FileLength(string path)
+    {
+        try { return new FileInfo(path).Length; }
+        catch (IOException) { return -1; }
+        catch (UnauthorizedAccessException) { return -1; }
     }
 }

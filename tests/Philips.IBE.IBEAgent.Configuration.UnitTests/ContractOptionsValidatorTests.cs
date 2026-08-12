@@ -22,7 +22,7 @@ public sealed class ContractOptionsValidatorTests
     }
 
     [Fact]
-    public void Batch_ack_shape_is_rejected_as_unsupported()
+    public void Batch_ack_shape_is_supported()
     {
         var contract = ValidContract() with
         {
@@ -31,8 +31,7 @@ public sealed class ContractOptionsValidatorTests
 
         var result = ContractOptionsValidator.Validate(contract);
 
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("Batch is not supported"));
+        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
     }
 
     [Fact]

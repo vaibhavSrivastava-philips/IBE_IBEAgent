@@ -77,6 +77,29 @@ pwsh -File tests/e2e/Invoke-E2EWorkflow.ps1 -Configuration Release
 The process exit code is `0` when every scenario passes and `1` otherwise, so the
 workflow can be wired into a pipeline.
 
+## Coverage report
+
+The repository includes a build-integrated coverage target for the active non-WebAgent
+test projects. It runs unit/integration tests with Coverlet, merges the results with
+ReportGenerator, and writes HTML plus Cobertura outputs under `artifacts/coverage/`.
+
+```powershell
+# Restore local tools once per clone
+dotnet tool restore
+
+# From the repository root. Uses the active non-WebAgent test projects.
+dotnet build tools/coverage/CoverageReport.proj -t:CoverageReport
+
+# Release configuration
+dotnet build tools/coverage/CoverageReport.proj -t:CoverageReport -p:Configuration=Release
+
+# Reuse already-built test binaries
+dotnet build tools/coverage/CoverageReport.proj -t:CoverageReport -p:CoverageSkipBuild=true
+```
+
+Open `artifacts/coverage/report/index.html` for the merged HTML report. The merged
+Cobertura file is `artifacts/coverage/report/Cobertura.xml`.
+
 ## File comm points
 
 The File inbound (folder poller) and File outbound (file writer) comm points have

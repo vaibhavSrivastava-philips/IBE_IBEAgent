@@ -11,6 +11,8 @@ namespace Philips.IBE.IBEAgent.Service;
 public sealed class AgentRuntimeHost(
     IReadOnlyList<IContractRuntime> runtimes,
     IReadOnlyList<IInboundEndpoint> inboundEndpoints,
+    IReadOnlyList<IEndpointLifecycle> outboundEndpointLifecycles,
+    AgentRuntimeHealthReporter health,
     ILogger<AgentRuntimeHost> logger) : BackgroundService
 {
     private static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(30);
@@ -19,12 +21,16 @@ public sealed class AgentRuntimeHost(
     {
         var runTasks = runtimes.Select(r => r.RunAsync(stoppingToken)).ToList();
 
+        foreach (var endpoint in outboundEndpointLifecycles)
+            await endpoint.StartAsync(stoppingToken);
+
         foreach (var endpoint in inboundEndpoints)
             await endpoint.StartAsync(stoppingToken);
 
         logger.LogInformation(
             "IBE Agent started: {ContractCount} contract(s), {EndpointCount} inbound endpoint(s).",
             runtimes.Count, inboundEndpoints.Count);
+        health.ReportStarted(runtimes.Count, inboundEndpoints.Count);
 
         try
         {
@@ -34,10 +40,16 @@ public sealed class AgentRuntimeHost(
         {
             // expected on shutdown
         }
+        catch (Exception ex)
+        {
+            health.ReportFailed($"Agent runtime failed: {ex.GetType().Name}.");
+            throw;
+        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        health.ReportStopping();
         logger.LogInformation("IBE Agent stopping: draining {EndpointCount} endpoint(s) and {ContractCount} contract(s).",
             inboundEndpoints.Count, runtimes.Count);
 
@@ -45,10 +57,14 @@ public sealed class AgentRuntimeHost(
         foreach (var endpoint in inboundEndpoints)
             await endpoint.StopAsync(cancellationToken);
 
+        foreach (var endpoint in outboundEndpointLifecycles)
+            await endpoint.StopAsync(cancellationToken);
+
         foreach (var runtime in runtimes)
             await runtime.DrainAsync(DrainTimeout);
 
         await base.StopAsync(cancellationToken);
+        health.ReportStopped();
         logger.LogInformation("IBE Agent stopped.");
     }
 }

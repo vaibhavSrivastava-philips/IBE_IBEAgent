@@ -66,6 +66,51 @@ public sealed class MllpFramerTests
         Assert.Empty(messages);
     }
 
+    [Fact]
+    public async Task Incomplete_frame_at_end_of_stream_is_dropped()
+    {
+        var incomplete = new byte[] { Mllp.StartBlock }.Concat(Encoding.UTF8.GetBytes("PARTIAL")).ToArray();
+        using var stream = new MemoryStream(incomplete);
+
+        var messages = await ReadAllAsync(stream);
+
+        Assert.Empty(messages);
+    }
+
+    [Fact]
+    public async Task Nested_start_block_drops_corrupt_partial_frame_and_resynchronizes()
+    {
+        var valid = Encoding.UTF8.GetBytes("VALID");
+        var buffer = new byte[] { Mllp.StartBlock }
+            .Concat(Encoding.UTF8.GetBytes("CORRUPT"))
+            .Concat(MllpFramer.Frame(valid))
+            .ToArray();
+        using var stream = new MemoryStream(buffer);
+
+        var messages = await ReadAllAsync(stream);
+
+        var message = Assert.Single(messages);
+        Assert.Equal(valid, message);
+    }
+
+    [Fact]
+    public async Task Malformed_terminator_before_new_start_drops_partial_frame_and_resynchronizes()
+    {
+        var valid = Encoding.UTF8.GetBytes("VALID-AFTER-BAD-FS");
+        var buffer = new byte[] { Mllp.StartBlock }
+            .Concat(Encoding.UTF8.GetBytes("CORRUPT"))
+            .Concat([Mllp.EndBlock1, Mllp.StartBlock])
+            .Concat(valid)
+            .Concat([Mllp.EndBlock1, Mllp.EndBlock2])
+            .ToArray();
+        using var stream = new MemoryStream(buffer);
+
+        var messages = await ReadAllAsync(stream);
+
+        var message = Assert.Single(messages);
+        Assert.Equal(valid, message);
+    }
+
     private static async Task<List<byte[]>> ReadAllAsync(Stream stream)
     {
         var list = new List<byte[]>();

@@ -18,17 +18,19 @@ public sealed class FileDisposition
     private readonly FileDispositionMode _mode;
     private readonly string _root;
     private readonly LastProcessedWatermark _watermark;
+    private readonly ProcessedFileJournal? _processedJournal;
     private readonly ILogger _logger;
 
-    public FileDisposition(FileDispositionMode mode, string rootDirectory, LastProcessedWatermark watermark, ILogger logger)
+    public FileDisposition(FileDispositionMode mode, string rootDirectory, LastProcessedWatermark watermark, ILogger logger, ProcessedFileJournal? processedJournal = null)
     {
         _mode = mode;
         _root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(rootDirectory));
         _watermark = watermark ?? throw new ArgumentNullException(nameof(watermark));
+        _processedJournal = processedJournal;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task ApplyAsync(string sourcePath, DateTime effectiveTimeUtc, MessageCompletion outcome, CancellationToken cancellationToken)
+    public async Task ApplyAsync(string sourcePath, DateTime effectiveTimeUtc, long length, string payloadHash, MessageCompletion outcome, CancellationToken cancellationToken)
     {
         try
         {
@@ -36,6 +38,8 @@ public sealed class FileDisposition
             {
                 case FileDispositionMode.Watermark:
                     await _watermark.AdvanceToAsync(effectiveTimeUtc, cancellationToken);
+                    if (outcome != MessageCompletion.Faulted && _processedJournal is not null)
+                        await _processedJournal.AddAsync(sourcePath, length, payloadHash, cancellationToken);
                     break;
                 default:
                     MoveToOutcomeFolder(sourcePath, outcome);

@@ -115,7 +115,7 @@ The current build targets .NET 10 and Angular 21, despite the root README still 
 | File writer | Writes routed output to local files. | Active | Medium |
 | CIM S3 sender | Converts HL7 clinical data to Avro, batches and ZIPs records, obtains presigned URLs, uploads, and records failures. | Active - critical | Critical |
 | Deferred CIM upload | For `cim_s3` points with `UploadHoldSeconds > 0`, creates a dedicated ordered background flusher rather than uploading immediately. | Active | High |
-| Cart Gateway model | A `CartGatewayConfiguration` model and validation branch exist. No current `DataProcessor` dispatch/output implementation was found. | Partial | Low |
+| Cart Gateway model | Not part of the active Agent runtime path in this workspace; references are limited to documentation/WebAgent surfaces. Treat as product-decision backlog, not an Agent implementation gap. | Out of active Agent scope | Low |
 
 ### 4.5 Failure handling and persistence
 
@@ -350,13 +350,13 @@ The script is Windows-only and framework-dependent (`--self-contained false`).
 
 | Item | Evidence-based assessment | Recommended action |
 |---|---|---|
-| Standalone HL7-to-Avro service | Published, but all functional hosted-service registrations are commented out. | Either restore a tested entry path or stop packaging it. |
+| Standalone HL7-to-Avro service | No active standalone converter project was found in this checkout outside the Agent HL7/CIM codec path. | Treat as absent from active Agent scope; restore only if product ownership supplies the missing project/package requirement. |
 | Legacy Service.Agent | Separate superseded architecture; absent from current build/install. | Confirm deployment usage, then archive/remove. |
 | Nested `src/app/Philips.IBE.Service.WebAgent.sln` | Solution file inside Angular source; no current build role found. | Verify IDE use; likely remove. |
 | Root `src/CertificateGenerator.ps1` duplicate | Current build packages the copy under `Installation Script/`. | Compare contents/history and retain one canonical script. |
-| MetricsViewer packaging | Viewer exists, but current build does not copy it despite operational value. | Add to package if still supported, otherwise mark obsolete/remove. |
-| Cart Gateway configuration | Model and validation exist without a current routing sender/dispatch branch. | Complete the output path or remove the unused model/UI exposure. |
-| Duplicated Avro converter code | Mapper/parser implementations exist in both converter project and CIM.Common. | Consolidate on CIM.Common after deciding converter ownership. |
+| MetricsViewer packaging | No MetricsViewer project/directory was found in this checkout. | Treat as absent from active Agent scope; add packaging only if the viewer project is restored. |
+| Cart Gateway configuration | No active Agent runtime model/sender/dispatcher exists outside WebAgent; no checked-in Agent path references it. | Keep out of Agent runtime scope until product ownership confirms a committed sender requirement. |
+| Duplicated Avro converter code | Active non-WebAgent code in this checkout contains a single Agent HL7/CIM codec path; no duplicate converter project was found. | No active-code consolidation needed in this workspace. |
 | Multiple DB abstractions/models | Agent/Common and Web maintain separate PostgreSQL/SQLite abstractions and duplicated config shapes. | Keep if ownership boundaries are intentional; otherwise consolidate cautiously. |
 | README versions | README says .NET 8/Angular 18, manifests use .NET 10/Angular 21. | Update documentation to match build inputs. |
 | Hard-coded OTLP endpoint | Agent/Forward target local collector URLs. | Make endpoint/protocol/export interval configurable. |
@@ -422,7 +422,7 @@ The script is Windows-only and framework-dependent (`--self-contained false`).
 - Legacy Service.Agent and ReportSync implementation, unless older field deployments still use it.
 - Standalone Avro Converter host in its current no-op state.
 - Nested Angular solution and duplicate certificate script.
-- Cart Gateway model until a sender/dispatcher is implemented.
+- Cart Gateway model until product ownership confirms it belongs in the active Agent runtime.
 
 ## 17. Confidence and Limits
 

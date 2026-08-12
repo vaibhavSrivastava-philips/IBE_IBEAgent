@@ -1,9 +1,11 @@
 using Philips.IBE.IBEAgent.Security;
+using Philips.IBE.IBEAgent.Abstractions;
 
 namespace Philips.IBE.IBEAgent.Endpoints.Tcp;
 
 public sealed class TcpInboundOptions
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Inbound;
     public required int SourceEndpointId { get; init; }
     public required int Port { get; init; }
     public string Format { get; init; } = "hl7v2";
@@ -13,6 +15,12 @@ public sealed class TcpInboundOptions
 
 public sealed class TcpOutboundOptions
 {
+    public CommunicationMode Mode { get; init; } = CommunicationMode.Outbound;
+    public int? SourceEndpointId { get; init; }
+    public int? DuplexInboundSourceEndpointId { get; init; }
+    public string InboundFormat { get; init; } = "hl7v2";
+    public TimeSpan ReplyCorrelationTimeout { get; init; } = TimeSpan.FromSeconds(30);
+    public TimeSpan ReconnectDelay { get; init; } = TimeSpan.FromSeconds(2);
     public required string Host { get; init; }
     public required int Port { get; init; }
     public int PoolSize { get; init; } = 8;                  // kill connection-per-message (P10)

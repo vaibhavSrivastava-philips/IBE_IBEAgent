@@ -9,6 +9,13 @@ public sealed class SslOptions
     // client-facing web/API pattern). TwoWay = mutual TLS: both sides present + validate a certificate.
     public SslMode Mode { get; init; } = SslMode.None;
 
+    // New preferred model: TLS behavior is inferred from endpoint role + configured certificate
+    // material. Mode is retained as a backward-compatible shim for existing configs.
+    public bool? Enabled { get; init; }
+    public bool RequireClientCertificate { get; init; }
+    public CertificateReference? LocalCertificate { get; init; }
+    public CertificateReference? TrustedCertificateAuthority { get; init; }
+
     // Certificate presented by *this* side of the connection:
     //  - inbound (server) endpoint: required for OneWay and TwoWay.
     //  - outbound (client) endpoint: required for TwoWay only (client authentication).
@@ -28,6 +35,31 @@ public sealed class SslOptions
 
     public bool CheckCertificateRevocation { get; init; } = true;
 
-    public bool IsEnabled => Mode != SslMode.None;
-    public bool RequiresRemoteCertificate => Mode == SslMode.TwoWay;
+    public bool IsEnabled => Enabled
+        ?? Mode != SslMode.None
+        || RequireClientCertificate
+        || LocalCertificate is not null
+        || TrustedCertificateAuthority is not null
+        || !string.IsNullOrWhiteSpace(CertificatePath)
+        || !string.IsNullOrWhiteSpace(TrustedCertificateAuthorityPath);
+    public bool RequiresRemoteCertificate => RequireClientCertificate || Mode == SslMode.TwoWay;
+
+    internal CertificateReference? EffectiveLocalCertificate => LocalCertificate ??
+        (string.IsNullOrWhiteSpace(CertificatePath)
+            ? null
+            : new CertificateReference
+            {
+                Kind = CertificateReferenceKind.File,
+                Path = CertificatePath,
+                Password = CertificatePassword,
+            });
+
+    internal CertificateReference? EffectiveTrustedAuthority => TrustedCertificateAuthority ??
+        (string.IsNullOrWhiteSpace(TrustedCertificateAuthorityPath)
+            ? null
+            : new CertificateReference
+            {
+                Kind = CertificateReferenceKind.File,
+                Path = TrustedCertificateAuthorityPath,
+            });
 }

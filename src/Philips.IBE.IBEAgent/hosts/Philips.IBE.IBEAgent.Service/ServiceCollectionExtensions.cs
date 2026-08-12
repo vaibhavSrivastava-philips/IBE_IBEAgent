@@ -26,27 +26,60 @@ public static class ServiceCollectionExtensions
         var endpoints = configuration.GetSection("Endpoints").Get<AgentEndpointsOptions>()
             ?? throw new InvalidOperationException("Required configuration section 'Endpoints' is missing.");
         var forwardOptions = configuration.GetSection("Forward").Get<ForwardOptions>() ?? new ForwardOptions();
+        var reloadOptions = configuration.GetSection("EngineReload").Get<EngineReloadOptions>() ?? new EngineReloadOptions();
+        var licenseOptions = configuration.GetSection("License").Get<LicenseOptions>() ?? new LicenseOptions();
 
-        // §3.9 — the in-process store-and-forward buffer. Only AtLeastOnce legs use it; the
-        // ForwardWorker is only registered as a hosted service when this host is the active owner.
+        var licenseValidation = new FileLicenseValidator().Validate(licenseOptions);
+        if (!licenseValidation.IsValid)
+        {
+            throw new InvalidOperationException($"License validation failed: {licenseValidation.Error}");
+        }
+
+        services.AddSingleton<ILicenseValidator, FileLicenseValidator>();
+        services.AddSingleton(licenseOptions);
+        services.AddSingleton<AgentRuntimeHealthReporter>();
+        services.AddSingleton<IHealthReporter>(sp => sp.GetRequiredService<AgentRuntimeHealthReporter>());
+        services.AddSingleton<IHealthSnapshotProvider, HealthSnapshotProvider>();
+
+        var endpointValidation = AgentEndpointsOptionsValidator.Validate(endpoints);
+        if (!endpointValidation.IsValid)
+        {
+            throw new InvalidOperationException(
+                "Endpoint configuration validation failed:" + Environment.NewLine + string.Join(Environment.NewLine, endpointValidation.Errors));
+        }
+
+        // §3.9 — store-and-forward buffer. File is the production-safe default; InMemory is opt-in
+        // for tests/dev only. Only AtLeastOnce legs use it.
         var protector = DataProtectorFactory.Create();
-        var forwardStore = new InMemoryForwardStore(protector);
+        var (forwardStore, forwardStoreManagement) = ForwardStoreFactory.Create(forwardOptions, protector);
         services.AddSingleton(protector);
         services.AddSingleton<IForwardStore>(forwardStore);
+        services.AddSingleton<IForwardStoreManagement>(forwardStoreManagement);
 
-        // §3.10 — compile the whole topology ONCE, deferred to first resolve so the ComponentRegistry
-        // (and the HL7 ack formatter's logger) use the host's real ILoggerFactory. Materialized at
-        // host start when AgentRuntimeHost resolves the runtimes/endpoints — still fail-fast.
-        services.AddSingleton(sp => CompiledEngine.Build(
-            catalog, contracts, endpoints, forwardStore, protector, sp.GetRequiredService<ILoggerFactory>()));
+        services.AddSingleton(reloadOptions);
 
-        services.AddSingleton<IReadOnlyList<IContractRuntime>>(sp => sp.GetRequiredService<CompiledEngine>().Runtimes);
-        services.AddSingleton<IReadOnlyList<IInboundEndpoint>>(sp => sp.GetRequiredService<CompiledEngine>().InboundEndpoints);
-        services.AddHostedService<AgentRuntimeHost>();
+        if (reloadOptions.Enabled)
+        {
+            services.AddSingleton<ReloadableEngineManager>();
+            services.AddHostedService<ReloadableAgentRuntimeHost>();
+        }
+        else
+        {
+            // §3.10 — compile the whole topology ONCE, deferred to first resolve so the ComponentRegistry
+            // (and the HL7 ack formatter's logger) use the host's real ILoggerFactory. Materialized at
+            // host start when AgentRuntimeHost resolves the runtimes/endpoints — still fail-fast.
+            services.AddSingleton(sp => CompiledEngine.Build(
+                catalog, contracts, endpoints, forwardStore, protector, sp.GetRequiredService<ILoggerFactory>()));
+
+            services.AddSingleton<IReadOnlyList<IContractRuntime>>(sp => sp.GetRequiredService<CompiledEngine>().Runtimes);
+            services.AddSingleton<IReadOnlyList<IInboundEndpoint>>(sp => sp.GetRequiredService<CompiledEngine>().InboundEndpoints);
+            services.AddSingleton<IReadOnlyList<IEndpointLifecycle>>(sp => sp.GetRequiredService<CompiledEngine>().OutboundEndpointLifecycles);
+            services.AddHostedService<AgentRuntimeHost>();
+        }
 
         // §3.9 — this host owns the ForwardWorker only when config says InProcess (default).
-        // The out-of-process ForwardService host wires its own replay targets in Phase 7+.
-        if (forwardOptions.Owner == ForwardOwner.InProcess)
+        // The out-of-process ForwardService host wires its own replay targets through its composition root.
+        if (!reloadOptions.Enabled && forwardOptions.Owner == ForwardOwner.InProcess)
             services.AddForwardWorker(configuration, sp => sp.GetRequiredService<CompiledEngine>().ReplayTargets);
 
         return services;

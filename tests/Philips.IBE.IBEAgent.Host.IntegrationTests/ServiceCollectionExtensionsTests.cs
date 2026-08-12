@@ -1,7 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Configuration;
 using Philips.IBE.IBEAgent.Core;
+using Philips.IBE.IBEAgent.Persistence;
+using Philips.IBE.IBEAgent.Security;
 using Philips.IBE.IBEAgent.Service;
 
 namespace Philips.IBE.IBEAgent.Host.IntegrationTests;
@@ -83,6 +87,55 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddIbeAgentEngine_fails_fast_when_license_validation_is_enabled_without_a_path()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddConfiguration(BuildConfiguration())
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["License:Enabled"] = "true",
+            })
+            .Build();
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        var ex = Assert.Throws<InvalidOperationException>(() => services.AddIbeAgentEngine(configuration));
+
+        Assert.Contains("License validation failed", ex.Message);
+        Assert.Contains("License:Path", ex.Message);
+    }
+
+    [Fact]
+    public void AddIbeAgentEngine_accepts_valid_configured_license_before_compiling_endpoints()
+    {
+        var licensePath = Path.Combine(Path.GetTempPath(), $"ibe-license-{Guid.NewGuid():N}.json");
+        var expiresAt = DateTimeOffset.UtcNow.AddDays(1).ToString("O");
+        File.WriteAllText(licensePath, $"{{\"product\":\"IBEAgent\",\"expiresAtUtc\":\"{expiresAt}\",\"signature\":\"test-signature\"}}");
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddConfiguration(BuildConfiguration())
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["License:Enabled"] = "true",
+                    ["License:Path"] = licensePath,
+                })
+                .Build();
+            var services = new ServiceCollection();
+            services.AddLogging();
+
+            services.AddIbeAgentEngine(configuration);
+
+            using var provider = services.BuildServiceProvider();
+            Assert.Single(provider.GetRequiredService<IReadOnlyList<IContractRuntime>>());
+        }
+        finally
+        {
+            File.Delete(licensePath);
+        }
+    }
+
+    [Fact]
     public void AddIbeAgentEngine_registers_the_runtime_host_as_a_hosted_service()
     {
         var services = new ServiceCollection();
@@ -94,6 +147,44 @@ public sealed class ServiceCollectionExtensionsTests
         var hosted = provider.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
 
         Assert.Contains(hosted, h => h is AgentRuntimeHost);
+    }
+
+    [Fact]
+    public void AddIbeAgentEngine_registers_agent_runtime_health_reporter()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddIbeAgentEngine(BuildConfiguration());
+
+        using var provider = services.BuildServiceProvider();
+        var reporter = provider.GetRequiredService<AgentRuntimeHealthReporter>();
+        var reporters = provider.GetServices<IHealthReporter>().ToArray();
+
+        var snapshot = reporter.GetSnapshot();
+        Assert.Equal("agent-runtime", snapshot.Component);
+        Assert.Equal(HealthStatus.Degraded, snapshot.Status);
+        Assert.Contains(reporters, r => ReferenceEquals(r, reporter));
+    }
+
+    [Fact]
+    public void AddIbeAgentEngine_registers_health_snapshot_provider_with_sanitized_component_statuses()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+
+        services.AddIbeAgentEngine(BuildConfiguration());
+
+        using var provider = services.BuildServiceProvider();
+        var health = provider.GetRequiredService<IHealthSnapshotProvider>();
+
+        var overall = health.GetOverallSnapshot();
+        var snapshots = health.GetSnapshots();
+
+        Assert.Equal("ibe-agent", overall.Component);
+        Assert.Equal(HealthStatus.Degraded, overall.Status);
+        Assert.Contains("agent-runtime: Degraded", overall.Detail);
+        Assert.Contains(snapshots, s => s.Component == "agent-runtime");
     }
 
     [Fact]
@@ -160,4 +251,74 @@ public sealed class ServiceCollectionExtensionsTests
         Assert.Single(inbound);    // the File inbound endpoint was constructed
         Assert.Single(runtimes);   // the File output leg (OutputId 100) resolved to a File endpoint
     }
+
+    [Fact]
+    public async Task ReloadableEngineManager_replaces_valid_snapshots_atomically_and_rolls_back_invalid_changes()
+    {
+        var protector = DataProtectorFactory.Create();
+        await using var manager = new ReloadableEngineManager(
+            new InMemoryForwardStore(protector),
+            protector,
+            NullLoggerFactory.Instance,
+            NullLogger<ReloadableEngineManager>.Instance);
+
+        await manager.LoadInitialAsync(BuildCatalog(), BuildContracts("Initial"), BuildEndpoints(100), CancellationToken.None);
+
+        Assert.Equal(1, manager.Version);
+        Assert.Single(manager.Current!.Runtimes);
+
+        var invalidReload = await manager.TryReloadAsync(BuildCatalog(), BuildContracts("Invalid"), new AgentEndpointsOptions
+        {
+            TcpOutbound =
+            [
+                new TcpOutboundEndpointConfig
+                {
+                    OutputId = 100,
+                    Host = "localhost",
+                    Port = 9999,
+                    Mode = CommunicationMode.DuplexOutbound,
+                },
+            ],
+        }, CancellationToken.None);
+
+        Assert.False(invalidReload);
+        Assert.Equal(1, manager.Version);
+
+        var validReload = await manager.TryReloadAsync(BuildCatalog(), BuildContracts("Replacement"), BuildEndpoints(100), CancellationToken.None);
+
+        Assert.True(validReload);
+        Assert.Equal(2, manager.Version);
+        Assert.Single(manager.Current!.Runtimes);
+    }
+
+    private static CatalogOptions BuildCatalog() => new()
+    {
+        Codecs = new Dictionary<string, CodecOptions>
+        {
+            ["hl7v2"] = new() { Type = "hl7v2" },
+        },
+    };
+
+    private static List<ContractOptions> BuildContracts(string name) =>
+    [
+        new ContractOptions
+        {
+            Name = name,
+            Inputs = [new InputOptions { InputId = 1 }],
+            Outputs = [new OutputOptions { OutputId = 100, Encoding = "hl7v2" }],
+        },
+    ];
+
+    private static AgentEndpointsOptions BuildEndpoints(int outputId) => new()
+    {
+        TcpOutbound =
+        [
+            new TcpOutboundEndpointConfig
+            {
+                OutputId = outputId,
+                Host = "localhost",
+                Port = 9999,
+            },
+        ],
+    };
 }

@@ -13,6 +13,9 @@ public sealed class ComponentRegistry
     private readonly Dictionary<string, Func<CodecOptions, IBatchCodec>> _batchCodecs = new(StringComparer.Ordinal);
     private readonly Dictionary<int, Func<OutputOptions, IOutboundEndpoint>> _endpointFactories = new();
     private readonly Dictionary<(string Format, AckShape Shape), IAckFormatter> _ackFormatters = new();
+    private readonly List<IEndpointLifecycle> _outboundEndpointLifecycles = [];
+
+    public IReadOnlyList<IEndpointLifecycle> OutboundEndpointLifecycles => _outboundEndpointLifecycles;
 
     public ComponentRegistry RegisterStage(string name, Func<IMessageStage> factory)
     {
@@ -84,6 +87,9 @@ public sealed class ComponentRegistry
     {
         if (!_endpointFactories.TryGetValue(output.OutputId, out var factory))
             throw new InvalidOperationException($"No outbound endpoint registered for OutputId {output.OutputId}.");
-        return factory(output);
+        var endpoint = factory(output);
+        if (endpoint is IEndpointLifecycle lifecycle)
+            _outboundEndpointLifecycles.Add(lifecycle);
+        return endpoint;
     }
 }

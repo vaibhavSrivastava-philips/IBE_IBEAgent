@@ -50,6 +50,26 @@ public sealed class ContractRuntimeTests
     }
 
     [Fact]
+    public async Task Filtered_pipeline_preserves_filter_reason_for_reply_strategy()
+    {
+        var recording = new RecordingReplyContext();
+        var ctx = MessageContextBuilder.Create(sourceEndpointId: 1, reply: recording);
+
+        var endpoint = new FakeOutboundEndpoint();
+        var leg = new DeliveryLeg(10, required: true, new BoundedInMemoryChannel(8), endpoint);
+        var ingress = new Dictionary<int, IMessageChannel> { [1] = new BoundedInMemoryChannel(8) };
+        var runtime = new ContractRuntime(ingress, new FilteringPipeline("hl7-filter: ADT blocked"), new[] { leg });
+
+        _ = runtime.RunAsync(CancellationToken.None);
+        await runtime.EnqueueAsync(ctx, CancellationToken.None);
+        await runtime.DrainAsync(DrainTimeout);
+
+        Assert.True(recording.WasFiltered);
+        Assert.Equal("hl7-filter: ADT blocked", recording.FilterReason);
+        Assert.Empty(endpoint.Sent);
+    }
+
+    [Fact]
     public async Task Fans_out_only_to_legs_that_accept_the_source()
     {
         var recording = new RecordingReplyContext();
@@ -71,9 +91,9 @@ public sealed class ContractRuntimeTests
         Assert.Empty(epB.Sent);
     }
 
-    private sealed class FilteringPipeline : IMessagePipeline
+    private sealed class FilteringPipeline(string reason = "blocked") : IMessagePipeline
     {
         public ValueTask<PipelineResult> ExecuteAsync(MessageContext context)
-            => new(PipelineResult.Filtered("blocked"));
+            => new(PipelineResult.Filtered(reason));
     }
 }

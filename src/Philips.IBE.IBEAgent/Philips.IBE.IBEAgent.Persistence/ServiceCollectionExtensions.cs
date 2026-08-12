@@ -11,14 +11,20 @@ namespace Philips.IBE.IBEAgent.Persistence;
 // §3.9/§3.10 — composition helper shared by both hosting modes: registers the store, the
 // replay-target registry, and the ForwardWorker BackgroundService. The in-process host
 // (Philips.IBE.IBEAgent.Service) supplies the compiled legs' replay targets; the out-of-process
-// host (Philips.IBE.IBEAgent.ForwardService) supplies an empty set until it composes its own
-// endpoints (Phase 7+).
+// host (Philips.IBE.IBEAgent.ForwardService) supplies the replay targets from its own composition root.
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddForwardStore(this IServiceCollection services)
+    public static IServiceCollection AddForwardStore(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton(DataProtectorFactory.Create());
-        services.AddSingleton<IForwardStore, InMemoryForwardStore>();
+        var options = configuration.GetSection("Forward").Get<ForwardOptions>() ?? new ForwardOptions();
+        var protector = DataProtectorFactory.Create();
+        var (store, management) = ForwardStoreFactory.Create(options, protector);
+
+        services.AddSingleton(protector);
+        services.AddSingleton<IForwardStore>(store);
+        services.AddSingleton<IForwardStoreManagement>(management);
+        services.AddSingleton<ForwardWorkerHealthReporter>();
+        services.AddSingleton<IHealthReporter>(sp => sp.GetRequiredService<ForwardWorkerHealthReporter>());
         return services;
     }
 
@@ -27,8 +33,11 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         IEnumerable<KeyValuePair<int, IReplayTarget>> replayTargets)
     {
-        services.Configure<ForwardOptions>(configuration.GetSection("Ibe:Forward").Bind);
-        services.AddSingleton<IReplayTargetRegistry>(new ReplayTargetRegistry(replayTargets));
+        services.Configure<ForwardOptions>(configuration.GetSection("Forward").Bind);
+        services.TryAddSingleton<ForwardWorkerHealthReporter>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHealthReporter, ForwardWorkerHealthReporter>());
+        var replayTargetList = replayTargets.ToList();
+        services.AddSingleton<IReplayTargetRegistry>(_ => new ReplayTargetRegistry(replayTargetList));
         services.AddHostedService<ForwardWorker>();
         return services;
     }
@@ -41,7 +50,9 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration,
         Func<IServiceProvider, IEnumerable<KeyValuePair<int, IReplayTarget>>> replayTargetsFactory)
     {
-        services.Configure<ForwardOptions>(configuration.GetSection("Ibe:Forward").Bind);
+        services.Configure<ForwardOptions>(configuration.GetSection("Forward").Bind);
+        services.TryAddSingleton<ForwardWorkerHealthReporter>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IHealthReporter, ForwardWorkerHealthReporter>());
         services.AddSingleton<IReplayTargetRegistry>(sp => new ReplayTargetRegistry(replayTargetsFactory(sp)));
         services.AddHostedService<ForwardWorker>();
         return services;

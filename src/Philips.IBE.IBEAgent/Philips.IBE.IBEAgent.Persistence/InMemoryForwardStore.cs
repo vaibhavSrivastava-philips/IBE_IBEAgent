@@ -11,7 +11,7 @@ namespace Philips.IBE.IBEAgent.Persistence;
 // ENCRYPTED at rest (DPAPI via IDataProtector, machine-scoped per §3.9) and decrypted only when
 // read back for replay. Swapping in a Postgres-backed IForwardStore later requires no change to
 // DeliveryLeg, ForwardWorker, or the compiler — the seam is exactly this interface.
-public sealed class InMemoryForwardStore : IForwardStore
+public sealed class InMemoryForwardStore : IForwardStore, IForwardStoreManagement
 {
     private sealed class Row
     {
@@ -21,17 +21,20 @@ public sealed class InMemoryForwardStore : IForwardStore
         public ForwardStatus Status;
         public int Attempts;
         public DateTimeOffset NextAttemptAt;
+        public DateTimeOffset? LeasedUntil;
         public string? LastError;
         public required DateTimeOffset CreatedAt;
     }
 
     private readonly ConcurrentDictionary<long, Row> _rows = new();
     private readonly IDataProtector _protector;
+    private readonly TimeSpan _leaseDuration;
     private long _nextId;
 
-    public InMemoryForwardStore(IDataProtector protector)
+    public InMemoryForwardStore(IDataProtector protector, TimeSpan? leaseDuration = null)
     {
         _protector = protector ?? throw new ArgumentNullException(nameof(protector));
+        _leaseDuration = leaseDuration ?? TimeSpan.FromMinutes(5);
     }
 
     public Task StoreAsync(MessageContext context, int outputId, string? error, CancellationToken cancellationToken)
@@ -85,18 +88,22 @@ public sealed class InMemoryForwardStore : IForwardStore
     {
         var now = DateTimeOffset.UtcNow;
         var due = _rows.Values
-            .Where(r => r.Status == ForwardStatus.Pending && r.NextAttemptAt <= now)
+            .Where(r => r.Status == ForwardStatus.Pending && r.NextAttemptAt <= now && (r.LeasedUntil is null || r.LeasedUntil <= now))
             .OrderBy(r => r.NextAttemptAt)
             .Take(max)
-            .Select(r => new ForwardEntry(
-                r.Id,
-                _protector.Unprotect(r.EncryptedMessage),
-                r.OutputId,
-                r.Status,
-                r.Attempts,
-                r.NextAttemptAt,
-                r.LastError,
-                r.CreatedAt))
+            .Select(r =>
+            {
+                r.LeasedUntil = now.Add(_leaseDuration);
+                return new ForwardEntry(
+                    r.Id,
+                    _protector.Unprotect(r.EncryptedMessage),
+                    r.OutputId,
+                    r.Status,
+                    r.Attempts,
+                    r.NextAttemptAt,
+                    r.LastError,
+                    r.CreatedAt);
+            })
             .ToList();
 
         return Task.FromResult<IReadOnlyList<ForwardEntry>>(due);
@@ -108,6 +115,7 @@ public sealed class InMemoryForwardStore : IForwardStore
         {
             row.Attempts = attempts;
             row.NextAttemptAt = nextAttemptAt;
+            row.LeasedUntil = null;
             row.LastError = lastError;
         }
         return Task.CompletedTask;
@@ -126,6 +134,36 @@ public sealed class InMemoryForwardStore : IForwardStore
         return Task.CompletedTask;
     }
 
+    public Task<IReadOnlyList<ForwardEntry>> ListAsync(ForwardStatus? status, int max, CancellationToken cancellationToken)
+    {
+        var rows = _rows.Values
+            .Where(r => status is null || r.Status == status)
+            .OrderBy(r => r.CreatedAt)
+            .Take(max)
+            .Select(ToEntry)
+            .ToList();
+
+        return Task.FromResult<IReadOnlyList<ForwardEntry>>(rows);
+    }
+
+    public Task<bool> RequeueAsync(long id, CancellationToken cancellationToken)
+    {
+        if (!_rows.TryGetValue(id, out var row))
+            return Task.FromResult(false);
+
+        row.Status = ForwardStatus.Pending;
+        row.NextAttemptAt = DateTimeOffset.UtcNow;
+        row.LeasedUntil = null;
+        row.LastError = null;
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> DiscardAsync(long id, string? reason, CancellationToken cancellationToken)
+    {
+        var removed = _rows.TryRemove(id, out _);
+        return Task.FromResult(removed);
+    }
+
     private bool MatchesMessage(Row row, MessageContext context)
     {
         try
@@ -138,4 +176,15 @@ public sealed class InMemoryForwardStore : IForwardStore
             return false;
         }
     }
+
+    private ForwardEntry ToEntry(Row row)
+        => new(
+            row.Id,
+            _protector.Unprotect(row.EncryptedMessage),
+            row.OutputId,
+            row.Status,
+            row.Attempts,
+            row.NextAttemptAt,
+            row.LastError,
+            row.CreatedAt);
 }
