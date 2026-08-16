@@ -36,7 +36,7 @@ try {
         while (-not $contextTask.Wait(200)) {
             if (Test-Path -LiteralPath $StopFile) { break }
         }
-        if (-not $contextTask.IsCompletedSuccessfully) { continue }
+        if (-not $contextTask.IsCompleted -or $contextTask.Status -ne [System.Threading.Tasks.TaskStatus]::RanToCompletion) { continue }
 
         $context = $contextTask.Result
         try {

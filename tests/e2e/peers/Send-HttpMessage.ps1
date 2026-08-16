@@ -19,6 +19,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '..\lib\Common.ps1')
+Add-Type -AssemblyName System.Net.Http
 
 $result = [ordered]@{
     Transport   = 'http'

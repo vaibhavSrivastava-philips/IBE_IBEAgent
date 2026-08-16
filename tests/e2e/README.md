@@ -1,7 +1,7 @@
 # IBE Agent - End-to-End Test Workflow
 
-This harness drives real messages through the IBE Agent over its actual TCP and
-HTTP transports and verifies, end to end, that:
+This harness drives real messages through the IBE Agent over its actual TCP,
+HTTP, and WebSocket transports and verifies, end to end, that:
 
 - messages sent to an inbound comm point are delivered to the configured
   downstream comm point(s), and
@@ -16,11 +16,11 @@ trail on disk.
 
 The workflow runs a matrix of scenarios defined in [scenarios.psd1](scenarios.psd1):
 
-| Dimension          | Values                                        |
-| ------------------ | --------------------------------------------- |
-| Input transport    | TCP (MLLP), HTTP                              |
-| Output transport   | TCP (MLLP), HTTP, and TCP + HTTP fan-out       |
-| Acknowledgement    | none, normal, enhanced, response              |
+| Dimension          | Values                                                |
+| ------------------ | ------------------------------------------------------ |
+| Input transport    | TCP (MLLP), HTTP, WebSocket                             |
+| Output transport   | TCP (MLLP), HTTP, WebSocket, and fan-out combinations    |
+| Acknowledgement    | none, normal, enhanced, response                        |
 
 Acknowledgement modes and what the source is expected to observe:
 
@@ -38,6 +38,8 @@ so each can be run and understood on its own:
 
 | Script                              | Role                                                        |
 | ----------------------------------- | ----------------------------------------------------------- |
+| `peers/Start-WebSocketReceiver.ps1` | Downstream WebSocket system. Records deliveries, replies with an acknowledgement on the same connection. |
+| `peers/Send-WebSocketMessage.ps1`   | Upstream WebSocket system. Connects, sends one message, reads the acknowledgement. |
 | `peers/Start-TcpReceiver.ps1`       | Downstream TCP/MLLP system. Records deliveries, replies with an MLLP acknowledgement. |
 | `peers/Start-HttpReceiver.ps1`      | Downstream HTTP system. Records deliveries, returns a response body. |
 | `peers/Send-TcpMessage.ps1`         | Upstream TCP/MLLP system. Sends one message, reads the acknowledgement. |

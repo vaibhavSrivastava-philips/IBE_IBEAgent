@@ -51,6 +51,11 @@ $E2eRoot = $PSScriptRoot
 . (Join-Path $E2eRoot 'lib\Common.ps1')
 . (Join-Path $E2eRoot 'lib\FileCommon.ps1')
 
+# Peer scripts contain no PowerShell-7-only syntax, so run them under whichever
+# PowerShell is available: prefer 'pwsh' (7+) if installed, else fall back to
+# Windows PowerShell 5.1 ('powershell.exe'), which every Windows host has.
+$PwshExe = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell.exe' }
+
 $RepoRoot = (Resolve-Path (Join-Path $E2eRoot '..\..')).Path
 $ServiceCsproj = Join-Path $RepoRoot 'src\Philips.IBE.IBEAgent\hosts\Philips.IBE.IBEAgent.Service\Philips.IBE.IBEAgent.Service.csproj'
 $AgentDir = Join-Path $E2eRoot '.agent'
@@ -402,12 +407,12 @@ function Invoke-Scenario {
 function Start-DownstreamReceivers {
     if (Test-Path -LiteralPath $StopFile) { Remove-Item -LiteralPath $StopFile -Force }
     Log 'Starting downstream TCP/HTTP comm points (for cross-transport legs).' 'STEP'
-    $tcp = Start-Process -FilePath 'pwsh' -WindowStyle Hidden -PassThru -ArgumentList @(
+    $tcp = Start-Process -FilePath $PwshExe -WindowStyle Hidden -PassThru -ArgumentList @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PeerTcpReceiver,
         '-Port', $DownstreamTcpPort, '-CaptureFile', $TcpCaptureFile, '-LogFile', $TcpReceiverLog,
         '-StopFile', $StopFile, '-ReplyPayload', 'MSA|AA|TCP-DOWNSTREAM-OK'
     )
-    $http = Start-Process -FilePath 'pwsh' -WindowStyle Hidden -PassThru -ArgumentList @(
+    $http = Start-Process -FilePath $PwshExe -WindowStyle Hidden -PassThru -ArgumentList @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $PeerHttpReceiver,
         '-Prefix', $DownstreamHttpPrefix, '-CaptureFile', $HttpCaptureFile, '-LogFile', $HttpReceiverLog,
         '-StopFile', $StopFile, '-ResponseBody', 'MSA|AA|HTTP-DOWNSTREAM-OK'
