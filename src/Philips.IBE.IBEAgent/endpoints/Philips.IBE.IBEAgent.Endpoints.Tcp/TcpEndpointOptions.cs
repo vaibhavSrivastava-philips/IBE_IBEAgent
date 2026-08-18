@@ -8,6 +8,7 @@ public sealed class TcpInboundOptions
     public CommunicationMode Mode { get; init; } = CommunicationMode.Inbound;
     public required int SourceEndpointId { get; init; }
     public required int Port { get; init; }
+    public string BindAddress { get; init; } = "0.0.0.0";    // interface to listen on; 0.0.0.0 = all, 127.0.0.1 = loopback only
     public string Format { get; init; } = "hl7v2";
     public int MaxConcurrentMessages { get; init; } = 100;   // admission control (bounded, P4)
     public SslOptions Ssl { get; init; } = new();            // None (default) | OneWay | TwoWay (mutual TLS)

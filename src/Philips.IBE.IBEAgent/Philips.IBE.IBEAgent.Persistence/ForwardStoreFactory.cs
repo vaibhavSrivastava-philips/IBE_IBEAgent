@@ -12,17 +12,7 @@ public static class ForwardStoreFactory
         ArgumentNullException.ThrowIfNull(protector);
 
         var lease = TimeSpan.FromSeconds(Math.Max(1, options.LeaseSeconds));
-        return options.Store switch
-        {
-            ForwardStoreKind.InMemory => CreateInMemory(protector, lease),
-            _ => CreateFile(options, protector, lease),
-        };
-    }
-
-    private static (IForwardStore Store, IForwardStoreManagement Management) CreateInMemory(IDataProtector protector, TimeSpan lease)
-    {
-        var store = new InMemoryForwardStore(protector, lease);
-        return (store, store);
+        return CreateFile(options, protector, lease);
     }
 
     private static (IForwardStore Store, IForwardStoreManagement Management) CreateFile(ForwardOptions options, IDataProtector protector, TimeSpan lease)

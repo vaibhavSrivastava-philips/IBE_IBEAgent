@@ -497,6 +497,77 @@ public sealed class AgentEndpointsOptionsTests
         Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
     }
 
+    [Fact]
+    public void Endpoint_validator_rejects_http_outbound_tls_when_endpoint_is_not_https()
+    {
+        var endpoints = new AgentEndpointsOptions
+        {
+            HttpOutbound =
+            [
+                new HttpOutboundEndpointConfig
+                {
+                    OutputId = 1,
+                    Endpoint = new Uri("http://localhost:6003/ibe/outbound/"),
+                    Ssl = new SslOptions { Enabled = true },
+                },
+            ],
+        };
+
+        var result = AgentEndpointsOptionsValidator.Validate(endpoints);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("HttpOutbound OutputId 1 enables TLS but Endpoint 'http://localhost:6003/ibe/outbound/' is not https://."));
+    }
+
+    [Fact]
+    public void Endpoint_validator_rejects_websocket_outbound_tls_when_endpoint_is_not_wss()
+    {
+        var endpoints = new AgentEndpointsOptions
+        {
+            WebSocketOutbound =
+            [
+                new WebSocketOutboundEndpointConfig
+                {
+                    OutputId = 1,
+                    Endpoint = new Uri("ws://localhost:6005/ws/"),
+                    Ssl = new SslOptions { Enabled = true },
+                },
+            ],
+        };
+
+        var result = AgentEndpointsOptionsValidator.Validate(endpoints);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("WebSocketOutbound OutputId 1 enables TLS but Endpoint 'ws://localhost:6005/ws/' is not wss://."));
+    }
+
+    [Fact]
+    public void Endpoint_validator_rejects_allow_untrusted_certificate_for_production_safe_tls()
+    {
+        var endpoints = new AgentEndpointsOptions
+        {
+            TcpOutbound =
+            [
+                new TcpOutboundEndpointConfig
+                {
+                    OutputId = 1,
+                    Host = "localhost",
+                    Port = 6000,
+                    Ssl = new SslOptions
+                    {
+                        Enabled = true,
+                        AllowUntrustedCertificate = true,
+                    },
+                },
+            ],
+        };
+
+        var result = AgentEndpointsOptionsValidator.Validate(endpoints);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("enables AllowUntrustedCertificate, which is not permitted for production-safe TLS configuration"));
+    }
+
     private static AgentEndpointsOptions BindEndpoints(Dictionary<string, string?> settings)
         => new ConfigurationBuilder()
             .AddInMemoryCollection(settings)

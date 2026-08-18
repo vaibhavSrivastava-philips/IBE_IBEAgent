@@ -15,6 +15,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     private readonly ILogger<HttpInboundEndpoint> _logger;
     private readonly HttpListener _listener = new();
     private readonly RemoteCertificateValidationCallback? _clientCertValidator;
+    private readonly string _listenerPrefix;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
@@ -31,8 +32,9 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         if (options.Ssl.RequiresClientCertificate())
             _clientCertValidator = options.Ssl.CreateRemoteCertificateValidator();
 
+        _listenerPrefix = NormalizeHttpListenerPrefix(options.Prefix);
         _logger = logger ?? NullLogger<HttpInboundEndpoint>.Instance;
-        _listener.Prefixes.Add(options.Prefix);
+        _listener.Prefixes.Add(_listenerPrefix);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -42,7 +44,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         _acceptLoop = AcceptLoopAsync(_cts.Token);
         _logger.LogInformation(
             "HTTP inbound endpoint (source {SourceEndpointId}) listening on {Prefix}.",
-            _options.SourceEndpointId, _options.Prefix);
+            _options.SourceEndpointId, _listenerPrefix);
         return Task.CompletedTask;
     }
 
@@ -172,4 +174,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         _admission.Dispose();
         ((IDisposable)_listener).Dispose();
     }
+
+    private static string NormalizeHttpListenerPrefix(string prefix)
+        => prefix.EndsWith("/", StringComparison.Ordinal) ? prefix : prefix + "/";
 }

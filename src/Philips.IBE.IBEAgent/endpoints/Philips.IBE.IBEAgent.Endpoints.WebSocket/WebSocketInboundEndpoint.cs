@@ -14,6 +14,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     private readonly HttpListener _listener = new();
     private readonly RemoteCertificateValidationCallback? _clientCertValidator;
     private readonly WebSocketDuplexSessionRegistry? _duplexSessions;
+    private readonly string _listenerPrefix;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
@@ -32,7 +33,8 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         if (options.Ssl.RequiresClientCertificate())
             _clientCertValidator = options.Ssl.CreateRemoteCertificateValidator();
 
-        _listener.Prefixes.Add(options.Prefix);
+        _listenerPrefix = NormalizeHttpListenerPrefix(options.Prefix);
+        _listener.Prefixes.Add(_listenerPrefix);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -164,4 +166,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         _admission.Dispose();
         ((IDisposable)_listener).Dispose();
     }
+
+    private static string NormalizeHttpListenerPrefix(string prefix)
+        => prefix.EndsWith("/", StringComparison.Ordinal) ? prefix : prefix + "/";
 }

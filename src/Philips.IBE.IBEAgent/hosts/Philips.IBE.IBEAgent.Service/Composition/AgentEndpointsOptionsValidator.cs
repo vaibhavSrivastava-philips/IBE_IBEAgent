@@ -43,6 +43,7 @@ public static class AgentEndpointsOptionsValidator
             ValidateOutbound("HttpOutbound", endpoint.OutputId, endpoint.Mode, result);
             ValidateHttpLogicalPair(endpoint, endpoints.HttpInbound, result);
             ValidateOutboundTls("HttpOutbound", endpoint.OutputId, endpoint.Ssl, result);
+            ValidateHttpOutboundTlsUri(endpoint, result);
         }
         foreach (var endpoint in endpoints.WebSocketOutbound)
         {
@@ -52,6 +53,7 @@ public static class AgentEndpointsOptionsValidator
             if (endpoint.Mode == CommunicationMode.DuplexInbound && endpoint.DuplexInboundSourceEndpointId is null or <= 0)
                 result.AddError($"WebSocketOutbound OutputId {endpoint.OutputId} uses DuplexInbound but has no DuplexInboundSourceEndpointId configured.");
             ValidateOutboundTls("WebSocketOutbound", endpoint.OutputId, endpoint.Ssl, result);
+            ValidateWebSocketOutboundTlsUri(endpoint, result);
         }
         foreach (var endpoint in endpoints.FileOutbound)
         {
@@ -181,6 +183,22 @@ public static class AgentEndpointsOptionsValidator
         ValidateCommonTls(sectionName, outputId, ssl, result);
     }
 
+    private static void ValidateHttpOutboundTlsUri(HttpOutboundEndpointConfig endpoint, ValidationResult result)
+    {
+        if (endpoint.Ssl.IsEnabled && !string.Equals(endpoint.Endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            result.AddError($"HttpOutbound OutputId {endpoint.OutputId} enables TLS but Endpoint '{endpoint.Endpoint}' is not https://.");
+        }
+    }
+
+    private static void ValidateWebSocketOutboundTlsUri(WebSocketOutboundEndpointConfig endpoint, ValidationResult result)
+    {
+        if (endpoint.Ssl.IsEnabled && !string.Equals(endpoint.Endpoint.Scheme, "wss", StringComparison.OrdinalIgnoreCase))
+        {
+            result.AddError($"WebSocketOutbound OutputId {endpoint.OutputId} enables TLS but Endpoint '{endpoint.Endpoint}' is not wss://.");
+        }
+    }
+
     private static void ValidateCommonTls(string sectionName, int endpointId, SslOptions ssl, ValidationResult result)
     {
         ValidateCertificateReference(sectionName, endpointId, "local certificate", ssl.LocalCertificate, result);
@@ -194,6 +212,11 @@ public static class AgentEndpointsOptionsValidator
         if (ssl.Enabled == false && (ssl.HasLocalCertificate() || ssl.RequireClientCertificate || ssl.TrustedCertificateAuthority is not null || !string.IsNullOrWhiteSpace(ssl.TrustedCertificateAuthorityPath)))
         {
             result.AddError($"{sectionName} endpoint {endpointId} disables TLS but also configures certificate/trust material.");
+        }
+
+        if (ssl.AllowUntrustedCertificate)
+        {
+            result.AddError($"{sectionName} endpoint {endpointId} enables AllowUntrustedCertificate, which is not permitted for production-safe TLS configuration.");
         }
 
         if (ssl.RequiresClientCertificate() && !ssl.AllowUntrustedCertificate && !ssl.HasTrustedAuthority())

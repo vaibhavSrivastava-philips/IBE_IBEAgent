@@ -25,6 +25,7 @@ public sealed class SslOptions
     // Optional pinned CA/root used to validate the *remote* peer's certificate instead of (or in
     // addition to) the machine trust store — useful for private/self-signed PKI in the field.
     public string? TrustedCertificateAuthorityPath { get; init; }
+    public string? TrustedCertificateAuthorityPassword { get; init; }
 
     // Dev/test escape hatch: accept any remote certificate (chain errors ignored). Must default to
     // false so production configuration is secure-by-default.
@@ -33,7 +34,7 @@ public sealed class SslOptions
     public System.Security.Authentication.SslProtocols Protocols { get; init; }
         = System.Security.Authentication.SslProtocols.None; // None = let the OS negotiate the best supported protocol
 
-    public bool CheckCertificateRevocation { get; init; } = true;
+    public bool CheckCertificateRevocation { get; init; } = false;
 
     public bool IsEnabled => Enabled
         ?? Mode != SslMode.None
@@ -61,5 +62,6 @@ public sealed class SslOptions
             {
                 Kind = CertificateReferenceKind.File,
                 Path = TrustedCertificateAuthorityPath,
+                Password = TrustedCertificateAuthorityPassword,
             });
 }

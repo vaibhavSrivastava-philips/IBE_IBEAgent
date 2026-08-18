@@ -7,8 +7,27 @@ using Philips.IBE.IBEAgent.TestKit;
 
 namespace Philips.IBE.IBEAgent.Persistence.IntegrationTests;
 
-public sealed class ForwardWorkerTests
+public sealed class ForwardWorkerTests : IDisposable
 {
+    private readonly List<string> _tempDirectories = [];
+
+    private FileForwardStore CreateStore()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "ibe-forward-worker-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        _tempDirectories.Add(directory);
+        return new FileForwardStore(directory, new NullDataProtector(), TimeSpan.FromMinutes(5));
+    }
+
+    public void Dispose()
+    {
+        foreach (var directory in _tempDirectories)
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
+    }
+
     private sealed class FakeReplayTarget : IReplayTarget
     {
         public List<MessageContext> Replayed { get; } = [];
@@ -45,7 +64,7 @@ public sealed class ForwardWorkerTests
     [Fact]
     public async Task RunOneSweepAsync_replays_a_due_entry_into_its_leg()
     {
-        var store = new InMemoryForwardStore(new NullDataProtector());
+        var store = CreateStore();
         var ctx = MessageContextBuilder.Create(payload: "hl7-message");
         await store.StoreAsync(ctx, outputId: 5, error: "transient", CancellationToken.None);
 
@@ -60,7 +79,7 @@ public sealed class ForwardWorkerTests
     [Fact]
     public async Task RunOneSweepAsync_parks_entries_whose_OutputId_no_longer_resolves()
     {
-        var store = new InMemoryForwardStore(new NullDataProtector());
+        var store = CreateStore();
         var ctx = MessageContextBuilder.Create(payload: "orphaned");
         await store.StoreAsync(ctx, outputId: 99, error: null, CancellationToken.None);
 
@@ -75,7 +94,7 @@ public sealed class ForwardWorkerTests
     [Fact]
     public async Task RunOneSweepAsync_reschedules_on_transient_replay_failure_below_max_attempts()
     {
-        var store = new InMemoryForwardStore(new NullDataProtector());
+        var store = CreateStore();
         var ctx = MessageContextBuilder.Create(payload: "flaky");
         await store.StoreAsync(ctx, outputId: 5, error: null, CancellationToken.None);
 
@@ -96,7 +115,7 @@ public sealed class ForwardWorkerTests
     [Fact]
     public async Task RunOneSweepAsync_parks_after_max_attempts_exceeded()
     {
-        var store = new InMemoryForwardStore(new NullDataProtector());
+        var store = CreateStore();
         var ctx = MessageContextBuilder.Create(payload: "poison");
         await store.StoreAsync(ctx, outputId: 5, error: null, CancellationToken.None);
         var entry = (await store.FetchDueAsync(10, CancellationToken.None)).Single();

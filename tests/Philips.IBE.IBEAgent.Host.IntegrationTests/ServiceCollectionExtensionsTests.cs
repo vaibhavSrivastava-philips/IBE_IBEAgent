@@ -256,39 +256,50 @@ public sealed class ServiceCollectionExtensionsTests
     public async Task ReloadableEngineManager_replaces_valid_snapshots_atomically_and_rolls_back_invalid_changes()
     {
         var protector = DataProtectorFactory.Create();
-        await using var manager = new ReloadableEngineManager(
-            new InMemoryForwardStore(protector),
-            protector,
-            NullLoggerFactory.Instance,
-            NullLogger<ReloadableEngineManager>.Instance);
+        var directory = Path.Combine(Path.GetTempPath(), "ibe-host-forward-store-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
 
-        await manager.LoadInitialAsync(BuildCatalog(), BuildContracts("Initial"), BuildEndpoints(100), CancellationToken.None);
-
-        Assert.Equal(1, manager.Version);
-        Assert.Single(manager.Current!.Runtimes);
-
-        var invalidReload = await manager.TryReloadAsync(BuildCatalog(), BuildContracts("Invalid"), new AgentEndpointsOptions
+        try
         {
-            TcpOutbound =
-            [
-                new TcpOutboundEndpointConfig
-                {
-                    OutputId = 100,
-                    Host = "localhost",
-                    Port = 9999,
-                    Mode = CommunicationMode.DuplexOutbound,
-                },
-            ],
-        }, CancellationToken.None);
+            await using var manager = new ReloadableEngineManager(
+                new FileForwardStore(directory, protector, TimeSpan.FromMinutes(5)),
+                protector,
+                NullLoggerFactory.Instance,
+                NullLogger<ReloadableEngineManager>.Instance);
 
-        Assert.False(invalidReload);
-        Assert.Equal(1, manager.Version);
+            await manager.LoadInitialAsync(BuildCatalog(), BuildContracts("Initial"), BuildEndpoints(100), CancellationToken.None);
 
-        var validReload = await manager.TryReloadAsync(BuildCatalog(), BuildContracts("Replacement"), BuildEndpoints(100), CancellationToken.None);
+            Assert.Equal(1, manager.Version);
+            Assert.Single(manager.Current!.Runtimes);
 
-        Assert.True(validReload);
-        Assert.Equal(2, manager.Version);
-        Assert.Single(manager.Current!.Runtimes);
+            var invalidReload = await manager.TryReloadAsync(BuildCatalog(), BuildContracts("Invalid"), new AgentEndpointsOptions
+            {
+                TcpOutbound =
+                [
+                    new TcpOutboundEndpointConfig
+                    {
+                        OutputId = 100,
+                        Host = "localhost",
+                        Port = 9999,
+                        Mode = CommunicationMode.DuplexOutbound,
+                    },
+                ],
+            }, CancellationToken.None);
+
+            Assert.False(invalidReload);
+            Assert.Equal(1, manager.Version);
+
+            var validReload = await manager.TryReloadAsync(BuildCatalog(), BuildContracts("Replacement"), BuildEndpoints(100), CancellationToken.None);
+
+            Assert.True(validReload);
+            Assert.Equal(2, manager.Version);
+            Assert.Single(manager.Current!.Runtimes);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+                Directory.Delete(directory, recursive: true);
+        }
     }
 
     private static CatalogOptions BuildCatalog() => new()

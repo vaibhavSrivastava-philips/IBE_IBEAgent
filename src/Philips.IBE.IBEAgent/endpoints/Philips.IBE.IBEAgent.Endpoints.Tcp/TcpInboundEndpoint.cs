@@ -43,12 +43,13 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _listener = new TcpListener(IPAddress.Loopback, _options.Port);
+        var bindAddress = IPAddress.TryParse(_options.BindAddress, out var parsed) ? parsed : IPAddress.Any;
+        _listener = new TcpListener(bindAddress, _options.Port);
         _listener.Start();
         _acceptLoop = AcceptLoopAsync(_cts.Token);
         _logger.LogInformation(
-            "TCP inbound endpoint (source {SourceEndpointId}) listening on port {Port}.",
-            _options.SourceEndpointId, BoundPort);
+            "TCP inbound endpoint (source {SourceEndpointId}) listening on {BindAddress}:{Port}.",
+            _options.SourceEndpointId, bindAddress, BoundPort);
         return Task.CompletedTask;
     }
 
