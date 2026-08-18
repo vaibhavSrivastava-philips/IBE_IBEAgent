@@ -22,7 +22,7 @@ public sealed class ContractOptionsValidatorTests
     }
 
     [Fact]
-    public void Batch_ack_shape_is_supported()
+    public void Batch_ack_shape_is_rejected()
     {
         var contract = ValidContract() with
         {
@@ -31,7 +31,8 @@ public sealed class ContractOptionsValidatorTests
 
         var result = ContractOptionsValidator.Validate(contract);
 
-        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("Batch"));
     }
 
     [Fact]

@@ -101,6 +101,12 @@ public static class ContractOptionsValidator
             result.AddError($"Contract '{contract.Name}' cannot enable both Acknowledgement and Response; choose exactly one reply mode.");
         }
 
+        // Batch ack shape (BHS..BTS) is not implemented; reject it so it can't be silently misconfigured.
+        if (ackEnabled && contract.Acknowledgement.Shape == AckShape.Batch)
+        {
+            result.AddError($"Contract '{contract.Name}' Acknowledgement.Shape 'Batch' is not supported.");
+        }
+
         if (responseEnabled && contract.Response.TimeoutMs <= 0)
         {
             result.AddError($"Contract '{contract.Name}' Response.TimeoutMs must be > 0.");

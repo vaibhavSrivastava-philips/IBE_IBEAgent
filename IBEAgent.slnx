@@ -13,7 +13,6 @@
     <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Telemetry/Philips.IBE.IBEAgent.Telemetry.csproj" />
   </Folder>
   <Folder Name="/src/Philips.IBE.IBEAgent/endpoints/">
-    <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.CimS3/Philips.IBE.IBEAgent.Endpoints.CimS3.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.File/Philips.IBE.IBEAgent.Endpoints.File.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Http/Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Tcp/Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />

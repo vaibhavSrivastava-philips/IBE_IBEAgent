@@ -14,15 +14,13 @@ public sealed class ContractCompiler
     private readonly ComponentRegistry _registry;
     private readonly IForwardStore? _forwardStore;
     private readonly ILoggerFactory? _loggerFactory;
-    private readonly MessageChannelFactory _channelFactory;
 
-    public ContractCompiler(CatalogOptions catalog, ComponentRegistry registry, IForwardStore? forwardStore = null, ILoggerFactory? loggerFactory = null, string? durableChannelRoot = null)
+    public ContractCompiler(CatalogOptions catalog, ComponentRegistry registry, IForwardStore? forwardStore = null, ILoggerFactory? loggerFactory = null)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         _forwardStore = forwardStore;
         _loggerFactory = loggerFactory;
-        _channelFactory = new MessageChannelFactory(durableChannelRoot ?? Path.Combine(Path.GetTempPath(), "ibe-agent-durable-channels"));
     }
 
     public ContractRuntime Compile(ContractOptions contract)
@@ -39,7 +37,7 @@ public sealed class ContractCompiler
         var inputs = ContractOptionsValidator.ResolveInputs(contract);
         var ingressQueues = inputs.ToDictionary(
             i => i.InputId,
-            i => _channelFactory.Create(i.Channel, $"contract-{contract.Name}-input-{i.InputId}", durable: false));
+            i => (IMessageChannel)new BoundedInMemoryChannel(i.Channel.Capacity, i.Channel.OverflowPolicy));
 
         var pipeline = PipelineBuilder.Build(contract.Pipeline, _catalog, _registry);
 
@@ -50,7 +48,7 @@ public sealed class ContractCompiler
 
     private DeliveryLeg BuildLeg(OutputOptions output, string contractName)
     {
-        var queue = _channelFactory.Create(output.Channel, $"contract-{contractName}-output-{output.OutputId}", output.DeliveryGuarantee == DeliveryGuarantee.AtLeastOnce);
+        var queue = new BoundedInMemoryChannel(output.Channel.Capacity, output.Channel.OverflowPolicy);
         var endpoint = _registry.CreateOutboundEndpoint(output);
         var fromInputIds = output.FromInputIds is { Count: > 0 } ids
             ? (IReadOnlySet<int>)ids.ToHashSet()

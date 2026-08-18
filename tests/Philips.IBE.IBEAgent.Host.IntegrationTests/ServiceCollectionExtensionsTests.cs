@@ -87,55 +87,6 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public void AddIbeAgentEngine_fails_fast_when_license_validation_is_enabled_without_a_path()
-    {
-        var configuration = new ConfigurationBuilder()
-            .AddConfiguration(BuildConfiguration())
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["License:Enabled"] = "true",
-            })
-            .Build();
-        var services = new ServiceCollection();
-        services.AddLogging();
-
-        var ex = Assert.Throws<InvalidOperationException>(() => services.AddIbeAgentEngine(configuration));
-
-        Assert.Contains("License validation failed", ex.Message);
-        Assert.Contains("License:Path", ex.Message);
-    }
-
-    [Fact]
-    public async Task AddIbeAgentEngine_accepts_valid_configured_license_before_compiling_endpoints()
-    {
-        var licensePath = Path.Combine(Path.GetTempPath(), $"ibe-license-{Guid.NewGuid():N}.json");
-        var expiresAt = DateTimeOffset.UtcNow.AddDays(1).ToString("O");
-        File.WriteAllText(licensePath, $"{{\"product\":\"IBEAgent\",\"expiresAtUtc\":\"{expiresAt}\",\"signature\":\"test-signature\"}}");
-        try
-        {
-            var configuration = new ConfigurationBuilder()
-                .AddConfiguration(BuildConfiguration())
-                .AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    ["License:Enabled"] = "true",
-                    ["License:Path"] = licensePath,
-                })
-                .Build();
-            var services = new ServiceCollection();
-            services.AddLogging();
-
-            services.AddIbeAgentEngine(configuration);
-
-            await using var provider = services.BuildServiceProvider();
-            Assert.Single(provider.GetRequiredService<IReadOnlyList<IContractRuntime>>());
-        }
-        finally
-        {
-            File.Delete(licensePath);
-        }
-    }
-
-    [Fact]
     public async Task AddIbeAgentEngine_registers_the_runtime_host_as_a_hosted_service()
     {
         var services = new ServiceCollection();
@@ -262,7 +213,7 @@ public sealed class ServiceCollectionExtensionsTests
         try
         {
             await using var manager = new ReloadableEngineManager(
-                new FileForwardStore(directory, protector, TimeSpan.FromMinutes(5)),
+                new InMemoryForwardStore(protector),
                 protector,
                 NullLoggerFactory.Instance,
                 NullLogger<ReloadableEngineManager>.Instance);

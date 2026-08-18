@@ -11,12 +11,12 @@ public sealed class ForwardWorkerTests : IDisposable
 {
     private readonly List<string> _tempDirectories = [];
 
-    private FileForwardStore CreateStore()
+    private InMemoryForwardStore CreateStore()
     {
         var directory = Path.Combine(Path.GetTempPath(), "ibe-forward-worker-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         _tempDirectories.Add(directory);
-        return new FileForwardStore(directory, new NullDataProtector(), TimeSpan.FromMinutes(5));
+        return new InMemoryForwardStore(new NullDataProtector());
     }
 
     public void Dispose()

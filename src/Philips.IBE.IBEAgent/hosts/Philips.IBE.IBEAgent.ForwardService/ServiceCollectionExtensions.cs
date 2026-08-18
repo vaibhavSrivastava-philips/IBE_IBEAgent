@@ -22,14 +22,11 @@ public static class ServiceCollectionExtensions
         var endpoints = configuration.GetSection("Ibe:Endpoints").Get<OutboundEndpointsOptions>()
             ?? throw new InvalidOperationException("Required configuration section 'Ibe:Endpoints' is missing.");
 
-        // Build the configured store up front so replay targets below and DI resolve the SAME durable
-        // instance as the ForwardWorker.
-        var forwardOptions = configuration.GetSection("Forward").Get<Configuration.ForwardOptions>() ?? new Configuration.ForwardOptions();
+        // Build the store up front so replay targets below and DI resolve the SAME instance as the ForwardWorker.
         var protector = Security.DataProtectorFactory.Create();
-        var (store, management) = ForwardStoreFactory.Create(forwardOptions, protector);
+        var store = new InMemoryForwardStore(protector);
         services.AddSingleton(protector);
         services.AddSingleton<IForwardStore>(store);
-        services.AddSingleton<IForwardStoreManagement>(management);
 
         var targets = new List<KeyValuePair<int, IReplayTarget>>();
 

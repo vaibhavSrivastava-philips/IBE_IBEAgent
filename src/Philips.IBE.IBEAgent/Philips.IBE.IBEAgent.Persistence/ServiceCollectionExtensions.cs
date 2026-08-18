@@ -14,15 +14,13 @@ namespace Philips.IBE.IBEAgent.Persistence;
 // host (Philips.IBE.IBEAgent.ForwardService) supplies the replay targets from its own composition root.
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddForwardStore(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddForwardStore(this IServiceCollection services)
     {
-        var options = configuration.GetSection("Forward").Get<ForwardOptions>() ?? new ForwardOptions();
         var protector = DataProtectorFactory.Create();
-        var (store, management) = ForwardStoreFactory.Create(options, protector);
+        var store = new InMemoryForwardStore(protector);
 
         services.AddSingleton(protector);
         services.AddSingleton<IForwardStore>(store);
-        services.AddSingleton<IForwardStoreManagement>(management);
         services.AddSingleton<ForwardWorkerHealthReporter>();
         services.AddSingleton<IHealthReporter>(sp => sp.GetRequiredService<ForwardWorkerHealthReporter>());
         return services;

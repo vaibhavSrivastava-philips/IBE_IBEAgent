@@ -168,29 +168,6 @@ File transport is directory-based. Bidirectional behavior is a logical pair of i
 }
 ```
 
-## CIM S3 outbound workflow
-
-CIM S3 is modeled as an outbound workflow, not as a duplex transport.
-
-```json
-{
-  "Endpoints": {
-    "CimS3Outbound": [
-      {
-        "Mode": "Outbound",
-        "OutputId": 140,
-        "PresignedUploadEndpoint": "https://s3.example/upload",
-        "PresignedUrlAcquisitionEndpoint": "https://cim.example/presign",
-        "NotificationEndpoint": "https://cim.example/notify",
-        "ZipPayload": true,
-        "ZipEntryNameTemplate": "{correlationId}.avro",
-        "IncludeIdempotencyHeaders": true
-      }
-    ]
-  }
-}
-```
-
 ## TLS and mTLS inference
 
 TLS is inferred from secure listener/endpoint settings and certificate material. Mutual TLS is inferred from local certificate material on outbound connections or `RequireClientCertificate` plus trust settings on inbound listeners. ACK/request-reply behavior is not encoded in TLS mode names.

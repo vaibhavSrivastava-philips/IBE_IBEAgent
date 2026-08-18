@@ -27,16 +27,7 @@ public static class ServiceCollectionExtensions
             ?? throw new InvalidOperationException("Required configuration section 'Endpoints' is missing.");
         var forwardOptions = configuration.GetSection("Forward").Get<ForwardOptions>() ?? new ForwardOptions();
         var reloadOptions = configuration.GetSection("EngineReload").Get<EngineReloadOptions>() ?? new EngineReloadOptions();
-        var licenseOptions = configuration.GetSection("License").Get<LicenseOptions>() ?? new LicenseOptions();
 
-        var licenseValidation = new FileLicenseValidator().Validate(licenseOptions);
-        if (!licenseValidation.IsValid)
-        {
-            throw new InvalidOperationException($"License validation failed: {licenseValidation.Error}");
-        }
-
-        services.AddSingleton<ILicenseValidator, FileLicenseValidator>();
-        services.AddSingleton(licenseOptions);
         services.AddSingleton<AgentRuntimeHealthReporter>();
         services.AddSingleton<IHealthReporter>(sp => sp.GetRequiredService<AgentRuntimeHealthReporter>());
         services.AddSingleton<IHealthSnapshotProvider, HealthSnapshotProvider>();
@@ -48,13 +39,11 @@ public static class ServiceCollectionExtensions
                 "Endpoint configuration validation failed:" + Environment.NewLine + string.Join(Environment.NewLine, endpointValidation.Errors));
         }
 
-        // §3.9 — store-and-forward buffer. File is the production-safe default; InMemory is opt-in
-        // for tests/dev only. Only AtLeastOnce legs use it.
+        // §3.9 — store-and-forward buffer (in-memory; only AtLeastOnce legs use it).
         var protector = DataProtectorFactory.Create();
-        var (forwardStore, forwardStoreManagement) = ForwardStoreFactory.Create(forwardOptions, protector);
+        var forwardStore = new InMemoryForwardStore(protector);
         services.AddSingleton(protector);
         services.AddSingleton<IForwardStore>(forwardStore);
-        services.AddSingleton<IForwardStoreManagement>(forwardStoreManagement);
 
         services.AddSingleton(reloadOptions);
 
