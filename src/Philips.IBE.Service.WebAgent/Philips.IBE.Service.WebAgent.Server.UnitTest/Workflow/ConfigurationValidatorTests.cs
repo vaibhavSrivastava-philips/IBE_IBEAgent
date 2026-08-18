@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.Extensions.Configuration;
 using Moq;
 using Philips.IBE.Service.WebAgent.Server.Configuration;
@@ -99,7 +99,7 @@ public class ConfigurationValidatorTests
     public void ValidateCommonConfiguration_DoesNotThrow_OnValid()
     {
         var validator = new ConfigurationValidator(new Mock<IConfiguration>().Object);
-        var config = new CommonConfiguration { FolderPath = "path", CertificateFolderName = "certs" };
+        var config = new CommonConfiguration { FolderPath = "path", CertificateFolderName = "certs", ServiceConfigPath = "servicesettings.json", License = "test-license" };
 
         validator.ValidateCommonConfiguration(config);
     }

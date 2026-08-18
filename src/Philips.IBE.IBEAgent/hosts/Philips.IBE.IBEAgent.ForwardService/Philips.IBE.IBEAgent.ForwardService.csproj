@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+    <PackageReference Include="NLog.Extensions.Logging" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,8 +22,14 @@
     <ProjectReference Include="..\..\formats\Philips.IBE.IBEAgent.Formats.Hl7\Philips.IBE.IBEAgent.Formats.Hl7.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.Tcp\Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.Http\Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
+    <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.WebSocket\Philips.IBE.IBEAgent.Endpoints.WebSocket.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.File\Philips.IBE.IBEAgent.Endpoints.File.csproj" />
     <ProjectReference Include="..\..\endpoints\Philips.IBE.IBEAgent.Endpoints.CimS3\Philips.IBE.IBEAgent.Endpoints.CimS3.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- NLog config shipped next to the exe (auto-loaded by AddNLog). -->
+    <Content Include="..\..\..\..\config\nlog.config" Link="nlog.config" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

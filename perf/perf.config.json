@@ -1,0 +1,55 @@
+{
+  "$schema": "./perf.config.schema.json",
+
+  "build": {
+    "configuration": "Release",
+    "serverGc": true,
+    "concurrentGc": true,
+    "serverGcMode": "publish",
+    "rebuild": true,
+    "runtime": "win-x64",
+    "selfContained": true
+  },
+
+  "agent": {
+    "projectPath": "src/Philips.IBE.IBEAgent/hosts/Philips.IBE.IBEAgent.Service/Philips.IBE.IBEAgent.Service.csproj",
+    "exeName": "Philips.IBE.IBEAgent.Service.exe",
+    "configDir": "config",
+    "startupTimeoutSec": 30,
+    "restartPerScenario": true
+  },
+
+  "report": {
+    "outputDir": "perf/results",
+    "openAfter": true,
+    "baselineDir": null,
+    "captureCounters": true
+  },
+
+  "slo": {
+    "p99RoundTripMs": 5,
+    "zeroLoss": true,
+    "maxThroughputRegressionPct": 10
+  },
+
+  "defaults": {
+    "mode": "closed",
+    "connections": 4,
+    "durationSec": 30,
+    "warmupSec": 8,
+    "rateMsgsPerSec": 0,
+    "messageMix": [ { "type": "ADT^A01", "sizeBytes": 0, "weightPct": 100 } ],
+    "sink": { "ackDelayMs": 0, "jitterMs": 0, "failure": { "closeAfterN": 0, "nackPct": 0, "idleCloseMs": 0 } }
+  },
+
+  "scenarios": [
+    { "name": "baseline",        "mode": "closed", "connections": 1,  "durationSec": 20 },
+    { "name": "concurrency-8",   "mode": "closed", "connections": 8,  "durationSec": 30 },
+    { "name": "throughput-open", "mode": "open",   "connections": 8,  "durationSec": 30, "rateMsgsPerSec": 5000 },
+    { "name": "large-oru",       "mode": "closed", "connections": 4,  "durationSec": 20, "messageMix": [ { "type": "ORU^R01", "sizeBytes": 262144, "weightPct": 100 } ] },
+    { "name": "slow-downstream", "mode": "open",   "connections": 8,  "durationSec": 30, "rateMsgsPerSec": 2000, "sink": { "ackDelayMs": 5, "jitterMs": 3 } },
+    { "name": "idle-resume",     "mode": "closed", "connections": 1,  "durationSec": 40, "burstSize": 20, "idleGapSec": 3, "sink": { "failure": { "idleCloseMs": 2000 } } },
+    { "name": "failure-nack",    "mode": "closed", "connections": 4,  "durationSec": 20, "sink": { "failure": { "nackPct": 10 } } },
+    { "name": "mixed-feed",      "mode": "open",   "connections": 6,  "durationSec": 30, "rateMsgsPerSec": 3000, "messageMix": [ { "type": "ADT^A01", "sizeBytes": 0, "weightPct": 60 }, { "type": "ORU^R01", "sizeBytes": 4096, "weightPct": 30 }, { "type": "ORM^O01", "sizeBytes": 0, "weightPct": 10 } ] }
+  ]
+}

@@ -1,4 +1,8 @@
-<Solution>
+﻿<Solution>
+  <Folder Name="/perf/" />
+  <Folder Name="/perf/tools/">
+    <Project Path="perf/tools/IbePerf/IbePerf.csproj" />
+  </Folder>
   <Folder Name="/src/" />
   <Folder Name="/src/Philips.IBE.IBEAgent/">
     <Project Path="src/Philips.IBE.IBEAgent/Philips.IBE.IBEAgent.Abstractions/Philips.IBE.IBEAgent.Abstractions.csproj" />
@@ -13,6 +17,7 @@
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.File/Philips.IBE.IBEAgent.Endpoints.File.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Http/Philips.IBE.IBEAgent.Endpoints.Http.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.Tcp/Philips.IBE.IBEAgent.Endpoints.Tcp.csproj" />
+    <Project Path="src/Philips.IBE.IBEAgent/endpoints/Philips.IBE.IBEAgent.Endpoints.WebSocket/Philips.IBE.IBEAgent.Endpoints.WebSocket.csproj" />
   </Folder>
   <Folder Name="/src/Philips.IBE.IBEAgent/formats/">
     <Project Path="src/Philips.IBE.IBEAgent/formats/Philips.IBE.IBEAgent.Formats.Hl7/Philips.IBE.IBEAgent.Formats.Hl7.csproj" />
@@ -20,10 +25,6 @@
   <Folder Name="/src/Philips.IBE.IBEAgent/hosts/">
     <Project Path="src/Philips.IBE.IBEAgent/hosts/Philips.IBE.IBEAgent.ForwardService/Philips.IBE.IBEAgent.ForwardService.csproj" />
     <Project Path="src/Philips.IBE.IBEAgent/hosts/Philips.IBE.IBEAgent.Service/Philips.IBE.IBEAgent.Service.csproj" />
-  </Folder>
-  <Folder Name="/src/Philips.IBE.Service.WebAgent/">
-    <Project Path="src/Philips.IBE.Service.WebAgent/Philips.IBE.Service.WebAgent.Server.UnitTest/Philips.IBE.Service.WebAgent.Server.UnitTest.csproj" />
-    <Project Path="src/Philips.IBE.Service.WebAgent/Philips.IBE.Service.WebAgent.Server/Philips.IBE.Service.WebAgent.Server.csproj" />
   </Folder>
   <Folder Name="/testkit/">
     <Project Path="testkit/Philips.IBE.IBEAgent.TestKit/Philips.IBE.IBEAgent.TestKit.csproj" />

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -36,6 +36,8 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Services
             {"CommonConfiguration:CertificateFolderName", "certs"},
             {"CommonConfiguration:DatabaseEnabled", "false"},
             {"CommonConfiguration:DatabaseFileName", "test.db"},
+            {"CommonConfiguration:ServiceConfigPath", "servicesettings.json"},
+            {"CommonConfiguration:License", "test-license"},
             {"AuthenticationConfiguration:AuthenticationMode", "Test"},
             {"AuthenticationConfiguration:AdminUserGroup", "Admin"},
             {"AuthenticationConfiguration:NormalUserGroup", "User"},
@@ -48,7 +50,7 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Services
                 .Build();
             _appConfig = new AppConfiguration(configuration);
             _loggerMockForUtility = new Mock<ILogger<DataProtectionUtility>>();
-            _protectionMock = new Mock<DataProtectionUtility>(_loggerMockForUtility.Object); 
+            _protectionMock = new Mock<DataProtectionUtility>();
             _protectionMock.Setup(p => p.ProtectValue(It.IsAny<string>())).Returns((string s) => $"protected-{s}");
             _loggerMockForService = new Mock<ILogger<CommunicationDataService>>();
         }

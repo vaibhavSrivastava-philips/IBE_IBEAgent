@@ -11,6 +11,27 @@
     <!-- Worker hosts -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.2" />
+    <PackageVersion Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- HL7 v2 parsing + ACK generation (NuGet id "HL7-V2", namespace Efferent.HL7.V2) -->
+    <PackageVersion Include="HL7-V2" Version="3.7.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Logging provider (routes Microsoft.Extensions.Logging output through NLog) -->
+    <PackageVersion Include="NLog.Extensions.Logging" Version="6.1.4" />
   </ItemGroup>
 
   <ItemGroup>

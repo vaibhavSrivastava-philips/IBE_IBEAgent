@@ -1,3 +1,217 @@
 {
-  "Contracts": []
+  "Endpoints": {
+    "TcpInbound": [
+      {
+        "SourceEndpointId": 1,
+        "Port": 5101,
+        "Format": "hl7v2",
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "RequireClientCertificate": true,
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      },
+      {
+        "SourceEndpointId": 11,
+        "Port": 6101,
+        "Format": "hl7v2",
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "RequireClientCertificate": true,
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      }
+    ],
+    "HttpInbound": [
+      {
+        "SourceEndpointId": 2,
+        "Prefix": "https://+:5102/ibe/",
+        "Format": "hl7v2",
+        "ReplyTimeout": "00:01:15",
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "RequireClientCertificate": true,
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      },
+      {
+        "SourceEndpointId": 12,
+        "Prefix": "https://+:6102/ibe/",
+        "Format": "hl7v2",
+        "ReplyTimeout": "00:01:15",
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "RequireClientCertificate": true,
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      }
+    ],
+    "WebSocketInbound": [
+      {
+        "SourceEndpointId": 3,
+        "Prefix": "https://+:5103/ibe/ws/",
+        "Format": "hl7v2",
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "RequireClientCertificate": true,
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      },
+      {
+        "SourceEndpointId": 13,
+        "Prefix": "https://+:6103/ibe/ws/",
+        "Format": "hl7v2",
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "RequireClientCertificate": true,
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      }
+    ],
+    "TcpOutbound": [
+      {
+        "OutputId": 101,
+        "Host": "127.0.0.1",
+        "Port": 5201,
+        "ExpectReply": true,
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      },
+      {
+        "OutputId": 201,
+        "Host": "127.0.0.1",
+        "Port": 7201,
+        "ExpectReply": true,
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      }
+    ],
+    "HttpOutbound": [
+      {
+        "OutputId": 102,
+        "Endpoint": "https://localhost:5202/ibe/inbound",
+        "ContentType": "application/octet-stream",
+        "TimeoutSeconds": 30,
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      },
+      {
+        "OutputId": 202,
+        "Endpoint": "https://localhost:7202/ibe/inbound",
+        "ContentType": "application/octet-stream",
+        "TimeoutSeconds": 30,
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      }
+    ],
+    "WebSocketOutbound": [
+      {
+        "OutputId": 103,
+        "Endpoint": "wss://localhost:6103/ibe/ws",
+        "ExpectReply": true,
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      },
+      {
+        "OutputId": 203,
+        "Endpoint": "wss://localhost:7203/ibe/ws",
+        "ExpectReply": true,
+        "Ssl": {
+          "Enabled": true,
+          "Mode": "TwoWay",
+          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+          "CertificatePassword": "1",
+          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+          "TrustedCertificateAuthorityPassword": "1"
+        }
+      }
+    ]
+  },
+  "Contracts": [
+    {
+      "Name": "Contract1-Ingress-And-Bridge",
+      "Template": "adt",
+      "Inputs": [
+        { "InputId": 1 },
+        { "InputId": 2 },
+        { "InputId": 3 }
+      ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Outputs": [
+        { "OutputId": 101 },
+        { "OutputId": 102 },
+        { "OutputId": 103 }
+      ]
+    },
+    {
+      "Name": "Contract2-Relay-To-Targets",
+      "Template": "adt",
+      "Inputs": [
+        { "InputId": 11 },
+        { "InputId": 12 },
+        { "InputId": 13 }
+      ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Outputs": [
+        { "OutputId": 201 },
+        { "OutputId": 202 },
+        { "OutputId": 203 }
+      ]
+    }
+  ]
 }
+

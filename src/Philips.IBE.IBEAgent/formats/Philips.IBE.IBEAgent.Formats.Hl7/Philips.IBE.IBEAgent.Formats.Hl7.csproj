@@ -7,4 +7,9 @@
     <ProjectReference Include="..\..\Philips.IBE.IBEAgent.Core\Philips.IBE.IBEAgent.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="HL7-V2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
 </Project>

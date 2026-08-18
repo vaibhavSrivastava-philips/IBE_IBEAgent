@@ -1,7 +1,8 @@
 namespace Philips.IBE.IBEAgent.Abstractions;
 
-// the SHARED pipeline, run once per message before fan-out.
+// the SHARED pipeline, run once per message before fan-out. Returns a ValueTask so the common
+// no-stage (high-fidelity) and all-synchronous-stage cases complete without allocating a Task.
 public interface IMessagePipeline
 {
-    Task<PipelineResult> ExecuteAsync(MessageContext context);
+    ValueTask<PipelineResult> ExecuteAsync(MessageContext context);
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -31,6 +31,7 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Services
             {"CommonConfiguration:CertificateFolderName", _certFolderName},
             {"CommonConfiguration:DatabaseEnabled", "false"},
             {"CommonConfiguration:DatabaseFileName", "test.db"},
+            {"CommonConfiguration:ServiceConfigPath", "servicesettings.json"},
             {"AuthenticationConfiguration:AuthenticationMode", "Test"},
             {"AuthenticationConfiguration:AdminUserGroup", "Admin"},
             {"AuthenticationConfiguration:NormalUserGroup", "User"},

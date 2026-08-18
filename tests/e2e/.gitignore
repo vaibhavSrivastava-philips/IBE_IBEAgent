@@ -1,0 +1,3 @@
+# artifacts and the published agent under test are generated, not source
+artifacts/
+.agent/

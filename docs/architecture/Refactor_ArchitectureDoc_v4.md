@@ -3,6 +3,8 @@
 > **This v3 supersedes `Refactor_ArchitectureDoc_v2.md`.** It keeps the **Contract = N inputs → M outputs**, **per‑leg (multiple‑queue)** design and folds in the review fixes: a per‑message **`ReplyContext`** (one reply authority, owned at reception, carrying the reply payload + timeout), **leg‑targeted replay** (retry never re‑routes or re‑acks), an explicit **canonical message model** (parse once, serialize per leg), **single‑format contracts**, and terminology cleanups. See `Refactor_ImprovementPlan.md` for rationale and `Refactor_FutureImprovements.md` for deliberately deferred items.
 >
 > **v4 consistency pass (A1–A5).** Reconciled internal contradictions so the document is self‑consistent: **(A1)** §14 is recast as a **greenfield build sequence** (no strangler‑fig, no god‑class deletion — see the greenfield note in §10). **(A2)** `MessageContext.Reply` is typed as the **`IReplyContext`** seam (declared in `Abstractions`); the concrete `ReplyContext` lives in `Core`, so the envelope never depends on the engine and the graph stays acyclic. **(A3)** **All cross‑layer contract interfaces live in `Abstractions`**; the library named beside an interface elsewhere owns its *implementation*, not the type. **(A4)** `ReplyContext`'s surface is `OnFannedOut` / `ReportFiltered` / `ReportLeg` (the §12 labels `Arm`/`MarkReceived` were stale). **(A5)** `Headers` are **mutable during the shared pipeline** and shared **read‑only** after fan‑out.
+>
+> **v4.1 catalog templates (dev/FSE boundary).** The developer **catalog** now exposes two more named layers beyond `Pipelines` + `Codecs`: **`Formats`** (a per‑leg encoding bundle — a message codec + an optional batch codec) and **`Templates`** (a contract blueprint — a shared pipeline + a default format). An FSE contract picks a **`Template`** by name and owns only **message‑level/operational** settings (`Acknowledgement`/`Response`, `Retry`, `DeliveryGuarantee`, `Channel`, and batch *triggers*); the developer owns the **plug‑and‑play code** concerns (stages, encoding, batch codec). A **`ContractTemplateResolver`** flattens the template/format references into concrete per‑leg values before compilation, and every catalog‑supplied value stays **optionally overridable** on the contract (§8).
 
 ---
 
@@ -101,17 +103,18 @@ flowchart LR
 - **Interface:** `Task DispatchAsync(MessageContext, ct)`.
 - **Never does:** routing *logic*, processing, per‑message state, **or retry replay** (replay is leg‑targeted, §3.9 — the Dispatcher is not a retry hub).
 
-### 3.2a Router (`IRouteResolver`) — *routing decision (Strategy)*
+### 3.2a Router (`IContractResolver`) — *routing decision (Strategy)*
 - **Responsibilities:** pure `MessageContext → IContractRuntime` (**exactly one**, INV‑3). `SourceBasedRouter` (default) by `SourceEndpointId`; `ContentBasedRouter` (future) by field/header — still resolves to one contract per message.
 - **Interface:** `IContractRuntime Resolve(MessageContext)`.
 
-### 3.2b Contract Registry (`IContractRegistry`) — *compiled‑contract lookup*
-- **Responsibilities:** hold all compiled `IContractRuntime`s and the `inputCommPointId → IContractRuntime` index (O(1), source‑based). Queried by the Router; makes no decisions.
-- **Note (naming):** distinct from the config **Catalog** (§8, named pipelines + codecs) and the **Component Registry** (§3.10, type→impl factories). Three different lookups, three different names — see §3.10.
+### 3.2b Contract Registry (`ContractRegistry`) — *compiled‑contract lookup*
+- **Responsibilities:** hold all compiled `IContractRuntime`s and the `inputCommPointId → IContractRuntime` index (O(1), source‑based). Queried by the Router; makes no decisions. A concrete class in `Core` — not behind a cross‑layer interface, since (unlike the Router) it has one implementation and no planned alternative.
+- **Note (naming):** distinct from the config **Catalog** (§8, named pipelines, codecs, formats, and templates) and the **Component Registry** (§3.10, type→impl factories). Three different lookups, three different names — see §3.10.
 
 ### 3.3 ContractRuntime (`IContractRuntime`) — *shared reception + fan‑out*
 - **Responsibilities:** own **one ingress queue per input comm point** (keyed by input id — symmetric with per‑leg queues on the output side); each per‑input queue has its own consumer(s) that run the **shared pipeline** once per message (on the canonical model) and **fan out** (clone per leg, enqueue into each **applicable** leg queue concurrently); own the set of **Delivery Legs**. It **reports** each leg's `DeliveryResult` into the message's `ReplyContext` — it does **not** own the reply or decide reply timing.
 - **Per‑leg input filter (`FromInputIds`).** Each leg may optionally declare which input comm points it accepts. At fan‑out the ContractRuntime **skips** legs whose `FromInputIds` does not include the message's `SourceEndpointId`. A null/empty `FromInputIds` means "accept all inputs" (default — backward compatible). The **`requiredCount`** armed on the `ReplyContext` is computed **per‑message** (count of matching required legs), so the reply is correct regardless of which subset of legs runs.
+- **Per‑leg content filter (`RouteWhen`).** A leg may optionally declare a `RouteWhen` — a set of `key: value` facts matched (AND, exact ordinal) against the message **`Headers`**. At fan‑out a leg with `RouteWhen` is included only when **every** pair matches; legs without `RouteWhen` are unconditional (the catch‑all). Facts are written by a **classifier stage** in the shared pipeline (developer‑owned); Core does only a dumb string compare, so it stays content‑agnostic. `RouteWhen` composes with `FromInputIds` (a leg must pass **both**), and the per‑message `requiredCount` reflects the routed subset. A message matching **no** leg is a **filtered drop** (observable via the filtered‑message metric, `reason = "no route matched"`) — not a silent success; add a catch‑all output for guaranteed delivery. See §3.4a.
 - **Interface:** `ValueTask EnqueueAsync(MessageContext, ct)` (routes internally to the per‑input queue by `SourceEndpointId`), `Task RunAsync(ct)`, `Task DrainAsync(timeout)`.
 - **Per‑input isolation:** each input gets its own `Capacity`, `DegreeOfParallelism`, and `OverflowPolicy`. A bursty input fills only its own queue; other inputs' queues (and their consumers) are unaffected. This mirrors per‑leg isolation on the output side.
 - **Never does:** protocol/transport work, reply byte‑writing, reply timing (all owned by the `ReplyContext`, §3.8/§6).
@@ -119,9 +122,18 @@ flowchart LR
 
 ### 3.4 Delivery Leg (`DeliveryLeg`) — *one output*
 - **Responsibilities:** own **its own queue** (`IMessageChannel`, bounded or durable), its **outbound endpoint** (+ Retry/Batching decorators; the endpoint **serializes** the canonical model to the destination format via its codec), its **delivery guarantee**, **retry**, and **store‑and‑forward** (failure buffer). Report each message's `DeliveryResult` to the message's `ReplyContext`. Accept **leg‑targeted replays** from the `ForwardWorker` (§3.9). **No per‑leg processing pipeline** — processing runs once in the shared pipeline; a leg only encodes + delivers.
-- **Interface:** `ValueTask EnqueueAsync(MessageContext)`, `ValueTask ReplayAsync(MessageContext)`, `Task RunAsync(ct)`, `Task DrainAsync(timeout)`, `bool Required`, `IReadOnlySet<int>? FromInputIds`.
+- **Interface:** `ValueTask EnqueueAsync(MessageContext)`, `ValueTask ReplayAsync(MessageContext)`, `Task RunAsync(ct)`, `Task DrainAsync(timeout)`, `bool Required`, `IReadOnlySet<int>? FromInputIds`, `IReadOnlyDictionary<string,string>? RouteWhen`, `bool AcceptsMessage(headers)`.
 - **`FromInputIds`** (optional) — if set, this leg only accepts messages originating from the listed input comm points; the fan‑out in ContractRuntime skips it for other inputs. Null/empty = accepts all inputs (default).
+- **`RouteWhen`** (optional) — if set, this leg only accepts messages whose `Headers` match every `RouteWhen` fact (AND, exact ordinal); the fan‑out includes it per message. Null/empty = accepts all messages (default). See §3.4a.
 - **Never does:** write the reply to the source, know about other legs.
+
+### 3.4a Content routing (classify vs route)
+Content‑based routing is split so no single author needs to know **both** the message internals and the deployment topology:
+- **Classify (developer, code).** A classifier `IMessageStage` in the shared pipeline inspects the parsed message and writes **domain facts** into `MessageContext.Headers` using a documented, per‑format vocabulary (e.g. `hl7.messageType = "ADT"`). It **never references an output** — not by id, label, or type — so one classifier works across every deployment. (Protocol parsing stays in the format module; Core never parses content.)
+- **Route (FSE, config).** Each output declares an optional **`RouteWhen`** = the facts it accepts. The FSE — who owns the outputs — binds facts → outputs. Matching is dumb string equality (AND over all pairs) in Core.
+- **Fan‑out (engine).** Applicable legs = source‑applicable (`FromInputIds`) **∩** `RouteWhen` matches; the reply is armed with that subset's required count. Contracts declaring **no** `RouteWhen` keep the precomputed zero‑allocation fast path (**pay‑only‑if‑used**). A message matching no leg is a **filtered drop** (`reason = "no route matched"`); provide a `RouteWhen`‑less catch‑all output for guaranteed delivery.
+
+**Ownership:** code decides *what the message is*; config decides *where it goes* — the same split as pipelines/codecs (developer) vs topology (FSE). The concrete HL7 classifier stage is **future work** (see `docs/vaibhavToDoList.md`); the `RouteWhen` mechanism itself is in place.
 - **Why:** per‑output isolation of progress, durability, concurrency, ordering, retry, and ops. (Isolation is complete for **optional** legs; a slow **required** leg couples the contract via fan‑out backpressure — §5.)
 
 ### 3.5 Message Channel (`IMessageChannel`) — *queue + durability seam*
@@ -130,48 +142,26 @@ flowchart LR
 - **Why:** the one seam where in‑memory vs persistent vs (future) broker is chosen, per queue.
 
 ### 3.6 Pipeline (`IMessagePipeline`) + Stage (`IMessageStage`) — *per‑message processing*
-- The **shared pipeline** is an `IMessageStage` chain (middleware) that runs **once per message** before fan‑out. A stage may short‑circuit (filter), mutate headers (enrich), or replace the canonical model (a shared transform).
+- The **shared pipeline** is an **ordered list of `IMessageStage`s** (pipeline‑driven — the pipeline calls each stage and reads its returned `StageResult`) that runs **once per message** before fan‑out. A stage may short‑circuit (filter), mutate headers (enrich), or replace the canonical model (a shared transform).
+- **How a stage filters (drops a message).** A stage **returns** its decision, so it cannot forget to continue and silently skip the rest (that whole class of bug is designed away):
+  1. **`return StageResult.Filter(reason)`** — **preferred** for routine dedup/rule‑based drops: allocation‑free and carries a low‑cardinality `reason` for observability (otherwise `return StageResult.Continue`).
+  2. **`throw PipelineFilteredException(reason)`** — reserve for **exceptional / hard stops** a stage can't handle locally; an exception per routine drop is costly at volume.
+  Both surface as `PipelineResult.Filtered(reason)`; the `ContractRuntime` stops fan‑out, replies per the contract's `ReplyOnFilter`, and records the drop **with its reason** on the `ibe.agent.messages.filtered` metric. A filter stage should also **log its own drops** (with the message's identifiers) — parity with the legacy filter.
 - **Canonical model (INV‑5).** The first stage **parses** the source's wire bytes into a **canonical in‑memory model** (a lazily‑parsed typed view cached on the `MessageContext`, see §3.6b); later stages work on that model. Parsing happens **once** here — never per leg. Because of **INV‑1** (one input, one format) the parser is unambiguous.
 - All message processing lives here — there is **no per‑leg pipeline** (YAGNI). Destination **wire serialization** is *not* a stage; it is the outbound endpoint's **codec** (§3.7). Delivery is the leg consumer calling the endpoint, *not* a `DeliverStage`.
+- **High‑fidelity (no‑stage) fast path.** A contract with no stages compiles to an **empty pipeline** — the *identity* case of the same mechanism, **not** a separate mode (no `HighFidelityContractRuntime` fork). `ExecuteAsync` returns a **`ValueTask<PipelineResult>`** that completes **synchronously with zero `Task` allocation** when there are no stages (and also when every stage completes synchronously). So the ~80% pass‑through case pays no pipeline cost while the code path stays uniform.
 - **Protocol‑agnostic stages, protocol‑specific extractors (F24).** Generic stages key off neutral headers — e.g. `DeduplicateStage` reads a generic **`IdempotencyKey`** header; an **HL7‑specific extractor stage** (in the HL7 module) populates it from `MSH‑10`. No HL7 identifiers leak into the engine.
 - **Never does:** own transports. Transport‑agnostic.
 
-### 3.6a Parallel stages (Scatter‑Gather) — *optional concurrency within the pipeline*
-The pipeline is linear by default, but some steps are independent and I/O‑bound (e.g., resolving a patient id then fetching cache/MPI data, alongside a separate schema annotation). Such work can run **concurrently without breaking the linear, plug‑and‑play model**.
+### 3.6a Parallel stages (Scatter‑Gather) — *deferred (future)*
+> **Status: NOT IMPLEMENTED — deferred (YAGNI).** The shared pipeline is **linear** today: `MessagePipeline` runs an ordered `IMessageStage` list one stage after another. There is **no `ParallelStage` type and no `parallel` catalog token** in the current codebase — a catalog `Pipelines` entry is a plain ordered **list of stage names**. The concurrency design below is kept as the intended future extension, to be built only when a real, profiled need justifies it.
 
-Two levels of parallelism:
-- **Internally parallel stage** — any `IMessageStage` may `Task.WhenAll(...)` its own independent async calls. Needs no framework support.
-- **`ParallelStage` (composite, pluggable)** — a stage that *is itself* an `IMessageStage` (Composite pattern) holding N **branches** (each branch is a mini‑pipeline); it runs the branches concurrently, **joins**, then calls `next`. To the outer pipeline it looks like one ordinary stage, so the engine and the `IMessageStage` contract are unchanged. This is the **Scatter‑Gather** EIP pattern.
+Even while the pipeline is linear, one level of parallelism needs **no framework support**:
+- **Internally parallel stage** — any `IMessageStage` may `Task.WhenAll(...)` its own independent async calls inside `ProcessAsync`.
 
-**Correctness rules (mandatory):**
-- **Results‑out, not concurrent mutation:** each branch runs against a read‑only view and returns a *contribution* (headers/annotations, or a single payload transform); `ParallelStage` **applies contributions sequentially at the join, in fixed branch order** → race‑free and **deterministic** (independent of which branch finishes first — important for content‑hash dedup on the S3 path).
-- **Single payload writer:** at most one branch may transform the canonical model; the others enrich metadata only.
-- **Join policy:** `all` (WhenAll) — the only policy today. **Error policy:** `failFast` (the message fails and follows normal store‑and‑forward/reply handling). Extra join modes (`any`/`quorum`) and `bestEffort` are **deferred** (Future Improvements): the composite seam supports them, but they aren't built until a real need + profiling justify it (P10).
+**Future — `ParallelStage` (composite, pluggable).** When needed, a composite stage that *is itself* an `IMessageStage` (Composite pattern) will hold N **branches** (each branch a sequential mini‑pipeline), run them concurrently, **join**, and return one `StageResult`. Because it is just another `IMessageStage`, it plugs into `MessagePipeline` without changing the engine or the stage contract — this is the **Scatter‑Gather** EIP pattern. Intended rules when it lands: branches return *contributions* applied sequentially at the join in **fixed branch order** (deterministic, race‑free); **at most one** branch transforms the payload; join policy `all`, error policy `failFast` (with `any`/`quorum`/`bestEffort` further deferred). At that point the catalog `Pipelines` list would gain a nested `parallel` token.
 
-**When to use:** genuinely independent, **latency‑bound** work (cache/DB/HTTP lookups). **Not** for cheap CPU transforms (task‑scheduling overhead can exceed the gain); for raw throughput prefer per‑leg `DegreeOfParallelism` or batch‑level parallelism (`S3BatchProcessor` already maps a batch across K workers).
-
-**Config shape** — a `parallel` entry (whose `Branches` are sub‑pipelines: each branch runs sequentially inside; branches run concurrently) is declared **inside a named pipeline in the catalog** (§8), never inline in a contract:
-```jsonc
-// catalogData.json -> Pipelines (a SHARED pipeline; processing only, no encode/deliver)
-"adt-enriched": [
-  "validate",
-  { "Type": "parallel", "Join": "all", "OnError": "failFast",
-    "Branches": [
-      [ "extract-patient-id", "cache-lookup-enrich" ],
-      [ "schema-annotate" ]
-    ] }
-]
-```
-
-```mermaid
-flowchart LR
-  A["validate"] --> P{{"ParallelStage (scatter)"}}
-  P --> B1["branch 1: extract-patient-id -> cache-lookup-enrich"]
-  P --> B2["branch 2: schema-annotate"]
-  B1 --> J["join / merge (gather, fixed order)"]
-  B2 --> J
-  J --> C["fan-out to legs"]
-```
+**When it will be worth it:** genuinely independent, **latency‑bound** work (cache/DB/HTTP lookups) — **not** cheap CPU transforms (scheduling overhead can exceed the gain). For raw throughput prefer per‑leg `DegreeOfParallelism` or batch‑level parallelism (`S3BatchProcessor` already maps a batch across K workers).
 
 ### 3.6b Canonical message model (what stages and codecs operate on)
 The transport layer stays byte‑neutral, but the **processing** layer needs a defined shape (previously implicit — now explicit, closing the "undefined model" gap):
@@ -184,15 +174,17 @@ The transport layer stays byte‑neutral, but the **processing** layer needs a d
 > **Why not serialize once, before fan‑out?** Because different legs need **different** wire formats (HL7 to the EHR, Avro to S3). A single pre‑fan‑out serialization would force one format on every destination. So: **parse once (shared), serialize many (per leg).**
 
 ### 3.7 Outbound Endpoint (`IOutboundEndpoint`) + Codecs (`IMessageCodec` / `IBatchCodec`) — *transport + serialization*
-- **Interface:** `Task<DeliveryResult> SendAsync(MessageContext, ct)`. Owns a **pooled/persistent** connection. **Encoding to the destination's wire format is the endpoint's job (via a codec), not a pipeline stage.**
-- **Message codec (`IMessageCodec`) — per‑message serialization:** turns the **canonical model** (§3.6b) into the destination's wire bytes. Same‑family output (HL7→HL7) re‑serializes / passes through; the known **HL7→Avro** mapping is a batch codec; **cross‑family conversion is out of scope** (INV‑4). An output's `Encoding` names a **catalog `Codecs` entry** (§8) that binds a registered codec type to its params — extendible without touching the engine (OCP). An endpoint with a single fixed format uses its default codec.
-- **Batch codec (`IBatchCodec`) — per‑batch encoding (N → 1):** batch‑native sinks encode a whole batch into one artifact. `AvroZipBatchCodec` (HL7→Avro→DEFLATE→zip) wraps the existing `S3BatchProcessor` unchanged; `NdJsonBatchCodec`, `FhirBundleBatchCodec`, `CsvBatchCodec` … are drop‑in. An output's `Batching.Codec` names its **catalog `Codecs` entry**.
+- **Interface:** `Task<DeliveryResult> SendAsync(MessageContext, ct)`. Owns a **pooled/persistent** connection, **tunable per endpoint** from the FSE's comm‑point config (§8): TCP `PoolSize`; HTTP `MaxConnectionsPerServer` + `PooledConnectionLifetimeSeconds` / `PooledConnectionIdleTimeoutSeconds`. **Encoding to the destination's wire format is the endpoint's job (via a codec), not a pipeline stage.**
+- **Message codec (`IMessageCodec`) — per‑message serialization:** turns the **canonical model** (§3.6b) into the destination's wire bytes. Same‑family output (HL7→HL7) re‑serializes / passes through; the known **HL7→Avro** mapping is a batch codec; **cross‑family conversion is out of scope** (INV‑4). A leg's **resolved `Encoding`** comes from the contract's `Template` (its `Format` → a **catalog `Codecs` entry**, §8), or an inline `Encoding` override — either way binding a registered codec type to its params, extendible without touching the engine (OCP). An endpoint with a single fixed format uses its default codec.
+- **Batch codec (`IBatchCodec`) — per‑batch encoding (N → 1):** batch‑native sinks encode a whole batch into one artifact. `AvroZipBatchCodec` (HL7→Avro→DEFLATE→zip) wraps the existing `S3BatchProcessor` unchanged; `NdJsonBatchCodec`, `FhirBundleBatchCodec`, `CsvBatchCodec` … are drop‑in. A leg's **resolved batch codec** comes from its `Format`'s `BatchCodec` (or an inline `Batching.Codec` override) — a **catalog `Codecs` entry**.
 - **Decorators:** `RetryingOutboundEndpoint` (Polly), `BatchingOutboundEndpoint` (size/time flush), `TelemetryOutboundEndpoint`.
-- **Request‑reply (send‑and‑receive):** a *responder* endpoint additionally **captures the peer's reply** and returns it on `DeliveryResult.ResponsePayload` (+ its `Format`). Most adapters already have the reply in hand (MLLP reply frame / HTTP response body); today it feeds only enhanced ack — request‑reply surfaces it back to the source (see §6.1).
+- **Nagle disabled (`NoDelay`) on both ends of the MLLP round‑trip:** MLLP request‑reply is a small‑write → wait‑for‑small‑ack ping‑pong, so Nagle + delayed‑ACK otherwise stalls each message ~40 ms. Every socket on the hot path sets `TcpClient.NoDelay = true`: the outbound pool's dialed connections **and** the inbound endpoint's accepted sockets (§3.1). (HTTP endpoints inherit `NoDelay` from `SocketsHttpHandler`'s default; no explicit setting needed.)
+- **Stale‑connection resilience (transport‑level, guarantee‑agnostic):** a pooled/persistent connection can be closed by the peer while idle (downstream idle‑timeout, firewall/NAT reaping) — and `TcpClient.Connected` still reports `true` for such a half‑open socket, so the pool can hand out a **dead** connection. On a **reused** connection a transport failure (`SocketException`/`IOException`, or a stream that closes before an ack) is therefore treated as a **pool artifact, not a delivery rejection**: the endpoint discards it and **transparently retries once on a freshly‑dialed connection**. A **freshly‑dialed** connection that fails is a genuine downstream error (no retry, no loop). This is **duplicate‑safe** — bytes written to a peer‑closed socket are RST'd, never delivered to the downstream application — and applies to **every** delivery guarantee, **including `AtMostOnce`** (which has no store‑and‑forward retry). It is therefore **independent of** the durable retry subsystem (§3.9): *connection hygiene lives at the transport; delivery retry/backoff lives at the leg.* (A proactive liveness probe / idle eviction is a complementary future refinement; the reconnect‑once path is the correctness guarantee.)
+- **Request‑reply (send‑and‑receive):** a *responder* endpoint additionally **captures the peer's reply** and returns it on `DeliveryResult.ResponsePayload` (+ its `Format`). Most adapters already have the reply in hand (MLLP reply frame / HTTP response body); it feeds **enhanced ack** (which relays it straight back to the source on success, §6) and **request‑reply** (which surfaces it back to the source, §6.1).
 - **Never does:** ack the source, route, or know about contracts.
 
 ### 3.7a Where batch processing happens (per‑leg, after fan‑out)
-Batching is a **per‑destination delivery concern**, so it lives on the **leg, after fan‑out** — never as a shared step before the legs (a shared batch would force one batch policy on every output and blur per‑leg failure/ack). Per‑message processing (validate/filter/enrich) runs **once** in the shared pipeline; then the **S3 leg** accumulates a batch (drain by size/time from its own queue — the queue *is* the batch buffer), hands it to its **batch codec** (`Batching.Codec`), and uploads. Non‑batch legs (TCP/File) encode and deliver per message via their `IMessageCodec`. Each leg keeps its own batch policy, codec, failure isolation, and ack outcome.
+Batching is a **per‑destination delivery concern**, so it lives on the **leg, after fan‑out** — never as a shared step before the legs (a shared batch would force one batch policy on every output and blur per‑leg failure/ack). Per‑message processing (validate/filter/enrich) runs **once** in the shared pipeline; then the **S3 leg** accumulates a batch (drain by size/time from its own queue — the queue *is* the batch buffer), hands it to its **batch codec** (from the leg's `Format` → `BatchCodec`), and uploads. Non‑batch legs (TCP/File) encode and deliver per message via their `IMessageCodec`. Each leg keeps its own batch policy, codec, failure isolation, and ack outcome.
 
 **The batch operation is a codec, not a pipeline.** It is inherently **N messages → 1 artifact** — a different cardinality from a per‑message stage — so it belongs to the endpoint's `IBatchCodec`, pluggable and extendible: `avro-zip` (wraps `S3BatchProcessor`) today; `ndjson`, `fhir-bundle`, `csv` … by registration.
 
@@ -201,7 +193,7 @@ Batching is a **per‑destination delivery concern**, so it lives on the **leg, 
 | | Direction | Where | Mechanism |
 |---|---|---|---|
 | **Inbound batch** | a source sends an HL7 `BHS`…`BTS` batch | **input** comm point | de‑batch into individual messages + batch **ACK shape** (`AckShape.Batch`, §6) |
-| **Outbound batch** | the engine accumulates N messages → 1 artifact for a sink | **output** leg | `Batching { Codec, MaxCount, MaxLatencyMs }` + `IBatchCodec` |
+| **Outbound batch** | the engine accumulates N messages → 1 artifact for a sink | **output** leg | `Batching { Enabled, MaxCount, MaxLatencyMs }` (triggers, FSE) + `IBatchCodec` (from the `Format`) |
 
 These are opposite ends and fully independent: a contract can de‑batch an inbound `BHS` group *and* re‑accumulate an outbound Avro batch, or do either alone.
 
@@ -229,8 +221,8 @@ flowchart TB
 ### 3.8 Reply subsystem (`IReplyContext`/`ReplyContext`, `IAckStrategy`, `IAckFormatter`, `IAckToken`)
 The single reply to a source message is owned by the per‑message **`ReplyContext`** (created at reception, INV‑6) and split into **orthogonal, pluggable concerns** over a neutral **`DeliveryResult`** (outcome **+ optional response bytes + format**). The engine stays payload‑neutral.
 - **`IReplyContext` / `ReplyContext`** (per received message) — the reply authority, split into a **seam** and its **implementation** (A2/A3): the `IReplyContext` interface is declared in `Abstractions` and is the *only* thing `MessageContext.Reply` references, so the envelope never depends on the engine; the concrete `ReplyContext` lives in `Core`. Its surface is **`OnFannedOut(requiredTotal)`** (arm the per‑message applicable‑required count), **`ReportFiltered()`** (shared‑pipeline short‑circuit), and **`ReportLeg(required, DeliveryResult)`** (A4). It collects each leg's `DeliveryResult`, applies the strategy over the **required** legs, fires **exactly once** (`Interlocked` one‑shot), and owns the **reply timeout** (§6 / §6.1). For enhanced ack over multiple required legs, **all required must succeed**. It replaces the old per‑contract `DeliveryAggregator` (which risked a **double‑ack** under multi‑contract routing — impossible now under INV‑3, and guarded here regardless).
-- **`IAckStrategy`** — *when/what*: **Normal** (a generated "received" ACK, on durable receipt) vs **Enhanced** (reflects the delivery outcome, after delivery), selected per contract via `{ IsEnabled, IsEnhanced }`. A third strategy, **Response** (request‑reply, `ResponseReplyStrategy`), writes the responder leg's **captured payload** *instead of* an ACK (see §6.1).
-- **`IAckFormatter`** — *format + shape*: renders a **generated** ack's **bytes** in the **source's own** `Format` and **shape**, selected by a **(`Format` × `Shape`)** pair. Shapes are **subclasses of the abstract formatter** — `Hl7SingleAckFormatter` (today), `Hl7BatchAckFormatter`, … — and the shape is a **config choice** (`AckShape`, §6/§8), **not** auto‑detected from framing. Per **INV‑4** a source is always answered in its own type — **no conversion**. *(Pass‑through/response replies already carry bytes and skip the formatter.)*
+- **`IAckStrategy`** — *when/what*: **Normal** (a **generated** "received" ACK, on durable receipt) vs **Enhanced** (on success **relays the destination comm point's own acknowledgement** back to the source after delivery — the positive ack bytes always come **from the output comm point**, never engine‑generated; only a required‑leg **failure** falls back to a **generated** negative ACK). Both selected per contract via `{ IsEnabled, IsEnhanced }`. A third strategy, **Response** (request‑reply, `ResponseReplyStrategy`), writes the responder leg's **captured payload** *instead of* an ACK (see §6.1). **A positive Enhanced ack and a Response therefore both surface the output comm point's bytes** — they differ only on failure (enhanced → generated negative ACK; response → protocol‑error reply) and in intent (a transport ack vs. a business response).
+- **`IAckFormatter`** — *format + shape*: renders a **generated** ack's **bytes** in the **source's own** `Format` and **shape**, selected by a **(`Format` × `Shape`)** pair. Shapes are **subclasses of the abstract formatter** — `Hl7SingleAckFormatter` (today), `Hl7BatchAckFormatter`, … — and the shape is a **config choice** (`AckShape`, §6/§8), **not** auto‑detected from framing. Per **INV‑4** a source is always answered in its own type — **no conversion**. *(A positive **enhanced** ack and a **response** already carry the destination's own bytes and **skip the formatter**; the formatter renders only the **generated** replies — **Normal** acks, an enhanced **negative** ACK, and **batch** ack shapes.)*
 - **`IAckToken`** (protocol‑bound, on the context) — **writes reply bytes** back over *this* source transport (MLLP frame / HTTP response / file move): `Task WriteAsync(ReadOnlyMemory<byte> reply, ct)`. It carries **content**, not just a status, so generated acks, pass‑through acks, and request‑reply responses can all reach the socket.
 - **Never does:** the token never decides policy or format; the strategy/formatter never touch sockets.
 
@@ -260,10 +252,20 @@ The single reply to a source message is owned by the per‑message **`ReplyConte
 
 ### 3.10 Supporting infrastructure
 - **Configuration subsystem** (§8), split into two layers so the Web service can share it without pulling in the engine:
-  - **`Philips.IBE.IBEAgent.Configuration` (pure, shared):** typed option DTOs, the **Catalog** DTOs (named pipelines + codecs), `IValidateOptions` **structural** validators (unique ids, single‑format INV‑2, ack XOR response, capacity/DOP > 0, referential integrity), and the generated **JSON schema/manifest**. Depends only on `Abstractions`. Referenced by **both** the agent Host **and** the Web service → one source of config truth.
+  - **`Philips.IBE.IBEAgent.Configuration` (pure, shared):** typed option DTOs, the **Catalog** DTOs (named pipelines, codecs, **formats**, and **templates**), the **`ContractTemplateResolver`** (flattens a contract's `Template`/`Format` references into concrete per‑leg encodings before compilation), `IValidateOptions` **structural** validators (unique ids, single‑format INV‑2, ack XOR response, capacity/DOP > 0, referential integrity, template/format resolution), and the generated **JSON schema/manifest**. Depends only on `Abstractions`. Referenced by **both** the agent Host **and** the Web service → one source of config truth.
   - **Compiler + registry (in `Core`):** `ContractCompiler`/`PipelineBuilder` (config → `IContractRuntime` + legs) and the **Component Registry** — name/type‑keyed factories for endpoint, stage, **codec (`IMessageCodec`/`IBatchCodec`)**, and **`IAckFormatter` (by `Format` × `Shape`)**. Name‑resolution validation (names → registered impls, encoding⇄format compatibility) runs at startup where the registry exists. New protocols, stages, codecs, and ack shapes stay plug‑and‑play (register + name, don't edit).
 - **Three lookups, three names (avoid confusion):** the **Contract Registry** (§3.2b — compiled contracts by input) ≠ the **Catalog** (§8 — config building blocks by name) ≠ the **Component Registry** (here — type→impl factories).
 - **Telemetry**: OTel metrics/spans per stage + per leg; per‑input and per‑leg queue depth gauges; store‑and‑forward counters (pending/parked); `contract.mode`, `leg.mode` diagnostics.
+- **Logging** — structured (named placeholders only, never string interpolation), correlated by `CorrelationId`, and driven by **`Logging:LogLevel` in `appsettings.json`** (the `NLog` rules stay permissive at `Trace`, so the `Microsoft.Extensions.Logging` category filter is the single gate). Full message‑body logging is confined to **Trace** and guarded by `ILogger.IsEnabled(LogLevel.Trace)`, so the payload decode/allocation never runs unless Trace is enabled — **zero cost otherwise**. No secrets/PII are logged except the full body at Trace (PHI; dev/troubleshooting only). The `Philips.IBE` category level selects the tier:
+
+  | Level | What you see |
+  |---|---|
+  | **Trace** | Full **inbound** message body (at receipt), full **outbound** message body (at delivery), and full **ack/response** body (at the ack token). |
+  | **Debug** | Internal diagnostics — accept‑loop shutdown, store‑and‑forward sweep/reschedule, and other infra detail not needed for normal production investigation. |
+  | **Information** | Per‑message flow — **received / delivered / filtered / ack‑sent** — correlation‑based, with **end‑to‑end** latency (reception → delivery); plus **HL7 id/type** (MSH‑10 / MSH‑9) when the opt‑in `hl7-classify` stage is in the contract's pipeline. The production monitoring level. |
+  | **Warning** | Problems only (delivery/reply failures, store‑and‑forward `Parked`, missing ack formatter). |
+
+  **High fidelity is a level, not a flag:** a max‑throughput deployment sets `Philips.IBE → Warning` (no per‑message lines) and omits the `hl7-classify` stage (no parse) — two independent knobs (log cost = level; parse cost = pipeline composition). Engine libraries log through the `ILogger` abstraction only; `NLog` is wired in the hosts.
 - **Host / composition root**: build config → compile `IContractRuntime`s+legs → register endpoints → start host.
 
 ---
@@ -278,7 +280,7 @@ Ownership in **bold**.
 4. **Fan‑out** — the ContractRuntime computes the **applicable legs** for this message (filtering by each leg's `FromInputIds` against the message's `SourceEndpointId`; legs with null/empty `FromInputIds` always apply), **arms the `ReplyContext`** with the **per‑message required count** (count of applicable required legs), clones the context per applicable leg (sharing the immutable payload + a read‑only header snapshot), and enqueues into **each applicable leg's queue concurrently** (`Task.WhenAll`). Non‑matching legs are skipped entirely. A full *required* leg backpressures here (couples that input — §5); a full *optional* leg follows its own overflow policy.
 5. **Per‑leg delivery** — each **Delivery Leg** consumer **delivers** via its outbound endpoint, which **serializes the canonical model to the destination format** (`IMessageCodec`, or accumulate + `IBatchCodec` for batch sinks); Retry/Batching decorators inside. No per‑leg processing pipeline.
 6. **Per‑leg outcome** — the leg reports a terminal `DeliveryResult` (`Delivered` or `Failed`) to the **`ReplyContext`**. On `Failed` (inline retries exhausted) → store in the **store‑and‑forward** buffer (tagged with `OutputId`, `Status=Pending`).
-7. **Reply** — the **`ReplyContext`** writes the **single** reply (one‑shot): the **Ack Strategy** decides *when/what* (**Normal** = a generated "received" ACK on durable receipt; **Enhanced** = reflects the delivery outcome; **Response** = the responder leg's captured payload, §6.1); a *generated* ack is rendered by the source's **`IAckFormatter`** (`Format` × `AckShape`) while a *pass‑through/response* already carries bytes, and the **`IAckToken`** writes it over the transport. Only **required** legs gate the reply; optional legs never do. **For enhanced ack, partial required failure counts as overall failure:** if one required leg succeeds (e.g., B) but another does not (e.g., C), **no positive ack is sent** (negative ACK); the failed leg (C) is stored in store‑and‑forward and **replayed into C only** by the `ForwardWorker` — B is never re‑sent (see §6).
+7. **Reply** — the **`ReplyContext`** writes the **single** reply (one‑shot): the **Ack Strategy** decides *when/what* (**Normal** = a generated "received" ACK on durable receipt; **Enhanced** = on success **relays the destination comm point's own ack**, on required failure a generated negative ACK; **Response** = the responder leg's captured payload, §6.1); a *generated* ack (Normal, or an enhanced **negative** ACK) is rendered by the source's **`IAckFormatter`** (`Format` × `AckShape`), while an **enhanced positive ack / response** already carries the output comm point's bytes, and the **`IAckToken`** writes it over the transport. Only **required** legs gate the reply; optional legs never do. **For enhanced ack, partial required failure counts as overall failure:** if one required leg succeeds (e.g., B) but another does not (e.g., C), **no positive ack is sent** (negative ACK); the failed leg (C) is stored in store‑and‑forward and **replayed into C only** by the `ForwardWorker` — B is never re‑sent (see §6).
 8. **Retries / store‑and‑forward** — transient failures retry inside the leg's Retry decorator; exhausted → stored in the store‑and‑forward buffer (`Pending`); the **`ForwardWorker`** **replays directly into the failed leg** (not the Dispatcher) with backoff + cap, without re‑processing or re‑replying; terminal poison → `Parked`.
 9. **Shutdown** — endpoints stop accepting → per‑input ingress queues drain → each leg drains (bounded timeout) → durable legs commit/park uncommitted, in‑memory legs flush to store‑and‑forward → dispose. No accepted message is silently lost.
 
@@ -356,7 +358,7 @@ stateDiagram-v2
 ```
 
 ### 4.2 Envelope & clone lifetime (memory ownership)
-Fan‑out creates **one `MessageContext` per leg**, but a clone is a **thin envelope**: `CloneForLeg` copies only the small scalar fields and **shares `Payload`, `ParsedView`, and `Headers` by reference** — no byte or dictionary copy (P1, F‑perf4). So a 3‑leg fan‑out is 1 original + 3 clone objects around **one** copy of the message bytes.
+Fan‑out creates **one `MessageContext` per leg**, but a clone is a **thin envelope**: `CloneForLeg` copies only the small scalar fields and **shares `Payload`, `ParsedView`, and `Headers` by reference** — no byte or dictionary copy (P1, F‑perf4). So a 3‑leg fan‑out is 1 original + 3 clone objects around **one** copy of the message bytes. A **single‑leg** fan‑out skips the clone entirely and reuses the original envelope in place (`SetLeg`).
 
 Lifetime is **managed by the GC — nothing is freed by hand** (P10):
 - A clone is reachable only while its **leg queue** holds it or its **consumer** is processing it. When the consumer loop advances to the next message, the clone becomes unreachable and is collected.
@@ -388,10 +390,10 @@ flowchart LR
 - **Overflow policy (per queue):** `Wait` (async backpressure, default), `Reject` (fast‑fail, e.g. HTTP 503), `SpillToDisk` (durable legs absorb bursts to journal). `DropOldest/Newest` not offered for clinical data.
 - **Backpressure semantics:**
   - Per‑input ingress full → dispatch awaits → **only that source** slows. Other inputs' queues are unaffected (per‑input isolation).
-  - Fan‑out enqueues to **applicable** legs **concurrently** and awaits all (`Task.WhenAll`). Legs whose `FromInputIds` excludes the message's source are skipped (no enqueue, no backpressure). A full **required** applicable leg (Wait) makes fan‑out await → that input's ingress fills → that source slows — this **couples that input to the contract** (intended when a critical output is down); sibling inputs are unaffected (their queues drain independently). A full **optional** leg (Reject/SpillToDisk) never blocks anything.
+  - Fan‑out enqueues to **applicable** legs **concurrently** and awaits all (`Task.WhenAll`). Legs whose `FromInputIds` excludes the message's source are skipped (no enqueue, no backpressure). A full **required** applicable leg (Wait) makes fan‑out await → that input's ingress fills → that source slows — this **couples that input to the contract** (intended when a critical output is down); sibling inputs are unaffected (their queues drain independently). A full **optional** leg (Reject/SpillToDisk) never blocks anything. **Single‑leg fast path:** the dominant 1‑input→1‑output shape skips the LINQ/`Task.WhenAll`/`AsTask` machinery and awaits the one leg's `ValueTask` directly (no per‑message list/array allocation) **and reuses the original envelope in place via `SetLeg` (no clone)** — a truly allocation‑free per‑message fan‑out for the high‑fidelity path. This is realized by a **precomputed per‑source `FanOutPlan`**: the applicable legs + required count for a source are a pure function of its (fixed) input id, so each source resolves **one plan at construction** (not per message), and the plan's *shape* (single‑leg vs multi‑leg) is chosen then — so the hot loop carries **no per‑message LINQ and no leg‑count branch**, just one `plan.DispatchAsync(ctx)` call.
   - So isolation is **per‑input on the ingress side** and **complete for optional legs** on the output side; a slow **required** leg couples the contract **by design** for the input that produced the message. Letting a required leg divert to its own durable store instead of backpressuring (so siblings keep flowing) is a **deferred per‑leg `OnFull` policy** — see Future Improvements (F13/F7).
 - **Parallelism / ordering:** `DegreeOfParallelism` is set **independently** on each per‑input ingress queue and on each leg. **Ordering is not preserved when an input's DOP > 1, nor when a message is replayed from store‑and‑forward** (a replay re‑arrives after newer messages). For order‑sensitive flows use the **`Ordered` contract mode**: the relevant input's DOP = 1 (or partition‑by‑key end‑to‑end), each ordered leg DOP = 1, and **in‑order retry** (park‑and‑halt the key on failure rather than skipping ahead). The default (unordered) mode favors throughput. There is **no cross‑input and no cross‑leg ordering** in either mode.
-- **Intra‑message parallelism:** within a single message's pipeline, a `ParallelStage` (scatter‑gather, §3.6a) runs independent branches concurrently and joins before continuing. This is orthogonal to `DegreeOfParallelism` (which is cross‑message) — use it only for independent I/O‑bound work.
+- **Intra‑message parallelism (deferred):** a future `ParallelStage` (scatter‑gather, §3.6a) would run independent branches within a single message's pipeline concurrently and join before continuing — orthogonal to `DegreeOfParallelism` (which is cross‑message). **Not implemented today; the pipeline is linear.** Until then, a stage may still `Task.WhenAll(...)` its own internal I/O.
 - **Cancellation:** one linked `CancellationToken` tree from host shutdown; observed by endpoints, ingress, legs, outbound sends. No `CancellationToken.None` on the hot path.
 - **Graceful shutdown (deterministic):** (1) endpoints stop accepting; (2) all per‑input ingress queues `Complete()` + drain (bounded timeout); (3) each leg `Complete()` + drain; (4) durable legs commit/park, in‑memory legs flush to store‑and‑forward; (5) flush outbound batches, close pools; (6) dispose.
 
@@ -425,7 +427,9 @@ The source expects **one** reply — usually an ack, sometimes a **response** (�
 **Two configured ack modes (as today), set per contract via `{ IsEnabled, IsEnhanced }`:**
 - **`IsEnabled = false`** — no ack (fire‑and‑forget); the `ReplyContext` still tracks outcomes for metrics/store‑and‑forward.
 - **Normal / original ack** (`IsEnabled = true, IsEnhanced = false`) — a **generated** HL7 ACK ("AA") meaning *"received."* Sent as soon as the message is safely taken — i.e., on **durable receipt** (once required durable legs have journaled it; for at‑most‑once, on accept). It does **not** reflect the downstream result, so partial delivery is irrelevant to it.
-- **Enhanced ack** (`IsEnabled = true, IsEnhanced = true`) — the ack **reflects the actual delivery outcome**: it passes through the destination's response on success, or generates a negative ACK (AE/AR) on failure. Sent **after delivery**. This is the only mode where multi‑output partial success matters (below).
+- **Enhanced ack** (`IsEnabled = true, IsEnhanced = true`) — the ack **reflects the actual delivery outcome**: on success it **passes the destination comm point's own acknowledgement straight back to the source** (the positive ack bytes come **from the output comm point**, never engine‑generated); on a required‑leg failure it generates a negative ACK (AE/AR). Sent **after delivery**. **This holds for single‑ and multi‑output contracts alike — the positive ack is always taken from the output comm point.** (For a multi‑output contract all required legs must still succeed, below; the `ReplyContext` collects every required leg's result and, for the **Single** ack shape, relays the **first required leg by `OutputId`** — deterministic, not timing‑dependent. Combining several downstream acks into **one composite ack** is the **Batch** shape, a future refinement — see the batch bullet below.) This is the only mode where multi‑output partial success matters (below). A configurable **`TimeoutMs`** (default 30 s) bounds the wait: if a required leg hangs, the `ReplyContext` fires a **negative ACK on timeout** and releases the source, so a stuck leg never blocks it forever (`TimeoutMs ≤ 0` opts out of the timeout).
+
+**Filtered messages (shared‑pipeline short‑circuit).** A message dropped by the pipeline (filter/dedup) reports `Filtered` to the `ReplyContext`. Whether the source is told is decided by **`ReplyOnFilter`** — a **developer default set on the catalog `Template`** (the developer who defines the filter pipeline best knows the intent), which an **FSE may override on the contract**. **`true`** sends an intentional‑**reject** ack carrying the filter reason (HL7 **`AR`** + reason — distinct from a delivery‑failure `AE`); **`false`** (the default when unset) is a **silent drop** (no reply, and the pending reply timer is cancelled), reproducing the legacy behavior. The reject *code* is the formatter's job (keyed on the `Filtered` outcome), so no HL7 specifics leak into the engine.
 
 **Required vs optional legs:** only **required** legs gate the ack; optional legs are best‑effort (own store‑and‑forward entries) and never affect it. The **required count is per‑message**: at fan‑out, only legs whose `FromInputIds` matches the message's source (or whose `FromInputIds` is null/empty) are applicable; the `ReplyContext` is armed with the count of **applicable required legs** for *this* message. For **enhanced** ack over a multi‑output contract, the rule is fixed: **all applicable required legs must succeed** (else negative ACK) — there are no extra knobs to configure.
 
@@ -450,9 +454,9 @@ The source expects **one** reply — usually an ack, sometimes a **response** (�
 
 **Correlation:** the `IAckToken` (bound to the source connection) is shared by reference across all leg clones via the `ReplyContext`, so whichever required leg finishes last triggers the one reply to the correct source. The `ReplyContext` guards the reply with an `Interlocked` one‑shot (fires exactly once, even under concurrent leg completions) and a **timeout** (§6.1) that fires a negative/error reply if the required legs never complete.
 
-**Ack shape is a config choice, realized by a formatter subclass (`IAckFormatter`).** *How many* acks and *what envelope* is a formatter concern — chosen by the source's `Format` and the contract's `AckShape` (config, **not** auto‑detected), independent of the when/what strategy:
+**Ack shape is a config choice, realized by a formatter subclass (`IAckFormatter`).** This governs **generated** replies only — **Normal** acks, an enhanced **negative** ACK, and batch ack shapes; a positive **enhanced** ack is **relayed from the output comm point** and skips the formatter (see the enhanced‑ack bullet above). For generated replies, *how many* acks and *what envelope* is a formatter concern — chosen by the source's `Format` and the contract's `AckShape` (config, **not** auto‑detected), independent of the when/what strategy:
 - **Single** (default, today) — one `ACK` with a single `MSA`. `Hl7SingleAckFormatter` (= `HL7AckGenerator`).
-- **Batch** — for an HL7 **batch** (`BHS`…`BTS`) source configured with `AckShape = Batch`, the reply is **one batch ACK** wrapping one `MSH`/`MSA`[/`ERR`] per message. The inbound endpoint groups the de‑batched messages under one *ack group* (a generic group id + expected count); the collected per‑message outcomes feed a drop‑in `Hl7BatchAckFormatter` once the group completes. Adding it changes **nothing** in the engine/strategy/token/`ReplyContext` (OCP). Example:
+- **Batch** — for an HL7 **batch** (`BHS`…`BTS`) source configured with `AckShape = Batch`, the reply is **one batch ACK** wrapping one `MSH`/`MSA`[/`ERR`] per message. The inbound endpoint groups the de‑batched messages under one *ack group* (a generic group id + expected count); the collected per‑message outcomes feed a drop‑in `Hl7BatchAckFormatter` once the group completes. The **same** batch formatter also serves the multi‑output enhanced case (one unit per required output leg). Adding it changes **nothing** in the engine/strategy/token/`ReplyContext` (OCP). **Not yet implemented — `AckShape.Batch` is rejected at config validation until `Hl7BatchAckFormatter` lands (see docs/vaibhavToDoList.md).** Example:
 ```text
 BHS|^~\&|RECV_APP|RECV_FAC|SEND_APP|SEND_FAC|202607161439||||BATCH_ACK_999
 MSH|^~\&|...|ACK^R01^ACK|ACK_MSG_001|P|2.4
@@ -475,7 +479,7 @@ stateDiagram-v2
     Received --> FannedOut: cloned and enqueued to legs
     FannedOut --> AckReceived: NORMAL ack, on durable receipt
     FannedOut --> Delivering: ENHANCED ack, await delivery
-    Delivering --> AckDelivered: all required legs delivered (AA)
+    Delivering --> AckDelivered: all required delivered - relay output comm point's ack (AA)
     Delivering --> AckFailed: a required leg failed (AE/AR), leg to store-and-forward and retry
     AckReceived --> [*]
     AckDelivered --> [*]
@@ -494,7 +498,7 @@ flowchart TD
     D -->|Ack disabled| G[Send nothing - fire and forget; still track outcomes for metrics and store-and-forward]
     D -->|Normal| H[Reply immediately on durable receipt - generated 'AA received' via IAckFormatter]
     D -->|Enhanced| I{All required legs delivered?}
-    I -->|Yes| K[Positive ACK 'AA' via IAckFormatter]
+    I -->|Yes| K[Positive ACK - relay the output comm point's own ack bytes; no formatter]
     I -->|Any required failed| L[Negative ACK 'AE/AR' via IAckFormatter - failed leg goes to store-and-forward and is replayed into that leg only]
     D -->|Response| M{Peer reply returned within timeout?}
     M -->|Yes| O[Write the peer's response bytes as-is - no formatter, INV-4]
@@ -559,54 +563,66 @@ So a single contract can have one leg **durable + batched + required** (e.g., CI
 
 ## 8. Configuration Architecture
 
-**Rule (P8):** config declares topology + limits; code defines behavior. Config models are pure DTOs (no delegates). **Two audiences, two files:** *developers* own the **catalog** (named pipelines + codecs); *FSE/field engineers* own the **contracts** and only **reference pipelines and codecs by name** — they never assemble stages or wire up codecs.
+**Rule (P8):** config declares topology + limits; code defines behavior. Config models are pure DTOs (no delegates). **Two audiences, two files.** *Developers* own the **catalog** (`catalogData.json`) — the "plug‑and‑play code" building blocks: named **`Pipelines`** (stages), **`Codecs`** (encoders), **`Formats`** (a per‑leg encoding bundle = message codec + optional batch codec), and **`Templates`** (a contract blueprint = a shared pipeline + a default per‑leg format). *FSE/field engineers* own the **contracts** (`contractData.json`) and pick a developer **`Template`** by name — they never choose raw codecs, assemble stages, or hand‑pick encodings. The FSE sets only **message‑level/operational** knobs: the reply mode (`Acknowledgement` XOR `Response`), `Retry`, `DeliveryGuarantee`, per‑input/per‑output `Channel`, and batch **triggers** (`Batching { Enabled, MaxCount, MaxLatencyMs }`). Every catalog‑supplied value is **optionally overridable** on the contract (a per‑leg `Format`, or an inline `Encoding` escape hatch), so the model stays powerful without forcing FSEs to learn developer concerns.
 
 **Delivery guarantee (per output):**
 - `AtMostOnce` — in‑memory bounded channel (`BoundedInMemoryChannel`); lowest overhead; an in‑flight message can be lost on crash. Fine when the source resends on a missing ack (e.g., a synchronous TCP relay).
 - `AtLeastOnce` — durable journal (`DurableChannel`): persisted on enqueue, committed only after successful delivery; survives restart (never lost) at the cost of possible duplicates (handled by a `DeduplicateStage` / downstream idempotency). Use for guaranteed‑delivery sinks (CIM/S3).
 
-**Message format & ack shape (single‑format contracts).** Each **input comm point** declares one `Format` (INV‑1: one input → one format; `hl7v2` today, `fhir`/`xml` later) that selects the parser, stages, and source `IAckFormatter`. **All inputs of a contract must share the same `Format`** (INV‑2) — validated at load; two formats ⇒ two contracts. A contract's `Acknowledgement` sets `AckShape` (`Single` default | `Batch`) — a **config choice**, not auto‑detected. Symmetrically each **output** declares an `Encoding` (its destination wire format → the outbound codec). Per **INV‑4** the reply is never converted; per **INV‑5** the pipeline parses once and codecs serialize per leg.
+**Message format & ack shape (single‑format contracts).** Each **input comm point** declares one `Format` (INV‑1: one input → one format; `hl7v2` today, `fhir`/`xml` later) that selects the parser, stages, and source `IAckFormatter`. **All inputs of a contract must share the same `Format`** (INV‑2) — validated at load; two formats ⇒ two contracts. A contract's `Acknowledgement` sets `AckShape` (`Single` default | `Batch`) — a **config choice**, not auto‑detected. Symmetrically each **output leg's wire encoding** comes from the contract's **`Template`** (its default `Format`) — a **developer** decision, not an FSE‑authored field; a leg may optionally override it with a different catalog `Format`, or (legacy escape hatch) an inline `Encoding` codec name. Per **INV‑4** the reply is never converted; per **INV‑5** the pipeline parses once and codecs serialize per leg.
 
 **Request‑reply (a response instead of an ack):** a contract may declare a `Response` block *instead of* an enabled `Acknowledgement` (the two are mutually exclusive). `Response { IsEnabled, FromOutputId, TimeoutMs }` names the single **responder** output whose peer reply is returned to the source and a mandatory `TimeoutMs`. The **forward** delivery to that output still obeys its own `Retry`/`DeliveryGuarantee` — retried on failure like any leg — while only the **return** of the reply is time‑bounded and ephemeral; the reply goes back as‑is in the source's own type (§6.1).
 
-**Contract** = `Inputs` (one entry per input comm point, each with its own `Channel` — symmetric with outputs), a shared `Pipeline` (a **name** from the catalog — the *only* pipeline; it runs once for all outputs), `Acknowledgement { IsEnabled, IsEnhanced }` (the two modes, as today), and an **`Outputs`** list. Each **input** carries its own `InputId` and `Channel { Capacity, DegreeOfParallelism, Ordered, OverflowPolicy }` (per‑input isolation). Each **output** carries its own `Required`, `DeliveryGuarantee`, `Channel { Capacity, DegreeOfParallelism, Ordered, OverflowPolicy }`, `Encoding` (its destination wire format → the endpoint's codec), an optional `Batching { Codec, … }`, `Retry`, and an optional **`FromInputIds`** (the subset of this contract's inputs that route to this output; null/empty = all inputs — default). **There is no per‑output pipeline** (YAGNI) — output formatting is the endpoint's codec, chosen by `Encoding` (per message) or `Batching.Codec` (per batch); all message processing already happened once in the shared pipeline.
+**Contract** = a **`Template`** name (the developer blueprint supplying the shared **pipeline** and the default per‑leg **format**/encoding), `Inputs` (one entry per input comm point, each with its own `Channel` — symmetric with outputs), `Acknowledgement { IsEnabled, IsEnhanced }` **or** a `Response` block (the FSE‑owned reply mode, mutually exclusive), an optional **`ReplyOnFilter`** override (inherits the catalog `Template`'s developer default — `true` = a pipeline‑filtered message gets an intentional‑reject ack, `false` = silent drop), and an **`Outputs`** list. Each **input** carries its own `InputId` and `Channel { Capacity, DegreeOfParallelism, Ordered, OverflowPolicy }` (per‑input isolation). Each **output** carries its **FSE‑owned** `Required`, `DeliveryGuarantee`, `Channel { Capacity, DegreeOfParallelism, Ordered, OverflowPolicy }`, `Retry`, batch **triggers** (`Batching { Enabled, MaxCount, MaxLatencyMs }`), and an optional **`FromInputIds`** (the subset of this contract's inputs that route to this output; null/empty = all inputs — default); its **wire encoding and batch codec are inherited** from the template's `Format`, with an optional per‑leg `Format` override (developer‑named) or an inline `Encoding` (legacy escape hatch). A **template‑less** contract may instead name a `Pipeline` and inline `Encoding` per output directly (manual mode). **There is no per‑output pipeline** (YAGNI) — output formatting is the endpoint's codec, chosen by the resolved `Encoding` (per message) or the resolved batch codec (per batch); all message processing already happened once in the shared pipeline.
 
-**Catalog (developer‑owned, e.g. `catalogData.json`):** the single place developers define reusable, named building blocks that FSEs reference by name — **`Pipelines`** and **`Codecs`**.
-- **`Pipelines`** — named **shared** pipelines (the contract's one pipeline, run once before fan‑out). Each maps to an ordered stage list (incl. `parallel` composites, §3.6a). Processing **only** — no `deliver` stage (delivery is the leg's endpoint) and no encoding stage (encoding is a codec).
-- **`Codecs`** — named codec bindings, each pairing a **registered codec `Type`** with its **parameters**. **Message codecs** (`IMessageCodec`, one message → bytes) are referenced by an output's `Encoding`; **batch codecs** (`IBatchCodec`, N → 1 artifact) by `Batching.Codec`. Naming them here (rather than hardcoding) lets one codec type be reused with different params (e.g., two Avro configs with different schemas) and swapped in one place.
+**Catalog (developer‑owned, e.g. `catalogData.json`):** the single place developers define reusable, named building blocks that FSEs reference by name — **`Pipelines`**, **`Codecs`**, **`Formats`**, and **`Templates`**. Each layer references the previous by name (`Templates`→`Pipelines`+`Formats`; `Formats`→`Codecs`).
+- **`Pipelines`** — named **shared** pipelines (the contract's one pipeline, run once before fan‑out). Each maps to an ordered **list of stage names**. Processing **only** — no `deliver` stage (delivery is the leg's endpoint) and no encoding stage (encoding is a codec).
+- **`Codecs`** — named codec bindings, each pairing a **registered codec `Type`** with its **parameters**. **Message codecs** (`IMessageCodec`, one message → bytes) and **batch codecs** (`IBatchCodec`, N → 1 artifact) are referenced from a `Formats` entry (`Codec`/`BatchCodec`) — or, as a legacy escape hatch, directly by an output's `Encoding`/`Batching.Codec`. Naming them here (rather than hardcoding) lets one codec type be reused with different params (e.g., two Avro configs with different schemas) and swapped in one place.
+- **`Formats`** — named **per‑output‑leg encoding bundles**: a message `Codec` plus an optional `BatchCodec` (both names of `Codecs` entries). The developer's "how a leg renders bytes" unit — an FSE output inherits it from the template or names one to override a single leg. (The name is distinct from an *input comm point's* `Format` tag, which selects the parser/ack; this `Formats` catalog governs *output* rendering.)
+- **`Templates`** — named **contract blueprints** an FSE picks by name: a shared **`Pipeline`** (optional; omit = no stages), a default per‑leg **`Format`**, and the filter‑reply default **`ReplyOnFilter`** (reject vs silent‑drop for pipeline‑filtered messages — a developer decision tied to the filter, overridable by the FSE). Message‑level QoS (ack mode, retry, delivery guarantee, channel, batch triggers) stays FSE‑owned on the contract.
 ```jsonc
-// catalogData.json  (developers own this; FSEs only reference names)
+// catalogData.json  (developers own this; FSEs only reference Template names)
 {
   "Pipelines": {                                     // SHARED pipelines: processing only, no deliver/encode
     "adt-standard":   [ "validate", "hl7-filter", "pid-enricher" ],
     "query-validate": [ "validate", "hl7-filter" ]
   },
-  "Codecs": {                                        // name -> { registered Type + params }; referenced by Encoding / Batching.Codec
-    // message codecs (IMessageCodec): one message -> wire bytes   (referenced by Output.Encoding)
+  "Codecs": {                                        // name -> { registered Type + params }; referenced from a Formats entry
+    // message codecs (IMessageCodec): one message -> wire bytes   (referenced by Formats[].Codec)
     "hl7v2":     { "Type": "Hl7v2Codec", "Charset": "UTF-8" },
     "fhir-json": { "Type": "FhirJsonCodec", "FhirVersion": "R4" },
     "raw":       { "Type": "RawCodec" },
-    // batch codecs (IBatchCodec): N messages -> 1 artifact         (referenced by Batching.Codec)
+    // batch codecs (IBatchCodec): N messages -> 1 artifact         (referenced by Formats[].BatchCodec)
     "avro-zip":  { "Type": "AvroZipBatchCodec", "SchemaPath": "PayloadSchema.avsc", "Compression": "deflate" },
     "ndjson":    { "Type": "NdJsonBatchCodec" }
+  },
+  "Formats": {                                       // per-leg encoding bundle: { Codec (+ optional BatchCodec) }; referenced by Template.Format / Output.Format
+    "hl7-standard":    { "Codec": "hl7v2", "BatchCodec": "avro-zip" },
+    "fhir":            { "Codec": "fhir-json" },
+    "raw-passthrough": { "Codec": "raw" }
+  },
+  "Templates": {                                     // contract blueprint an FSE picks by name: shared Pipeline + default Format
+    "adt":       { "Pipeline": "adt-standard",   "Format": "hl7-standard" },
+    "lab-query": { "Pipeline": "query-validate", "Format": "hl7-standard" }
   }
 }
 ```
 
-**Validation (fail‑fast):** referential integrity (every input/output resolves to a comm point of the right mode), unique ids, ≥1 input per contract, ≥1 output per contract, ≥1 required output when acknowledgement is enabled, **all inputs of a contract share one `Format`** (INV‑2), **the contract's `Pipeline` resolves to a catalog `Pipelines` entry**, catalog stage names resolve to registered stages, **every output's `Encoding` resolves to a catalog `Codecs` entry of message‑codec type and `Batching.Codec` to one of batch‑codec type** (and each entry's `Type` resolves to a registered codec impl), **each output's `Encoding` is compatible with the contract's `Format`** (same family, or a registered known mapping like HL7→Avro; cross‑family conversion is rejected — INV‑4), per‑input and per‑output capacity/DOP > 0, **at most one enabled reply mode per contract (ack XOR response) and `Response.FromOutputId` resolves to one of the contract's outputs**, **every `FromInputIds` entry resolves to one of the contract's `Inputs`**, **every input has at least one applicable required output** (an input with zero applicable required legs and ack enabled is a validation error). One serializer (`System.Text.Json`).
+**Validation (fail‑fast):** referential integrity (every input/output resolves to a comm point of the right mode), unique ids, ≥1 input per contract, ≥1 output per contract, ≥1 required output when acknowledgement is enabled, **all inputs of a contract share one `Format`** (INV‑2), **the contract's `Template` (when present) resolves to a catalog `Templates` entry, catalog `Templates` reference valid `Pipelines`/`Formats`, and catalog `Formats` reference valid `Codecs`**, **the resolved `Pipeline` resolves to a catalog `Pipelines` entry**, catalog stage names resolve to registered stages, **each output's optional `Format` resolves to a catalog `Formats` entry, and every output's resolved `Encoding` resolves to a catalog `Codecs` entry of message‑codec type and its resolved batch codec to one of batch‑codec type** (and each entry's `Type` resolves to a registered codec impl), **each output's `Encoding` is compatible with the contract's `Format`** (same family, or a registered known mapping like HL7→Avro; cross‑family conversion is rejected — INV‑4), per‑input and per‑output capacity/DOP > 0, **at most one enabled reply mode per contract (ack XOR response) and `Response.FromOutputId` resolves to one of the contract's outputs**, **every `FromInputIds` entry resolves to one of the contract's `Inputs`**, **every input has at least one applicable required output** (an input with zero applicable required legs and ack enabled is a validation error). One serializer (`System.Text.Json`).
 
-**Config safety (stringly‑typed keys).** All `Type`/name references (stages, codecs, endpoints, formatters, `parallel`) are validated against the **Component Registry** at startup (fail‑fast); a generated **manifest of valid names** plus a **JSON schema** give editor‑time checking; code registers types via `nameof`/typed constants so renames are caught by the compiler.
+**Config safety (stringly‑typed keys).** All `Type`/name references (stages, codecs, endpoints, formatters) are validated against the **Component Registry** at startup (fail‑fast); a generated **manifest of valid names** plus a **JSON schema** give editor‑time checking; code registers types via `nameof`/typed constants so renames are caught by the compiler.
 
-**Parallel stages:** a **catalog** pipeline entry may be a `parallel` composite with nested `Branches` (see §3.6a); the `PipelineBuilder` builds it recursively and validates branch stage names the same way. (Composition lives in the catalog, not in the contract.)
+**Parallel stages (deferred):** concurrent, in‑pipeline `parallel` composites are a **future** feature (see §3.6a). Today a catalog pipeline is a flat, ordered list of stage names; when `ParallelStage` lands, a pipeline entry will be allowed to nest a `parallel` composite with `Branches`, built recursively by the `PipelineBuilder` and validated the same way. (Composition lives in the catalog, not in the contract.)
 
-**Backward‑compatible shorthand:** a flat `InputIds: [1, 2]` array (without per‑input `Channel`) compiles to `Inputs` entries with default `Channel` settings; a single `OutputId` compiles to a one‑element `Outputs` list (one required leg); an omitted/null shared `Pipeline` means **no processing stages** — the message is delivered as received (the leg's endpoint still encodes + sends).
+**Backward‑compatible shorthand:** a flat `InputIds: [1, 2]` array (without per‑input `Channel`) compiles to `Inputs` entries with default `Channel` settings; a single `OutputId` compiles to a one‑element `Outputs` list (one required leg); an omitted/null shared `Pipeline` means **no processing stages** — the message is delivered as received (the leg's endpoint still encodes + sends). A contract may omit `Template` entirely and wire developer concerns inline (a `Pipeline` name + per‑output `Encoding`) — **manual mode**. Before compilation the **`ContractTemplateResolver`** flattens any `Template`/`Format` references into concrete per‑leg `Pipeline`/`Encoding`/batch‑codec values, so the compiler and validators always see fully‑resolved contracts.
 
-**Example `contractData.json` (FSE‑owned) — one shared pipeline by name; encoding + batching per output:**
+**Example `contractData.json` (FSE‑owned) — pick a `Template` by name; the FSE owns only message‑level/operational settings:**
 ```jsonc
 {
   "Contracts": [
     {
       "Name": "adt-fanout",
+      "Template": "adt",                                          // developer blueprint: pipeline "adt-standard" + default format "hl7-standard"
       "Inputs": [                                                   // one queue per input (symmetric with Outputs)
         {
           "InputId": 1,                                             // TCP source — high throughput
@@ -617,28 +633,26 @@ So a single contract can have one leg **durable + batched + required** (e.g., CI
           "Channel": { "Capacity": 512, "DegreeOfParallelism": 1, "Ordered": true, "OverflowPolicy": "Reject" }
         }
       ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "AckShape": "Single" },  // Single | Batch
-      "Pipeline": "adt-standard",                                 // SHARED, runs once (the only pipeline)
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "AckShape": "Single" },  // FSE-owned reply mode (Single | Batch)
 
       "Outputs": [
         {
           "OutputId": 20, "Required": true,                       // TCP to EHR — only Input 1 routes here
           "FromInputIds": [ 1 ],                                   // per-leg input filter: only Input 1
-          "Encoding": "hl7v2",                                    // endpoint codec: serialize to HL7 v2 wire
-          "DeliveryGuarantee": "AtMostOnce",
+          "DeliveryGuarantee": "AtMostOnce",                       // encoding inherited from Template -> Format "hl7-standard" (hl7v2)
           "Channel": { "Capacity": 1024, "DegreeOfParallelism": 1, "Ordered": true, "OverflowPolicy": "Wait" },
           "Retry": { "MaxAttempts": 3, "BackoffSeconds": 2, "Backoff": "Exponential" }
         },
         {
           "OutputId": 2, "Required": true,                        // CIM/S3 (durable, batched) — both inputs route here (omitted = all)
           "DeliveryGuarantee": "AtLeastOnce",
-          "Batching": { "Enabled": true, "Codec": "avro-zip", "MaxCount": 500, "MaxLatencyMs": 10000 },  // batch codec (extendible)
+          "Batching": { "Enabled": true, "MaxCount": 500, "MaxLatencyMs": 10000 },  // FSE owns triggers; batch codec "avro-zip" inherited from the Format
           "Channel": { "Capacity": 8192, "DegreeOfParallelism": 4, "Ordered": false, "OverflowPolicy": "SpillToDisk" }
         },
         {
           "OutputId": 14, "Required": false,                      // File archive (best-effort) — only Input 2
           "FromInputIds": [ 2 ],                                   // per-leg input filter: only Input 2
-          "Encoding": "raw",                                      // write canonical bytes as-is
+          "Format": "raw-passthrough",                            // per-leg OVERRIDE: a different catalog Format (raw codec)
           "DeliveryGuarantee": "AtMostOnce",
           "Channel": { "Capacity": 512, "OverflowPolicy": "Reject" }
         }
@@ -646,25 +660,24 @@ So a single contract can have one leg **durable + batched + required** (e.g., CI
     },
     {
       "Name": "lab-query",                                        // REQUEST-REPLY: source wants the peer's response, not an ack
+      "Template": "lab-query",                                    // pipeline "query-validate" + default format "hl7-standard"
       "Inputs": [
         { "InputId": 5, "Channel": { "Capacity": 256, "DegreeOfParallelism": 4, "Ordered": false, "OverflowPolicy": "Wait" } }
       ],
       "Acknowledgement": { "IsEnabled": false },                  // ack off; response is used instead (mutually exclusive)
       "Response": { "IsEnabled": true, "FromOutputId": 30, "TimeoutMs": 30000 },
-      "Pipeline": "query-validate",                               // SHARED, runs once
 
       "Outputs": [
         {
           "OutputId": 30, "Required": true,                       // query peer: send request, receive RSP -> returned to source
-          "Encoding": "hl7v2",
-          "DeliveryGuarantee": "AtLeastOnce",                     // FORWARD is retried / guaranteed; the RETURN reply is ephemeral
+          "DeliveryGuarantee": "AtLeastOnce",                     // encoding inherited from Template; FORWARD retried/guaranteed, the RETURN reply is ephemeral
           "Channel": { "Capacity": 256, "DegreeOfParallelism": 4, "Ordered": false, "OverflowPolicy": "Wait" },
           "Retry": { "MaxAttempts": 3, "BackoffSeconds": 2, "Backoff": "Exponential" }
         },
         {
           "OutputId": 2, "Required": false,                       // optional S3 archive of the query (fire-and-forget)
           "DeliveryGuarantee": "AtLeastOnce",
-          "Batching": { "Enabled": true, "Codec": "avro-zip", "MaxCount": 500, "MaxLatencyMs": 10000 },
+          "Batching": { "Enabled": true, "MaxCount": 500, "MaxLatencyMs": 10000 },  // batch codec inherited from the Format
           "Channel": { "Capacity": 8192, "DegreeOfParallelism": 4, "Ordered": false, "OverflowPolicy": "SpillToDisk" }
         }
       ]
@@ -681,7 +694,8 @@ Add a type, register it, reference it in config — never edit the engine.
 - **New protocol** → implement `IInboundEndpoint`/`IOutboundEndpoint` + factory; reference by `type`. ContractRuntime/legs untouched.
 - **New processing step** → implement `IMessageStage`, register by name; add it to the shared `Pipeline`.
 - **New output on a contract** → add an entry to `Outputs` (config only) — a new leg is compiled.
-- **New output wire format / encoding** → implement `IMessageCodec` (per message) or `IBatchCodec` (per batch), register the type, add a named entry to the catalog's `Codecs` (type + params), and reference it on an output via `Encoding` / `Batching.Codec`. No engine change.
+- **New output wire format / encoding** → implement `IMessageCodec` (per message) or `IBatchCodec` (per batch), register the type, add a named entry to the catalog's `Codecs` (type + params), bundle it into a `Formats` entry, and expose it through a `Templates` entry (or reference the `Format` directly on an output). FSE contracts pick it by **template name**. No engine change.
+- **New reusable contract blueprint** → add a `Formats` and/or `Templates` entry to the catalog (config only) that composes existing pipelines + codecs; FSEs reference it by name. No engine change.
 - **New ack timing / retry / delivery‑guarantee / routing policy** → implement the corresponding strategy/channel/resolver and register by name.
 - **New ack format/shape** → implement `IAckFormatter` and register it under its `(Format, Shape)` key (e.g. `(hl7v2, Batch)`, `(fhir, Single)`); it's selected automatically by the source comm point's `Format` + the contract's `AckShape`. No engine change.
 - **New message type (HL7 / FHIR / XML / …)** → set `Format` on the input comm point and register that type's **parser + stages + `IAckFormatter`(s)**; the engine stays payload‑neutral (INV‑1/INV‑4).
@@ -783,8 +797,8 @@ The build also copies `config/` + the `Installation Script/` PS1s + `HA/` into `
 | **Request‑Reply / Return Address / Correlation Identifier (EIP)** | responder leg + `ResponseReplyStrategy` + `IAckToken` | return the output peer's response to the source instead of an ack |
 | Abstract Factory | endpoint/stage factories | OCP for new types |
 | Strategy | ack timing (Normal/Enhanced/Response) + ack format/shape (`IAckFormatter`: single/batch), delivery guarantee, retry, routing | swap policy without branching |
-| Chain of Responsibility / Middleware | stage invocation | short‑circuit filters, ordered processing |
-| **Composite / Scatter‑Gather (EIP)** | `ParallelStage` (branches within a stage) | run independent branches concurrently, join deterministically |
+| Pipes and Filters | shared stage pipeline (each stage returns `StageResult`) | ordered processing, short‑circuit filters |
+| **Composite / Scatter‑Gather (EIP)** *(deferred, §3.6a)* | future `ParallelStage` (branches within a stage) | run independent branches concurrently, join deterministically |
 | Mediator | Dispatcher | endpoints don't know contracts |
 | Producer–Consumer | ingress + per‑leg queues | decoupling, backpressure, isolation |
 | Decorator | Retry/Batching/Telemetry outbound | cross‑cutting delivery concerns |
@@ -833,7 +847,7 @@ class Dispatcher {
   <<coordinator>>
   +DispatchAsync(ctx) Task
 }
-class IRouteResolver {
+class IContractResolver {
   <<Router — decision>>
   +Resolve(ctx) IContractRuntime
 }
@@ -850,12 +864,12 @@ class ContractRuntime {
   <<shared reception + fan-out>>
   -Dictionary~int,IMessageChannel~ _ingressQueues
   -IMessagePipeline _sharedPipeline
-  -DeliveryLeg[] _legs
+  -Output[] _legs
   +EnqueueAsync(ctx)
   +RunAsync(ct)
   +DrainAsync(timeout)
 }
-class DeliveryLeg {
+class Output {
   <<one output>>
   +int OutputId
   +bool Required
@@ -903,14 +917,11 @@ IMessageChannel <|.. DurableChannel
 
 class IMessagePipeline { <<interface>> +ExecuteAsync(ctx) PipelineResult }
 class IMessageStage {
-  <<interface — middleware>>
-  +InvokeAsync(ctx, next)
+  <<interface — pipeline stage>>
+  +ProcessAsync(ctx) StageResult
 }
 class SharedStages { <<Validate / Filter / Dedup / Enrich>> }
-class ParallelStage { <<composite — scatter-gather>> }
 IMessageStage <|.. SharedStages
-IMessageStage <|.. ParallelStage
-ParallelStage --> IMessageStage : branches (concurrent)
 
 class IOutboundEndpoint { <<interface — pooled, may send-receive>> +SendAsync(ctx) DeliveryResult }
 class OutboundAdapters { <<Tcp / Http / File / CimS3>> }
@@ -944,19 +955,19 @@ InboundAdapters ..> ReplyContext : creates (at reception)
 MessageContext --> IAckToken : carries
 MessageContext --> IReplyContext : references
 InboundAdapters --> Dispatcher : dispatch
-Dispatcher --> IRouteResolver : which contract?
-IRouteResolver --> ContractRegistry : queries
+Dispatcher --> IContractResolver : which contract?
+IContractResolver --> ContractRegistry : queries
 ContractRegistry o-- IContractRuntime
 IContractRuntime <|.. ContractRuntime
 Dispatcher --> IContractRuntime : enqueue ingress
 ContractRuntime --> "1..*" IMessageChannel : per-input ingress (owns N)
 ContractRuntime --> IMessagePipeline : shared (owns 1)
-ContractRuntime o-- "1..*" DeliveryLeg : fans out to
+ContractRuntime o-- "1..*" Output : fans out to
 ContractRuntime --> IReplyContext : arms (required count)
-DeliveryLeg --> IMessageChannel : leg queue (owns 1)
-DeliveryLeg --> IOutboundEndpoint : sends via
-DeliveryLeg --> IForwardStore : on failure
-DeliveryLeg --> IReplyContext : ReportLeg(DeliveryResult)
+Output --> IMessageChannel : leg queue (owns 1)
+Output --> IOutboundEndpoint : sends via
+Output --> IForwardStore : on failure
+Output --> IReplyContext : ReportLeg(DeliveryResult)
 ReplyContext --> IAckStrategy : triggers
 IAckStrategy --> IAckFormatter : formats generated ack
 IAckFormatter --> IAckToken : writes over transport
@@ -964,7 +975,7 @@ IAckStrategy --> IAckToken : writes pass-through / response
 IOutboundEndpoint ..> DeliveryResult : returns
 OutboundAdapters --> IBatchCodec : batch sinks use
 ForwardWorker --> IForwardStore : reads
-ForwardWorker --> DeliveryLeg : ReplayAsync (same leg)
+ForwardWorker --> Output : ReplayAsync (same leg)
 ContractCompiler --> ContractRuntime : builds
 ContractCompiler --> ContractRegistry : registers
 ```
@@ -989,7 +1000,7 @@ public sealed class MessageContext
     public required IAckToken Ack { get; init; }
     public required IReplyContext Reply { get; init; }           // IReplyContext seam (Abstractions); concrete ReplyContext in Core (A2/A3). Created at reception (INV-6); shared across leg clones
     public int LegOutputId { get; private set; }
-    public bool IsReplay { get; private set; }                   // set on store-and-forward replay -> suppresses re-reply (see DeliveryLeg)
+    public bool IsReplay { get; private set; }                   // set on store-and-forward replay -> suppresses re-reply (see Output)
 
     public void ReplacePayload(ReadOnlyMemory<byte> p) => Payload = p;
     public void MarkReplay() => IsReplay = true;
@@ -1011,7 +1022,7 @@ public sealed class ContractRuntime : IContractRuntime
 {
     private readonly IReadOnlyDictionary<int, IMessageChannel> _ingressQueues; // one per input comm point
     private readonly IMessagePipeline _shared;
-    private readonly IReadOnlyList<DeliveryLeg> _legs;
+    private readonly IReadOnlyList<Output> _legs;
     private readonly int _requiredCount;
 
     // Routes to the per-input queue by SourceEndpointId (per-input backpressure).
@@ -1048,9 +1059,9 @@ public sealed class ContractRuntime : IContractRuntime
 }
 ```
 
-**DeliveryLeg — consumer + delivery + report (+ leg‑targeted replay)**
+**Output — consumer + delivery + report (+ leg‑targeted replay)**
 ```csharp
-public sealed class DeliveryLeg
+public sealed class Output
 {
     public int OutputId { get; }
     public bool Required { get; }
@@ -1104,8 +1115,8 @@ public readonly record struct DeliveryResult(
 public interface IReplyContext
 {
     void OnFannedOut(int requiredTotal);          // arm per-message: count of APPLICABLE required legs for THIS message
-    void ReportFiltered();                        // shared-pipeline short-circuit -> reply "filtered"
-    void ReportLeg(bool required, in DeliveryResult result);
+    void ReportFiltered(string? reason = null);   // shared-pipeline short-circuit -> reply "filtered"
+    void ReportLeg(int outputId, bool required, in DeliveryResult result);
 }
 
 // ONE per RECEIVED message (created at reception, INV-6). The single reply authority: one-shot + timeout.
@@ -1115,37 +1126,40 @@ public sealed class ReplyContext : IReplyContext
     private readonly MessageContext _ctx;      // wired right after construction
     private readonly IAckStrategy _strategy;   // Normal | Enhanced | Response (chosen per contract/config)
     private readonly ITimer _timeout;          // fires a negative/error reply if required legs never finish
+    private readonly List<(int OutputId, DeliveryResult Result)> _legs = [];   // collected required-leg results
     private int _requiredTotal, _requiredDone, _replied;
 
     public void OnFannedOut(int requiredTotal)
     {
         _requiredTotal = requiredTotal;
         if (_strategy.RepliesOnReceipt)                       // Normal ack: "received" now (on durable accept)
-            FireOnce(new DeliveryResult(DeliveryOutcome.Accepted));
+            FireOnce(ReplyOutcome.Received());
     }
 
-    public void ReportFiltered() => FireOnce(new DeliveryResult(DeliveryOutcome.Filtered));
+    public void ReportFiltered(string? reason = null) => FireOnce(ReplyOutcome.Filtered(reason));
 
-    // Enhanced ack / Response: reflects real delivery; ALL required legs must succeed.
-    public void ReportLeg(bool required, in DeliveryResult result)
+    // Enhanced ack / Response: reflects real delivery; ALL required legs must succeed. Collect each
+    // required leg's result so the strategy can COMBINE them (Single relays one by OutputId; Batch wraps N).
+    public void ReportLeg(int outputId, bool required, in DeliveryResult result)
     {
         if (!required) return;                               // optional legs never gate the reply
+        lock (_legs) _legs.Add((outputId, result));          // record before incrementing so the completing leg sees all
         if (result.Outcome == DeliveryOutcome.Delivered)
         {
             if (Interlocked.Increment(ref _requiredDone) >= _requiredTotal)
-                FireOnce(result);                            // all required ok -> positive ack / response payload
+                FireOnce(ReplyOutcome.Delivered(OrderedByOutputId()));   // all required ok
         }
-        else FireOnce(new DeliveryResult(DeliveryOutcome.Failed, result.Error));  // one required failure -> NACK
+        else FireOnce(ReplyOutcome.Failed(result.Error, OrderedByOutputId()));  // one required failure -> NACK
     }
 
-    private void OnTimeout() => FireOnce(new DeliveryResult(DeliveryOutcome.Failed, "reply timeout"));
+    private void OnTimeout() => FireOnce(ReplyOutcome.Failed("reply timeout", OrderedByOutputId()));
 
-    private void FireOnce(in DeliveryResult r)               // exactly one reply per received message
+    private void FireOnce(in ReplyOutcome outcome)          // exactly one reply per received message
     {
         if (Interlocked.Exchange(ref _replied, 1) != 0) return;
         _timeout.Dispose();
-        // Strategy: Normal/Enhanced -> IAckFormatter renders bytes -> token; Response/pass-through -> token writes bytes as-is.
-        _ = _strategy.WriteReplyAsync(_ctx, r);
+        // Single: relay the first required leg's captured ack, or generate one ACK/NACK via IAckFormatter.
+        _ = _strategy.WriteReplyAsync(_ctx, outcome);
     }
 }
 ```
@@ -1172,6 +1186,7 @@ public sealed class OutputOptions
     public required int OutputId { get; init; }
     public bool Required { get; init; } = true;
     public IReadOnlyList<int>? FromInputIds { get; init; }             // per-leg input filter: null/empty = all inputs (default)
+    public IReadOnlyDictionary<string,string>? RouteWhen { get; init; } // per-leg content filter: facts matched against Headers (AND, exact); null/empty = all messages (default)
     public DeliveryGuarantee DeliveryGuarantee { get; init; } = DeliveryGuarantee.AtMostOnce;
     public ChannelOptions Channel { get; init; } = new();
     public string Encoding { get; init; } = "hl7v2";                  // names a catalog Codecs entry (IMessageCodec) -> per-message encoder
@@ -1191,6 +1206,7 @@ public sealed class AckOptions
     public bool IsEnabled { get; init; } = true;
     public bool IsEnhanced { get; init; }   // false = normal/original "received" ACK; true = reflects delivery outcome
     public AckShape Shape { get; init; } = AckShape.Single;   // Single (one ACK/MSA) | Batch (BHS..BTS, one MSA per message)
+    public int TimeoutMs { get; init; } = 30_000;            // ENHANCED only: max wait for delivery before NACK; <=0 = no timeout (Normal fires on receipt)
 }
 public sealed class ResponseOptions            // request-reply: return the peer's response instead of an ack
 {
@@ -1208,11 +1224,11 @@ This is a **greenfield build**, not an in‑place refactor (see the greenfield n
 
 | Phase | Objective | Components / layers | Depends on | Validation | Deliverable |
 |---|---|---|---|---|---|
-| **1. Abstractions & envelope** | Freeze the contract spine: `MessageContext`, `DeliveryResult`, `PipelineResult`, enums, and **all cross‑layer interfaces** (`IAckToken`, `IReplyContext`, `IMessageDispatcher`, `IRouteResolver`, `IContractRuntime`, `IMessageChannel`, `IMessagePipeline`/`IMessageStage`, `IInbound/OutboundEndpoint`, `IMessageCodec`/`IBatchCodec`, `IAckStrategy`, `IAckFormatter`, `IForwardStore`). TestKit doubles. | `Abstractions` (+ `TestKit`) | — | envelope unit tests (`CloneForLeg` shares refs; headers read‑only after fan‑out) | reference‑free `Abstractions` every layer builds on |
-| **2. Configuration** | Pure option + Catalog DTOs and `IValidateOptions` structural validators (INV‑2, ack XOR response, capacity/DOP > 0, referential integrity, `FromInputIds`, encoding⇄format) + JSON schema/manifest. | `Configuration` | 1 | validators reject each INV violation; round‑trips the example `contractData.json`/`catalogData.json` | one config truth shared by Agent + Web |
+`IAckToken`, `IReplyContext`, `IMessageDispatcher`, `IContractResolver`, `IContractRuntime`, `IMessageChannel`,
+| **2. Configuration** | Pure option + Catalog DTOs (`Pipelines`/`Codecs`/`Formats`/`Templates`), the **`ContractTemplateResolver`** (flatten `Template`/`Format` → concrete per‑leg encoding), and `IValidateOptions` structural validators (INV‑2, ack XOR response, capacity/DOP > 0, referential integrity, `FromInputIds`, template/format resolution, encoding⇄format) + JSON schema/manifest. | `Configuration` | 1 | validators reject each INV violation; resolver flattens templates; round‑trips the example `contractData.json`/`catalogData.json` | one config truth shared by Agent + Web |
 | **3. Core spine — single leg (in‑memory)** | `Dispatcher`/`SourceBasedRouter`/`ContractRegistry`, `ContractRuntime` with **per‑input ingress queues** + **one** leg, `BoundedInMemoryChannel`, shared pipeline (parse once) + leg delivery via outbound endpoint (codec), concrete `ReplyContext`, `ComponentRegistry`, minimal `ContractCompiler`. | `Core` | 1–2 | end‑to‑end TestKit slice: fake inbound → dispatch → pipeline → single leg → fake outbound → reply; graceful drain | the vertical slice all breadth hangs off |
 | **4. Multi‑output fan‑out** | `Outputs` list; per‑leg queues; concurrent fan‑out (`Task.WhenAll`); `FromInputIds` filter; required/optional legs; Normal/Enhanced ack; one‑shot + timeout; per‑message required count; multi‑leg `ContractCompiler` + fan‑out validation. | `Core`, `Configuration` | 3 | fan‑out + reply matrix (normal/enhanced; required/optional; partial‑required failure → NACK; filtered; replay = no double‑reply) | many‑in → many‑out |
-| **5. Formats & endpoints & codecs** | `Formats.Hl7` (parser, `Hl7v2Codec`, `Hl7SingleAckFormatter`, `Hl7FilterStage`, MSH‑10→`IdempotencyKey`, `DeduplicateStage`); `Endpoints.Tcp/Http/File` (in+out, pooled, real `IAckToken`s); `IMessageCodec`/`IBatchCodec` via catalog `Codecs`; `ParallelStage`. | `Formats.*`, `Endpoints.*` (plug‑ins) | 3–4 | golden‑message HL7 tests; per‑transport reply tests; registration via Component Registry | real transports/formats, zero engine change (OCP) |
+| **5. Formats & endpoints & codecs** | `Formats.Hl7` (parser, `Hl7v2Codec`, `Hl7SingleAckFormatter`, `Hl7FilterStage`, MSH‑10→`IdempotencyKey`, `DeduplicateStage`); `Endpoints.Tcp/Http/File` (in+out, pooled, real `IAckToken`s); `IMessageCodec`/`IBatchCodec` via catalog `Codecs`. | `Formats.*`, `Endpoints.*` (plug‑ins) | 3–4 | golden‑message HL7 tests; per‑transport reply tests; registration via Component Registry | real transports/formats, zero engine change (OCP) |
 | **6. Durability, store‑and‑forward, security** | `DurableChannel` (journal, `AtLeastOnce`); `IForwardStore` impl (`Pending`\|`Parked`, by `OutputId`); `ForwardWorker` (backoff + cap + park); leg‑targeted `ReplayAsync`; crash‑safe outbox (deliver→confirm→resolve); DPAPI `DataDecipher`; `CimS3` + `AvroZipBatchCodec`. | `Persistence`, `Security`, `Endpoints.CimS3` | 3–5 | kill‑during‑processing per‑leg replay; only `AtLeastOnce` persists; `Parked` after cap; replay never re‑routes/re‑acks | durable + acked coexist behind existing seams |
 | **7. Hosts, telemetry, request‑reply, Web** | `Service` + `ForwardService` hosts (two owner modes, lease safety‑net) as composition roots; `Telemetry` (OTel meters/gauges/counters); Request‑reply (`ResponseReplyStrategy` + send‑receive endpoints + timeout, §6.1); WebAgent integration (config + Persistence read‑model, `Parked` Requeue/Discard); batch ack. | `hosts/*`, `Telemetry`, `WebAgent` | 1–6 | installer‑compliant publish mapping; full regression + coverage gate | shippable field install |
 

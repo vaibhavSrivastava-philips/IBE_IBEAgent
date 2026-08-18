@@ -1,8 +1,7 @@
 namespace Philips.IBE.IBEAgent.Abstractions;
 
-public interface IInboundEndpoint          // hosted lifecycle; starts after runtimes, stops first.
+// hosted lifecycle; starts after runtimes, stops first.
+public interface IInboundEndpoint : IEndpointLifecycle
 {
-    Task StartAsync(CancellationToken cancellationToken);
-    Task StopAsync(CancellationToken cancellationToken);
 }
 

@@ -1,13 +1,50 @@
 // MAIN IBE Agent host (Windows service "Philips.IBE.Agent").
 // Composition root: build config -> compile IContractRuntimes + legs -> register endpoints -> run.
-// TODO: wire the engine (Dispatcher, Router, ContractRegistry, ContractRuntimes, ForwardWorker).
-// See docs/architecture/target-architecture-v3.md §10.
+// See docs/architecture/Refactor_ArchitectureDoc_v4.md §3.10/§14.
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using NLog.Extensions.Logging;
+using Philips.IBE.IBEAgent.Service;
 
-var builder = Host.CreateApplicationBuilder(args);
+// Content root = the exe's directory so config resolves consistently in dev and as a Windows
+// service (whose working directory is not the install folder). The shared /config files are
+// copied next to the exe by the csproj.
+var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+{
+    Args = args,
+    ContentRootPath = AppContext.BaseDirectory,
+});
+
+// catalogData.json (developer-owned: pipelines/codecs) and contractData.json (FSE-owned:
+// communication endpoints + contract topology) layer on top of appsettings.json. Environment-specific
+// appsettings can opt into deep diagnostics in dev without making production payload/body logging noisy.
+builder.Configuration
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("catalogData.json", optional: true, reloadOnChange: true)
+    .AddJsonFile("contractData.json", optional: true, reloadOnChange: true);
+
+// Route all Microsoft.Extensions.Logging output through NLog (targets/rules in nlog.config next to the exe).
+// RemoveLoggerFactoryFilter=false so NLog HONORS the appsettings Logging:LogLevel filters — the Philips.IBE
+// category level is then the single gate (and ILogger.IsEnabled reflects it, so Trace body decodes are
+// skipped when Trace is off). Without it, NLog ignores those filters and only nlog.config rules apply.
+builder.Logging.ClearProviders();
+builder.Logging.AddNLog(new NLogProviderOptions { RemoveLoggerFactoryFilter = false });
 
 builder.Services.AddWindowsService(options => options.ServiceName = "Philips.IBE.Agent");
 
-// TODO: builder.Services.AddIbeAgentEngine(builder.Configuration);
+builder.Services.AddIbeAgentEngine(builder.Configuration);
 
 var host = builder.Build();
-host.Run();
+
+// Fatal startup/runtime failures (bad config, port in use, a hosted service throwing on start) crash
+// the process by design (fail-fast). Log them Critical first so the reason survives in ops before exit.
+var logger = host.Services.GetRequiredService<ILogger<Program>>();
+try
+{
+    host.Run();
+}
+catch (Exception ex)
+{
+    logger.LogCritical(ex, "IBE Agent host terminated unexpectedly.");
+    throw;
+}

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Standalone perf load-gen / sink / reporter. Deliberately references NO engine code: it is a
+       black-box driver that must publish independently (self-contained) for the portable bundle.
+       Analyzers are relaxed vs. the engine (this is a test utility, not shipped product code). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>IbePerf</AssemblyName>
+    <RootNamespace>IbePerf</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>CA1852;CA1812;CA1305;CA1031;IDE0130;CA2007;CA1848;CA2022</NoWarn>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

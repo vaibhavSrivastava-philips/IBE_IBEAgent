@@ -1,4 +1,4 @@
-﻿// C#
+// C#
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -36,20 +36,25 @@ namespace Philips.IBE.Service.WebAgent.Server.UnitTest.Controllers
         }
 
         [Fact]
-        public void Get_ReturnsNotFound_WhenErrorQueueIsNullOrEmpty()
+        public void Get_ReturnsServerError_WhenErrorQueueIsNull()
         {
             _dbUtilsMock.Setup(d => d.FetchErrorQueue()).Returns((List<ErrorQueue>)null!);
 
             var resultNull = _controller.Get();
-            var notFoundNull = Assert.IsType<NotFoundObjectResult>(resultNull.Result);
-            Assert.Equal("Error queue not found.", notFoundNull.Value);
+            var errorResult = Assert.IsType<ObjectResult>(resultNull.Result);
+            Assert.Equal(500, errorResult.StatusCode);
+            Assert.Equal("Failed to fetch error queue.", errorResult.Value);
+        }
 
+        [Fact]
+        public void Get_ReturnsOk_WhenErrorQueueIsEmpty()
+        {
             _dbUtilsMock.Setup(d => d.FetchErrorQueue()).Returns(new List<ErrorQueue>());
 
             var resultEmpty = _controller.Get();
-            var notFoundEmpty = Assert.IsType<NotFoundObjectResult>(resultEmpty.Result);
-            Assert.Equal("Error queue not found.", notFoundEmpty.Value);
+            var okResult = Assert.IsType<OkObjectResult>(resultEmpty.Result);
         }
+
 
         [Fact]
         public void UpdateStatus_ReturnsBadRequest_WhenIdIsInvalid()

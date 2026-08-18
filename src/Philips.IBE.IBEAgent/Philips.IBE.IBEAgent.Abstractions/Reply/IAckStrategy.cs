@@ -4,5 +4,5 @@ namespace Philips.IBE.IBEAgent.Abstractions;
 public interface IAckStrategy
 {
     bool RepliesOnReceipt { get; }         // true => Normal ack fires "received" at OnFannedOut
-    Task WriteReplyAsync(MessageContext context, DeliveryResult result);
+    Task WriteReplyAsync(MessageContext context, ReplyOutcome outcome);
 }
