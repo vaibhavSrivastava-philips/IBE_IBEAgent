@@ -151,9 +151,24 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                     finally { _admission.Release(); }
                 }
             }
-            catch (OperationCanceledException) { }               // expected on shutdown
-            catch (IOException) { }                              // peer reset; connection ends
-            catch (AuthenticationException) { }                  // TLS handshake failed; drop connection
+            catch (OperationCanceledException)
+            {
+                _logger.LogDebug(
+                    "TCP inbound connection handling canceled on source {SourceEndpointId}.",
+                    _options.SourceEndpointId);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogDebug(ex,
+                    "TCP inbound connection on source {SourceEndpointId} was closed/reset by peer.",
+                    _options.SourceEndpointId);
+            }
+            catch (AuthenticationException ex)
+            {
+                _logger.LogWarning(ex,
+                    "TLS handshake failed on TCP inbound source {SourceEndpointId}.",
+                    _options.SourceEndpointId);
+            }
             catch (Exception ex)
             {
                 // A routing/dispatch failure (e.g. no contract for the source) would otherwise become an

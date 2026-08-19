@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Security;
 using System.Net.WebSockets;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Security;
 namespace Philips.IBE.IBEAgent.Endpoints.WebSocket;
@@ -10,6 +12,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     private readonly WebSocketInboundOptions _options;
     private readonly IMessageDispatcher _dispatcher;
     private readonly IReplyContextFactory _replyFactory;
+    private readonly ILogger<WebSocketInboundEndpoint> _logger;
     private readonly SemaphoreSlim _admission;
     private readonly HttpListener _listener = new();
     private readonly RemoteCertificateValidationCallback? _clientCertValidator;
@@ -18,9 +21,17 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
-    public WebSocketInboundEndpoint(WebSocketInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory, WebSocketDuplexSessionRegistry? duplexSessions = null)
+    public WebSocketInboundEndpoint(
+        WebSocketInboundOptions options,
+        IMessageDispatcher dispatcher,
+        IReplyContextFactory replyFactory,
+        WebSocketDuplexSessionRegistry? duplexSessions = null,
+        ILogger<WebSocketInboundEndpoint>? logger = null)
     {
-        _options = options; _dispatcher = dispatcher; _replyFactory = replyFactory;
+        _options = options;
+        _dispatcher = dispatcher;
+        _replyFactory = replyFactory;
+        _logger = logger ?? NullLogger<WebSocketInboundEndpoint>.Instance;
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
         _duplexSessions = duplexSessions;
 
@@ -42,6 +53,10 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _listener.Start();
         _acceptLoop = AcceptLoopAsync(_cts.Token);
+        _logger.LogInformation(
+            "WS inbound endpoint (source {SourceEndpointId}) listening on {Prefix}.",
+            _options.SourceEndpointId,
+            _listenerPrefix);
         return Task.CompletedTask;
     }
 
@@ -51,6 +66,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         if (_listener.IsListening) _listener.Stop();
         if (_acceptLoop is not null)
             try { await _acceptLoop.WaitAsync(cancellationToken); } catch (OperationCanceledException) { }
+        _logger.LogInformation("WS inbound endpoint (source {SourceEndpointId}) stopped.", _options.SourceEndpointId);
     }
 
     private async Task AcceptLoopAsync(CancellationToken ct)
@@ -59,15 +75,28 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         {
             HttpListenerContext http;
             try { http = await _listener.GetContextAsync().WaitAsync(ct); }
-            catch (OperationCanceledException) { break; }
-            catch (HttpListenerException) { break; }
+            catch (OperationCanceledException)
+            {
+                _logger.LogDebug("WS inbound accept loop canceled on source {SourceEndpointId}.", _options.SourceEndpointId);
+                break;
+            }
+            catch (HttpListenerException ex)
+            {
+                _logger.LogDebug(ex, "WS inbound accept loop ended (source {SourceEndpointId}).", _options.SourceEndpointId);
+                break;
+            }
             _ = HandleConnectionAsync(http, ct);   // one task per socket
         }
     }
 
     private async Task HandleConnectionAsync(HttpListenerContext http, CancellationToken ct)
     {
-        if (!http.Request.IsWebSocketRequest) { http.Response.StatusCode = 400; http.Response.Close(); return; }
+        if (!http.Request.IsWebSocketRequest)
+        {
+            http.Response.StatusCode = 400;
+            http.Response.Close();
+            return;
+        }
 
         if (_options.Ssl.RequiresClientCertificate() && !await ValidateClientCertificateAsync(http, ct))
         {
@@ -76,65 +105,48 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
             return;
         }
 
-        HttpListenerWebSocketContext wsContext;
-        try { wsContext = await http.AcceptWebSocketAsync(subProtocol: null); }
-        catch (Exception) { http.Response.StatusCode = 500; http.Response.Close(); return; }
+        var wsContext = await TryAcceptWebSocketAsync(http);
+        if (wsContext is null)
+            return;
 
-        var socket = wsContext.WebSocket;
+        await HandleAcceptedConnectionAsync(wsContext.WebSocket, ct);
+    }
+
+    private async Task HandleAcceptedConnectionAsync(System.Net.WebSockets.WebSocket socket, CancellationToken ct)
+    {
         var writeLock = new SemaphoreSlim(1, 1);
-        var duplexSession = _options.Mode == CommunicationMode.DuplexInbound
-            ? new WebSocketDuplexSession(_options.SourceEndpointId, socket, writeLock)
-            : null;
-        if (duplexSession is not null)
-            _duplexSessions?.Register(duplexSession);
+        var duplexSession = RegisterDuplexSessionIfNeeded(socket, writeLock);
         try
         {
             var buffer = new byte[_options.ReceiveBufferSize];
             while (!ct.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
-                using var acc = new MemoryStream();
-                WebSocketReceiveResult result;
-                do
-                {
-                    result = await socket.ReceiveAsync(buffer, ct);
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, ct);
-                        return;
-                    }
-                    acc.Write(buffer, 0, result.Count);
-                } while (!result.EndOfMessage);
+                var (payload, messageType) = await ReceiveMessageAsync(socket, buffer, ct);
+                if (payload is null)
+                    return;
 
-                var payload = acc.ToArray();
                 if (duplexSession is not null && duplexSession.TryCompletePendingReply(payload))
                     continue;
 
-                var envelope = result.MessageType == WebSocketMessageType.Text
-                    ? TransportMessageEnvelope.ParseJson(payload, requireJsonObjectPrefix: false)
-                    : TransportMessageEnvelope.Raw(payload);
-
-                await _admission.WaitAsync(ct);
-                try
-                {
-                    var token = duplexSession?.CreateAckToken() ?? new WebSocketAckToken(socket, writeLock);
-                    var reply = _replyFactory.Create(_options.SourceEndpointId, token);
-                    var ctx = new MessageContext(
-                        correlationId: envelope.CorrelationId ?? Guid.NewGuid().ToString("N"),
-                        sourceEndpointId: _options.SourceEndpointId,
-                        format: _options.Format,
-                        ack: token,
-                        reply: reply,
-                        payload: envelope.Payload,
-                        headers: envelope.Headers);
-
-                    ctx.Reply.Attach(ctx);
-                    await _dispatcher.DispatchAsync(ctx, ct); // backpressure comes from the ingress queue
-                }
-                finally { _admission.Release(); }
+                await DispatchInboundPayloadAsync(socket, writeLock, duplexSession, payload, messageType, ct);
             }
         }
-        catch (OperationCanceledException) { }
-        catch (WebSocketException) { }                          // peer reset; connection ends
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug("WS inbound connection canceled on source {SourceEndpointId}.", _options.SourceEndpointId);
+        }
+        catch (WebSocketException ex)
+        {
+            _logger.LogWarning(ex,
+                "WS inbound peer disconnected on source {SourceEndpointId}.",
+                _options.SourceEndpointId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Unhandled WS inbound connection error on source {SourceEndpointId}.",
+                _options.SourceEndpointId);
+        }
         finally
         {
             if (duplexSession is not null)
@@ -145,7 +157,89 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         }
     }
 
-    // TwoWay mode: HttpListener performs the TLS handshake itself (certificate bound to the port at
+    private async Task<(byte[]? Payload, WebSocketMessageType MessageType)> ReceiveMessageAsync(System.Net.WebSockets.WebSocket socket, byte[] buffer, CancellationToken ct)
+    {
+        using var acc = new MemoryStream();
+        WebSocketReceiveResult result;
+        do
+        {
+            result = await socket.ReceiveAsync(buffer, ct);
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, ct);
+                return (null, WebSocketMessageType.Close);
+            }
+            acc.Write(buffer, 0, result.Count);
+        } while (!result.EndOfMessage);
+
+        return (acc.ToArray(), result.MessageType);
+    }
+
+    private async Task DispatchInboundPayloadAsync(
+        System.Net.WebSockets.WebSocket socket,
+        SemaphoreSlim writeLock,
+        WebSocketDuplexSession? duplexSession,
+        byte[] payload,
+        WebSocketMessageType messageType,
+        CancellationToken ct)
+    {
+        var envelope = messageType == WebSocketMessageType.Text
+            ? TransportMessageEnvelope.ParseJson(payload, requireJsonObjectPrefix: false)
+            : TransportMessageEnvelope.Raw(payload);
+
+        await _admission.WaitAsync(ct);
+        try
+        {
+            var token = duplexSession?.CreateAckToken() ?? new WebSocketAckToken(socket, writeLock);
+            var reply = _replyFactory.Create(_options.SourceEndpointId, token);
+            var ctx = new MessageContext(
+                correlationId: envelope.CorrelationId ?? Guid.NewGuid().ToString("N"),
+                sourceEndpointId: _options.SourceEndpointId,
+                format: _options.Format,
+                ack: token,
+                reply: reply,
+                payload: envelope.Payload,
+                headers: envelope.Headers);
+
+            ctx.Reply.Attach(ctx);
+            await _dispatcher.DispatchAsync(ctx, ct);
+        }
+        finally
+        {
+            _admission.Release();
+        }
+    }
+
+    private async Task<HttpListenerWebSocketContext?> TryAcceptWebSocketAsync(HttpListenerContext http)
+    {
+        try
+        {
+            return await http.AcceptWebSocketAsync(subProtocol: null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "WS inbound failed to accept WebSocket request on source {SourceEndpointId}.",
+                _options.SourceEndpointId);
+            http.Response.StatusCode = 500;
+            http.Response.Close();
+            return null;
+        }
+    }
+
+    private WebSocketDuplexSession? RegisterDuplexSessionIfNeeded(System.Net.WebSockets.WebSocket socket, SemaphoreSlim writeLock)
+    {
+        var duplexSession = _options.Mode == CommunicationMode.DuplexInbound
+            ? new WebSocketDuplexSession(_options.SourceEndpointId, socket, writeLock)
+            : null;
+
+        if (duplexSession is not null)
+            _duplexSessions?.Register(duplexSession);
+
+        return duplexSession;
+    }
+
+    // Mutual mode: HttpListener performs the TLS handshake itself (certificate bound to the port at
     // the OS level), but client-certificate *validation* still runs here via the same
     // RemoteCertificateValidationCallback shape used by TCP/HTTP, for a consistent SSL policy.
     private async Task<bool> ValidateClientCertificateAsync(HttpListenerContext http, CancellationToken ct)

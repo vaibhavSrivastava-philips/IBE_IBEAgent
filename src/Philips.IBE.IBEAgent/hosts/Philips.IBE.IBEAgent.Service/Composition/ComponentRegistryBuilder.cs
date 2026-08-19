@@ -49,6 +49,8 @@ public static class ComponentRegistryBuilder
                     InboundFormat = tcp.InboundFormat,
                     ReplyCorrelationTimeout = TimeSpan.FromSeconds(tcp.ReplyCorrelationTimeoutSeconds),
                     ReconnectDelay = TimeSpan.FromSeconds(tcp.ReconnectDelaySeconds),
+                    ConnectRetryCount = tcp.ConnectRetryCount,
+                    ConnectRetryDelay = TimeSpan.FromMilliseconds(tcp.ConnectRetryDelayMilliseconds),
                     Host = tcp.Host,
                     Port = tcp.Port,
                     PoolSize = tcp.PoolSize,
@@ -74,10 +76,13 @@ public static class ComponentRegistryBuilder
                     MaxConnectionsPerServer = http.MaxConnectionsPerServer,
                     PooledConnectionLifetime = TimeSpan.FromSeconds(http.PooledConnectionLifetimeSeconds),
                     PooledConnectionIdleTimeout = TimeSpan.FromSeconds(http.PooledConnectionIdleTimeoutSeconds),
+                    ConnectRetryCount = http.ConnectRetryCount,
+                    ConnectRetryDelay = TimeSpan.FromMilliseconds(http.ConnectRetryDelayMilliseconds),
                     Ssl = http.Ssl,
                     Proxy = http.Proxy,
                 },
-                ResolveCodec(registry, catalog, output.Encoding)));
+                ResolveCodec(registry, catalog, output.Encoding),
+                logger: loggerFactory.CreateLogger<HttpOutboundEndpoint>()));
         }
 
         foreach (var file in endpoints.FileOutbound)
@@ -107,6 +112,8 @@ public static class ComponentRegistryBuilder
                     ExpectReply = ws.ExpectReply,
                     ReplyCorrelationTimeout = TimeSpan.FromSeconds(ws.ReplyCorrelationTimeoutSeconds),
                     ReconnectDelay = TimeSpan.FromSeconds(ws.ReconnectDelaySeconds),
+                    ConnectRetryCount = ws.ConnectRetryCount,
+                    ConnectRetryDelay = TimeSpan.FromMilliseconds(ws.ConnectRetryDelayMilliseconds),
                     PoolSize = ws.PoolSize,
                     ReceiveBufferSize = ws.ReceiveBufferSize,
                     Ssl = ws.Ssl,
@@ -116,7 +123,8 @@ public static class ComponentRegistryBuilder
                     && catalog.Codecs.TryGetValue(wsEncoding, out var codecOptions) && codecOptions.Type == "hl7v2"
                     ? new Hl7v2Codec()
                     : null,
-                webSocketDuplexSessions));
+                webSocketDuplexSessions,
+                loggerFactory.CreateLogger<WebSocketOutboundEndpoint>()));
         }
 
         return registry;

@@ -14,7 +14,7 @@ public sealed class WebSocketInboundOptions
 
     // Same story as HttpInboundOptions.Ssl: HttpListener performs the TLS handshake itself (server
     // certificate bound to the port out-of-process); Ssl.Mode still governs client-certificate
-    // enforcement (TwoWay = mTLS) and drives the composition root to require a wss/https Prefix.
+    // enforcement (Mutual = mTLS) and drives the composition root to require a wss/https Prefix.
     public SslOptions Ssl { get; init; } = new();
 }
 
@@ -28,8 +28,10 @@ public sealed class WebSocketOutboundOptions
     public bool ExpectReply { get; init; } = true;            // read one reply message back (feeds enhanced ack / request-reply)
     public TimeSpan ReplyCorrelationTimeout { get; init; } = TimeSpan.FromSeconds(30);
     public TimeSpan ReconnectDelay { get; init; } = TimeSpan.FromSeconds(2);
+    public int ConnectRetryCount { get; init; } = 2;          // additional attempts after first connect
+    public TimeSpan ConnectRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
     public int PoolSize { get; init; } = 8;                   // pooled persistent connections (parity with TCP PoolSize)
     public int ReceiveBufferSize { get; init; } = 8192;
-    public SslOptions Ssl { get; init; } = new();             // None (default) | OneWay | TwoWay (mutual TLS via client cert)
+    public SslOptions Ssl { get; init; } = new();             // Plain (default) | OneWay | Mutual (mTLS via client cert)
     public ProxyOptions Proxy { get; init; } = new();         // forward proxy, with/without credentials
 }

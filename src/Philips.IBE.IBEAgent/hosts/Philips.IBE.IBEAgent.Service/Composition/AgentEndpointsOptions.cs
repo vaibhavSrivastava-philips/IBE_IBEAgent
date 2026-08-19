@@ -13,12 +13,14 @@ public sealed class TcpOutboundEndpointConfig
     public string InboundFormat { get; init; } = "hl7v2";
     public int ReplyCorrelationTimeoutSeconds { get; init; } = 30;
     public int ReconnectDelaySeconds { get; init; } = 2;
+    public int ConnectRetryCount { get; init; } = 2;
+    public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
     public required int OutputId { get; init; }
     public required string Host { get; init; }
     public required int Port { get; init; }
     public int PoolSize { get; init; } = 8;
     public bool ExpectReply { get; init; } = true;
-    public SslOptions Ssl { get; init; } = new();            // None (default) | OneWay | TwoWay (mutual TLS)
+    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy (HTTP CONNECT tunnel), with/without credentials
 }
 
@@ -36,7 +38,9 @@ public sealed class HttpOutboundEndpointConfig
     public int MaxConnectionsPerServer { get; init; } = 8;                       // ~ TCP PoolSize
     public int PooledConnectionLifetimeSeconds { get; init; } = 300;             // 5 min — recycle to pick up DNS changes
     public int PooledConnectionIdleTimeoutSeconds { get; init; } = 120;          // 2 min
-    public SslOptions Ssl { get; init; } = new();            // None (default) | OneWay | TwoWay (mutual TLS via client cert)
+    public int ConnectRetryCount { get; init; } = 2;
+    public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
+    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy, with/without credentials
 }
 
@@ -53,9 +57,11 @@ public sealed class WebSocketOutboundEndpointConfig
     public bool ExpectReply { get; init; } = true;
     public int ReplyCorrelationTimeoutSeconds { get; init; } = 30;
     public int ReconnectDelaySeconds { get; init; } = 2;
+    public int ConnectRetryCount { get; init; } = 2;
+    public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
     public int PoolSize { get; init; } = 8;                   // ~ TCP PoolSize
     public int ReceiveBufferSize { get; init; } = 8192;
-    public SslOptions Ssl { get; init; } = new();            // None (default) | OneWay | TwoWay (mutual TLS via client cert)
+    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy, with/without credentials
 }
 

@@ -30,7 +30,7 @@ public static class SslOptionsExtensions
     }
 
     public static bool RequiresClientCertificate(this SslOptions options)
-        => options.RequireClientCertificate || options.Mode == SslMode.TwoWay;
+        => options.RequireClientCertificate || options.Mode == SslMode.Mutual;
 
     public static bool HasLocalCertificate(this SslOptions options)
         => options.EffectiveLocalCertificate is not null;
