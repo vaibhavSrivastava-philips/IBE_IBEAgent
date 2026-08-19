@@ -102,7 +102,7 @@
   "Contracts": [
     {
       "Name": "Contract-Tcp-Http-Ws-Ssl",
-      "Template": "adt",
+      "Workflow": { "Use": "adt" },
       "Inputs": [
         { "InputId": 1 },
         { "InputId": 2 },

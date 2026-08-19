@@ -69,7 +69,7 @@ public static class ServiceCollectionExtensions
                 },
                 http.Encoding == "hl7v2" ? new Hl7v2Codec() : null,
                 logger: NullLogger<HttpOutboundEndpoint>.Instance);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(http.OutputId, new EndpointReplayTarget(http.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(http.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         foreach (var ws in endpoints.WebSocketOutbound)
@@ -89,7 +89,7 @@ public static class ServiceCollectionExtensions
                 },
                 ws.Encoding == "hl7v2" ? new Hl7v2Codec() : null,
                 logger: NullLogger<WebSocketOutboundEndpoint>.Instance);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(ws.OutputId, new EndpointReplayTarget(ws.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(ws.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         foreach (var file in endpoints.FileOutbound)
