@@ -11,10 +11,11 @@ internal sealed class WebSocketConnectionPool(Uri endpoint, int size, SslOptions
     private readonly SslOptions _ssl = ssl ?? new SslOptions();
     private readonly ProxyOptions _proxy = proxy ?? new ProxyOptions();
 
-    public async Task<ClientWebSocket> RentAsync(CancellationToken ct)
+    public async Task<ClientWebSocket> RentAsync(bool forceFresh, CancellationToken ct)
     {
         await _slots.WaitAsync(ct);
-        if (_idle.TryDequeue(out var existing) && existing.State == WebSocketState.Open) return existing;
+        ClientWebSocket? existing = null;
+        if (!forceFresh && _idle.TryDequeue(out existing) && existing.State == WebSocketState.Open) return existing;
         existing?.Dispose();
 
         var socket = new ClientWebSocket();
@@ -26,7 +27,7 @@ internal sealed class WebSocketConnectionPool(Uri endpoint, int size, SslOptions
             {
                 var clientCertificate = _ssl.LoadLocalCertificate()
                     ?? throw new InvalidOperationException(
-                        $"WebSocket outbound endpoint ({endpoint}) has SSL mode TwoWay but no CertificatePath configured.");
+                        $"WebSocket outbound endpoint ({endpoint}) has SSL mode Mutual but no CertificatePath configured.");
                 socket.Options.ClientCertificates.Add(clientCertificate);
             }
         }

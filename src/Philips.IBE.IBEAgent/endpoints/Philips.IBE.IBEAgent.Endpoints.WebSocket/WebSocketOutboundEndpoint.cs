@@ -1,5 +1,7 @@
 // WebSocketOutboundEndpoint.cs
 using System.Net.WebSockets;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 namespace Philips.IBE.IBEAgent.Endpoints.WebSocket;
 
@@ -7,7 +9,9 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
 {
     private readonly WebSocketOutboundOptions _options;
     private readonly IMessageCodec? _codec;
+    private readonly ILogger<WebSocketOutboundEndpoint> _logger;
     private readonly WebSocketConnectionPool _pool;
+    private readonly IWebSocketConnectRetryPolicy _connectRetryPolicy;
     private readonly WebSocketDuplexSessionRegistry? _duplexSessions;
     private readonly SemaphoreSlim _duplexWriteLock = new(1, 1);
     private readonly SemaphoreSlim _duplexConnectGate = new(1, 1);
@@ -18,10 +22,17 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
     private IMessageDispatcher? _dispatcher;
     private IReplyContextFactory? _replyFactory;
 
-    public WebSocketOutboundEndpoint(WebSocketOutboundOptions options, IMessageCodec? codec, WebSocketDuplexSessionRegistry? duplexSessions = null)
+    public WebSocketOutboundEndpoint(
+        WebSocketOutboundOptions options,
+        IMessageCodec? codec,
+        WebSocketDuplexSessionRegistry? duplexSessions = null,
+        ILogger<WebSocketOutboundEndpoint>? logger = null)
     {
-        _options = options; _codec = codec;
+        _options = options;
+        _codec = codec;
         _duplexSessions = duplexSessions;
+        _logger = logger ?? NullLogger<WebSocketOutboundEndpoint>.Instance;
+        _connectRetryPolicy = new WebSocketConnectRetryPolicy();
         _pool = new WebSocketConnectionPool(options.Endpoint, options.Mode == CommunicationMode.DuplexOutbound ? 1 : options.PoolSize, options.Ssl, options.Proxy);
     }
 
@@ -41,6 +52,7 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
 
         _duplexCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _duplexReader = RunDuplexReaderAsync(_duplexCts.Token);
+        _logger.LogInformation("WebSocket outbound duplex endpoint connected workflow started for {Endpoint}.", _options.Endpoint);
         return Task.CompletedTask;
     }
 
@@ -52,13 +64,14 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
         {
             try { await _duplexReader.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken); }
             catch (OperationCanceledException) { }
-            catch (TimeoutException) { }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Timed out waiting for WebSocket duplex reader to stop for {Endpoint}.", _options.Endpoint);
+            }
         }
 
-        var socket = Interlocked.Exchange(ref _duplexSocket, null);
-        if (socket is not null) _pool.Discard(socket);
-        var session = Interlocked.Exchange(ref _duplexSession, null);
-        session?.Dispose();
+        ResetDuplexConnection();
+        _logger.LogInformation("WebSocket outbound duplex endpoint stopped for {Endpoint}.", _options.Endpoint);
     }
 
     public async Task<DeliveryResult> SendAsync(MessageContext context, CancellationToken cancellationToken)
@@ -74,25 +87,15 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
         bool healthy = false;
         try
         {
-            socket = await _pool.RentAsync(cancellationToken);
+            socket = await _connectRetryPolicy.RentAsync(_pool, _options, _logger, forceFresh: false, cancellationToken);
             await socket.SendAsync(wire, WebSocketMessageType.Binary, endOfMessage: true, cancellationToken);
 
             if (_options.ExpectReply)
             {
-                using var acc = new MemoryStream();
-                var buffer = new byte[_options.ReceiveBufferSize];
-                WebSocketReceiveResult result;
-                do
-                {
-                    result = await socket.ReceiveAsync(buffer, cancellationToken);
-                    if (result.MessageType == WebSocketMessageType.Close)
-                        return new DeliveryResult(DeliveryOutcome.Failed, "peer closed before reply"); // stream closed
-                    acc.Write(buffer, 0, result.Count);
-                } while (!result.EndOfMessage);
-
+                var responsePayload = await ReceiveReplyAsync(socket, cancellationToken);
                 healthy = true;
                 return new DeliveryResult(DeliveryOutcome.Delivered,
-                    ResponsePayload: acc.ToArray(), ResponseFormat: context.Format);
+                    ResponsePayload: responsePayload, ResponseFormat: context.Format);
             }
 
             healthy = true;
@@ -100,6 +103,9 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
         }
         catch (Exception ex) when (ex is WebSocketException or IOException or OperationCanceledException)
         {
+            _logger.LogWarning(ex,
+                "WebSocket outbound send to {Endpoint} failed.",
+                _options.Endpoint);
             return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
         }
         finally
@@ -136,11 +142,9 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
             existing = _duplexSession;
             if (existing is not null && existing.Socket.State == WebSocketState.Open) return existing;
 
-            Interlocked.Exchange(ref _duplexSession, null)?.Dispose();
-            var previousSocket = Interlocked.Exchange(ref _duplexSocket, null);
-            if (previousSocket is not null) _pool.Discard(previousSocket);
+            ResetDuplexConnection();
 
-            var socket = await _pool.RentAsync(cancellationToken);
+            var socket = await _connectRetryPolicy.RentAsync(_pool, _options, _logger, forceFresh: true, cancellationToken);
             _duplexSocket = socket;
             var session = new WebSocketDuplexSession(_options.SourceEndpointId!.Value, socket, _duplexWriteLock, ownsWriteLock: false);
             _duplexSession = session;
@@ -156,36 +160,28 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
             try
             {
                 var session = await GetDuplexSessionAsync(cancellationToken);
-                var buffer = new byte[_options.ReceiveBufferSize];
-
-                while (!cancellationToken.IsCancellationRequested && session.Socket.State == WebSocketState.Open)
-                {
-                    using var acc = new MemoryStream();
-                    WebSocketReceiveResult result;
-                    do
-                    {
-                        result = await session.Socket.ReceiveAsync(buffer, cancellationToken);
-                        if (result.MessageType == WebSocketMessageType.Close)
-                            throw new WebSocketException("peer closed WebSocket duplex session");
-                        acc.Write(buffer, 0, result.Count);
-                    } while (!result.EndOfMessage);
-
-                    var payload = acc.ToArray();
-                    if (session.TryCompletePendingReply(payload))
-                        continue;
-
-                    await DispatchDuplexInboundAsync(session, payload, result.MessageType, cancellationToken);
-                }
+                await ProcessDuplexInboundMessagesAsync(session, cancellationToken);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogDebug("WebSocket DuplexOutbound reader canceled for endpoint {Endpoint}.", _options.Endpoint);
+                break;
+            }
             catch (Exception ex) when (ex is WebSocketException or IOException)
             {
+                _logger.LogWarning(ex,
+                    "WebSocket DuplexOutbound reader disconnected from {Endpoint}; reconnecting.",
+                    _options.Endpoint);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Unexpected error in WebSocket DuplexOutbound reader for {Endpoint}; reconnecting.",
+                    _options.Endpoint);
             }
             finally
             {
-                Interlocked.Exchange(ref _duplexSession, null)?.Dispose();
-                var socket = Interlocked.Exchange(ref _duplexSocket, null);
-                if (socket is not null) _pool.Discard(socket);
+                ResetDuplexConnection();
             }
 
             try { await Task.Delay(_options.ReconnectDelay, cancellationToken); }
@@ -195,11 +191,14 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
 
     private async Task DispatchDuplexInboundAsync(WebSocketDuplexSession session, byte[] payload, WebSocketMessageType messageType, CancellationToken cancellationToken)
     {
+        if (_replyFactory is null || _dispatcher is null || _options.SourceEndpointId is null)
+            throw new InvalidOperationException($"WebSocket DuplexOutbound endpoint {_options.Endpoint} is missing required inbound dispatch configuration.");
+
         var envelope = messageType == WebSocketMessageType.Text
             ? TransportMessageEnvelope.ParseJson(payload, requireJsonObjectPrefix: false)
             : TransportMessageEnvelope.Raw(payload);
         var token = session.CreateAckToken();
-        var reply = _replyFactory!.Create(_options.SourceEndpointId!.Value, token);
+        var reply = _replyFactory.Create(_options.SourceEndpointId.Value, token);
         var ctx = new MessageContext(
             correlationId: envelope.CorrelationId ?? Guid.NewGuid().ToString("N"),
             sourceEndpointId: _options.SourceEndpointId.Value,
@@ -210,7 +209,55 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
             headers: envelope.Headers);
 
         ctx.Reply.Attach(ctx);
-        await _dispatcher!.DispatchAsync(ctx, cancellationToken);
+        await _dispatcher.DispatchAsync(ctx, cancellationToken);
+    }
+
+    private async Task<byte[]> ReceiveReplyAsync(ClientWebSocket socket, CancellationToken cancellationToken)
+    {
+        using var acc = new MemoryStream();
+        var buffer = new byte[_options.ReceiveBufferSize];
+        WebSocketReceiveResult result;
+        do
+        {
+            result = await socket.ReceiveAsync(buffer, cancellationToken);
+            if (result.MessageType == WebSocketMessageType.Close)
+                throw new WebSocketException("peer closed before reply");
+            acc.Write(buffer, 0, result.Count);
+        } while (!result.EndOfMessage);
+
+        return acc.ToArray();
+    }
+
+    private async Task ProcessDuplexInboundMessagesAsync(WebSocketDuplexSession session, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[_options.ReceiveBufferSize];
+
+        while (!cancellationToken.IsCancellationRequested && session.Socket.State == WebSocketState.Open)
+        {
+            using var acc = new MemoryStream();
+            WebSocketReceiveResult result;
+            do
+            {
+                result = await session.Socket.ReceiveAsync(buffer, cancellationToken);
+                if (result.MessageType == WebSocketMessageType.Close)
+                    throw new WebSocketException("peer closed WebSocket duplex session");
+                acc.Write(buffer, 0, result.Count);
+            } while (!result.EndOfMessage);
+
+            var payload = acc.ToArray();
+            if (session.TryCompletePendingReply(payload))
+                continue;
+
+            await DispatchDuplexInboundAsync(session, payload, result.MessageType, cancellationToken);
+        }
+    }
+
+    private void ResetDuplexConnection()
+    {
+        Interlocked.Exchange(ref _duplexSession, null)?.Dispose();
+        var socket = Interlocked.Exchange(ref _duplexSocket, null);
+        if (socket is not null)
+            _pool.Discard(socket);
     }
 
     public async ValueTask DisposeAsync()

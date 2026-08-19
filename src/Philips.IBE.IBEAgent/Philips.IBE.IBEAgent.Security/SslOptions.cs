@@ -5,20 +5,19 @@ namespace Philips.IBE.IBEAgent.Security;
 // same way regardless of protocol.
 public sealed class SslOptions
 {
-    // None = plaintext. OneWay = TLS, only the remote peer's certificate is validated (typical
-    // client-facing web/API pattern). TwoWay = mutual TLS: both sides present + validate a certificate.
-    public SslMode Mode { get; init; } = SslMode.None;
+    // Plain = plaintext. OneWay = TLS, only the remote peer's certificate is validated (typical
+    // client-facing web/API pattern). Mutual = mutual TLS: both sides present + validate a certificate.
+    public SslMode Mode { get; init; } = SslMode.Plain;
 
-    // New preferred model: TLS behavior is inferred from endpoint role + configured certificate
-    // material. Mode is retained as a backward-compatible shim for existing configs.
+    // TLS behavior is inferred from endpoint role + configured certificate material.
     public bool? Enabled { get; init; }
     public bool RequireClientCertificate { get; init; }
     public CertificateReference? LocalCertificate { get; init; }
     public CertificateReference? TrustedCertificateAuthority { get; init; }
 
     // Certificate presented by *this* side of the connection:
-    //  - inbound (server) endpoint: required for OneWay and TwoWay.
-    //  - outbound (client) endpoint: required for TwoWay only (client authentication).
+    //  - inbound (server) endpoint: required for OneWay and Mutual.
+    //  - outbound (client) endpoint: required for Mutual only (client authentication).
     public string? CertificatePath { get; init; }
     public string? CertificatePassword { get; init; }
 
@@ -37,13 +36,13 @@ public sealed class SslOptions
     public bool CheckCertificateRevocation { get; init; } = false;
 
     public bool IsEnabled => Enabled
-        ?? Mode != SslMode.None
+        ?? Mode != SslMode.Plain
         || RequireClientCertificate
         || LocalCertificate is not null
         || TrustedCertificateAuthority is not null
         || !string.IsNullOrWhiteSpace(CertificatePath)
         || !string.IsNullOrWhiteSpace(TrustedCertificateAuthorityPath);
-    public bool RequiresRemoteCertificate => RequireClientCertificate || Mode == SslMode.TwoWay;
+    public bool RequiresRemoteCertificate => RequireClientCertificate || Mode == SslMode.Mutual;
 
     internal CertificateReference? EffectiveLocalCertificate => LocalCertificate ??
         (string.IsNullOrWhiteSpace(CertificatePath)

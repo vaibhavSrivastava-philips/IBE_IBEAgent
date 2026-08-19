@@ -49,7 +49,7 @@ public sealed class TcpSslEndpointTests
     }
 
     [Fact]
-    public async Task TwoWay_ssl_inbound_rejects_client_without_certificate()
+    public async Task Mutual_ssl_inbound_rejects_client_without_certificate()
     {
         var certPath = TestCertificateFactory.CreateSelfSignedPfxFile();
         try
@@ -58,7 +58,7 @@ public sealed class TcpSslEndpointTests
             {
                 SourceEndpointId = 1,
                 Port = 0,
-                Ssl = new SslOptions { Mode = SslMode.TwoWay, CertificatePath = certPath, AllowUntrustedCertificate = true },
+                Ssl = new SslOptions { Mode = SslMode.Mutual, CertificatePath = certPath, AllowUntrustedCertificate = true },
             };
             await using var endpoint = new TcpInboundEndpoint(options, new FakeMessageDispatcher(), new FakeReplyContextFactory());
             await endpoint.StartAsync(CancellationToken.None);
@@ -85,7 +85,7 @@ public sealed class TcpSslEndpointTests
     }
 
     [Fact]
-    public async Task TwoWay_ssl_roundtrip_between_outbound_and_inbound_endpoints()
+    public async Task Mutual_ssl_roundtrip_between_outbound_and_inbound_endpoints()
     {
         var serverCertPath = TestCertificateFactory.CreateSelfSignedPfxFile();
         var clientCertPath = TestCertificateFactory.CreateSelfSignedPfxFile();
@@ -98,7 +98,7 @@ public sealed class TcpSslEndpointTests
                 Port = 0,
                 Ssl = new SslOptions
                 {
-                    Mode = SslMode.TwoWay,
+                    Mode = SslMode.Mutual,
                     CertificatePath = serverCertPath,
                     AllowUntrustedCertificate = true,   // self-signed client cert in this test
                 },
@@ -113,7 +113,7 @@ public sealed class TcpSslEndpointTests
                 ExpectReply = true,
                 Ssl = new SslOptions
                 {
-                    Mode = SslMode.TwoWay,
+                    Mode = SslMode.Mutual,
                     CertificatePath = clientCertPath,
                     AllowUntrustedCertificate = true,   // self-signed server cert in this test
                 },

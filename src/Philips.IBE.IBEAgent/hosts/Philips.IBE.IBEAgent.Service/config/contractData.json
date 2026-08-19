@@ -2,7 +2,7 @@
   "Endpoints": {
     "TcpInbound": [
       {
-        "SourceEndpointId": 6,
+        "SourceEndpointId": 1,
         "Port": 5101,
         "Format": "hl7v2",
         "Ssl": {
@@ -14,10 +14,9 @@
           "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
           "TrustedCertificateAuthorityPassword": "1"
         }
-        "Format": "hl7v2"
       }
     ],
-    "HttpOutbound": [
+    "HttpInbound": [
       {
         "SourceEndpointId": 2,
         "Prefix": "https://localhost:5102/ibe/",
@@ -32,19 +31,9 @@
           "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
           "TrustedCertificateAuthorityPassword": "1"
         }
-        "OutputId": 105,
-        "Endpoint": "http://localhost:9105/ibe/inbound",
-        "ContentType": "application/json",
-        "TimeoutSeconds": 30
-      },
-      {
-        "OutputId": 106,
-        "Endpoint": "http://localhost:5202/ibe/inbound",
-        "ContentType": "application/octet-stream",
-        "TimeoutSeconds": 5
       }
     ],
-    "FileInbound": [
+    "WebSocketInbound": [
       {
         "SourceEndpointId": 3,
         "Prefix": "https://localhost:5103/ibe/ws/",
@@ -107,31 +96,6 @@
           "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
           "TrustedCertificateAuthorityPassword": "1"
         }
-        "SourceEndpointId": 4,
-        "Directory": "C:\\ibe-test\\in",
-        "FilePattern": "*.hl7;*.txt;*.dat;*.json",
-        "PollIntervalSeconds": 2,
-        "Format": "hl7v2",
-        "KeepOriginalFiles": false,
-        "RetentionDays": 0
-      },
-      {
-        "SourceEndpointId": 5,
-        "Directory": "C:\\ibe-test\\http-in",
-        "FilePattern": "*.pdf;*.png;*.jpg;*.jpeg;*.json;*.xml;*.txt;*.hl7;*.dat",
-        "PollIntervalSeconds": 2,
-        "Format": "hl7v2",
-        "KeepOriginalFiles": false,
-        "RetentionDays": 0
-      }
-    ],
-    "FileOutbound": [
-      {
-        "OutputId": 104,
-        "Directory": "C:\\ibe-test\\out",
-        "FileNameTemplate": "out_{timestamp}.{ext}",
-        "DefaultExtension": "hl7",
-        "AllowMessageDirectedPath": true   // honor an envelope's destinationpath (blob.path) as the output dir; false = always write to Directory
       }
     ]
   },
@@ -145,40 +109,10 @@
         { "InputId": 3 }
       ],
       "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Name": "Demo-File-To-File",
-      "Workflow": { "Use": "file-blob" },
-      "Inputs": [ { "InputId": 4 } ],
-      "Acknowledgement": { "IsEnabled": false },
-      "Response": { "IsEnabled": false },
       "Outputs": [
-        { "OutputId": 104 }
-      ]
-    },
-    {
-      "Name": "Legacy-File-To-Http",
-      "Workflow": { "Use": "file-http-relay" },
-      "Inputs": [ { "InputId": 5 } ],
-      "Acknowledgement": { "IsEnabled": false },
-      "Response": { "IsEnabled": false },
-      "Outputs": [
-        {
-          "OutputId": 105,
-          "DeliveryGuarantee": "AtMostOnce",
-          "Retry": { "MaxAttempts": 4, "BackoffSeconds": 2, "Backoff": "Exponential" }
-        }
-      ]
-    },
-    {
-      "Name": "Demo-Tcp-To-Http-Retry",
-      "Workflow": { "Use": "adt" },
-      "Inputs": [ { "InputId": 6 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [
-        {
-          "OutputId": 106,
-          "DeliveryGuarantee": "AtLeastOnce",
-          "Retry": { "MaxAttempts": 1, "BackoffSeconds": 2, "Backoff": "Fixed" }
-        }
+        { "OutputId": 101 },
+        { "OutputId": 102 },
+        { "OutputId": 103 }
       ]
     }
   ]

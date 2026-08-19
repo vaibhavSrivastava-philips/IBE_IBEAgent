@@ -93,7 +93,7 @@ internal sealed class CompiledEngine : IAsyncDisposable
         foreach (var http in endpoints.HttpInbound)
             inboundEndpoints.Add(new HttpInboundEndpoint(http, dispatcher, replyContextFactory, loggerFactory.CreateLogger<HttpInboundEndpoint>()));
         foreach (var ws in endpoints.WebSocketInbound)
-            inboundEndpoints.Add(new WebSocketInboundEndpoint(ws, dispatcher, replyContextFactory, webSocketDuplexSessions));
+            inboundEndpoints.Add(new WebSocketInboundEndpoint(ws, dispatcher, replyContextFactory, webSocketDuplexSessions, loggerFactory.CreateLogger<WebSocketInboundEndpoint>()));
         foreach (var file in endpoints.FileInbound)
             inboundEndpoints.Add(new FileInboundEndpoint(file, dispatcher, replyContextFactory, trigger: null,
                 logger: loggerFactory.CreateLogger<FileInboundEndpoint>(), credential: BuildShareCredential(file, protector)));

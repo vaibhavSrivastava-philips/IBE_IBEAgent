@@ -11,7 +11,7 @@ public sealed class TcpInboundOptions
     public string BindAddress { get; init; } = "0.0.0.0";    // interface to listen on; 0.0.0.0 = all, 127.0.0.1 = loopback only
     public string Format { get; init; } = "hl7v2";
     public int MaxConcurrentMessages { get; init; } = 100;   // admission control (bounded, P4)
-    public SslOptions Ssl { get; init; } = new();            // None (default) | OneWay | TwoWay (mutual TLS)
+    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS)
 }
 
 public sealed class TcpOutboundOptions
@@ -26,6 +26,8 @@ public sealed class TcpOutboundOptions
     public required int Port { get; init; }
     public int PoolSize { get; init; } = 8;                  // kill connection-per-message (P10)
     public bool ExpectReply { get; init; } = true;           // read MLLP ack frame (feeds enhanced ack / request-reply)
-    public SslOptions Ssl { get; init; } = new();            // None (default) | OneWay | TwoWay (mutual TLS)
+    public int ConnectRetryCount { get; init; } = 2;         // additional connection attempts after first dial
+    public TimeSpan ConnectRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
+    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy (HTTP CONNECT tunnel), with/without credentials
 }

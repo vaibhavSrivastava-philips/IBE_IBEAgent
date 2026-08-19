@@ -64,7 +64,11 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         {
             HttpListenerContext http;
             try { http = await _listener.GetContextAsync().WaitAsync(ct); }
-            catch (OperationCanceledException) { break; }                  // expected on shutdown
+            catch (OperationCanceledException)
+            {
+                _logger.LogDebug("HTTP inbound accept loop canceled on source {SourceEndpointId}.", _options.SourceEndpointId);
+                break;
+            }
             catch (HttpListenerException ex)
             {
                 _logger.LogDebug(ex, "HTTP inbound accept loop (source {SourceEndpointId}) ended.", _options.SourceEndpointId);
@@ -125,7 +129,13 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                 _options.ReplyTimeout.TotalMilliseconds, _options.SourceEndpointId);
             token.CompleteWithError(504);
         }
-        catch (OperationCanceledException) { token.CompleteWithError(503); } // shutdown; expected
+        catch (OperationCanceledException)
+        {
+            _logger.LogDebug(
+                "HTTP request handling canceled on source {SourceEndpointId}; responding 503.",
+                _options.SourceEndpointId);
+            token.CompleteWithError(503);
+        } // shutdown; expected
         catch (Exception ex)
         {
             _logger.LogError(ex,
@@ -136,7 +146,7 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         finally { _admission.Release(); }
     }
 
-    // TwoWay mode: HttpListener performs the TLS handshake itself (certificate bound to the port at
+    // Mutual mode: HttpListener performs the TLS handshake itself (certificate bound to the port at
     // the OS level), but client-certificate *validation* still runs here via the same
     // RemoteCertificateValidationCallback shape used by TCP, for a consistent SSL policy.
     private async Task<bool> ValidateClientCertificateAsync(HttpListenerContext http, CancellationToken ct)
