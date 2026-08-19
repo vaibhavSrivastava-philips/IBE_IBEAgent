@@ -1,0 +1,11 @@
+// Endpoint starter — WebSocket OUTBOUND. Copy into "Endpoints": { "WebSocketOutbound": [ ... ] } in
+// contractData.json. Use ws:// (or wss:// with Ssl) in the Endpoint.
+{
+  "OutputId": 400,                             // REQUIRED, unique.
+  "Endpoint": "ws://downstream.example.local/ibe/ws", // REQUIRED. Destination URL.
+  "PoolSize": 8,                               // Optional. Pooled connections. Default 8.
+  "ReceiveBufferSize": 8192,                   // Optional. Per-connection receive buffer. Default 8192.
+  "ExpectReply": true                          // Optional. Read a reply frame back. Default true.
+  // "Ssl":   { "Enabled": true, "Mode": "TwoWay", "CertificatePath": "...\\Client.pfx", "CertificatePassword": "..." } // wss:// TLS.
+  // "Proxy": { "Host": "proxy.local", "Port": 8080 }   // Optional HTTP CONNECT tunnel.
+}

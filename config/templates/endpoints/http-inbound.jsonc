@@ -1,0 +1,10 @@
+// Endpoint starter — HTTP INBOUND. Copy into "Endpoints": { "HttpInbound": [ ... ] } in contractData.json.
+{
+  "SourceEndpointId": 2,                      // REQUIRED, unique.
+  "Prefix": "http://localhost:8080/ibe/",     // REQUIRED. HttpListener prefix (trailing slash required).
+  "Format": "hl7v2",                          // Default "hl7v2".
+  "MaxConcurrentRequests": 200,               // Optional. Default 200.
+  "ReplyTimeout": "00:00:30"                  // Optional. How long the request is held for a reply. Default 30s.
+  // "Ssl": { "Enabled": true, "Mode": "TwoWay", "CertificatePath": "...\\Server.pfx", "CertificatePassword": "...",
+  //          "TrustedCertificateAuthorityPath": "...\\Root.pfx", "RequireClientCertificate": true } // Optional TLS (use https:// in the Prefix).
+}

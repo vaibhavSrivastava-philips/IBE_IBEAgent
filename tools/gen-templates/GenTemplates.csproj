@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Dev tool (NOT in the solution): regenerates config/templates/workflows/*.jsonc from
+       config/catalogData.json so the FSE copy-paste workflow starters can't drift from the developer's
+       declared Settings. Reads the same catalogData.json the host loads (comments / trailing commas ok).
+       Analyzers relaxed vs. the engine (this is a build-time utility, not shipped product code). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>GenTemplates</AssemblyName>
+    <RootNamespace>GenTemplates</RootNamespace>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>CA1305;CA1031;CA1852;CA1861;IDE0130</NoWarn>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

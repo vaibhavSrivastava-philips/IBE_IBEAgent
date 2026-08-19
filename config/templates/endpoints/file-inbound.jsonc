@@ -1,0 +1,15 @@
+// Endpoint starter — FILE INBOUND. Copy into "Endpoints": { "FileInbound": [ ... ] } in contractData.json.
+// Polls a folder and feeds each new file into the pipeline like any other inbound comm point. A consumed
+// file is "disposed" (moved or marked) exactly once at settle.
+{
+  "SourceEndpointId": 3,            // REQUIRED, unique.
+  "Directory": "C:\\ibe\\in",       // REQUIRED. Folder to poll.
+  "FilePattern": "*.hl7;*.txt",     // Optional. ";"-delimited extension globs. Omit/blank = every file.
+  "Recursive": false,               // Optional. Poll subfolders too. Default false.
+  "PollIntervalSeconds": 10,        // Optional. Seconds between scans. Default 10.
+  "Format": "hl7v2",                // Optional. Default "hl7v2".
+  "KeepOriginalFiles": false,       // Optional. false (default) -> move to processed/ or error/. true -> leave in place + advance a hidden marker (READ-ONLY shares).
+  "RetentionDays": 0                // Optional. Delete disposed files older than N days. Default 0 = keep forever.
+  // Network share (UNC "\\\\server\\share") auth — Windows only; omit all three for local paths:
+  // "Username": "svc-ibe", "Domain": "CORP", "PasswordProtected": "<DPAPI-base64>"  // NEVER store a plaintext password.
+}

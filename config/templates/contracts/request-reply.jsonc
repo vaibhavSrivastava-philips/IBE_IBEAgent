@@ -1,0 +1,13 @@
+// Contract starter — REQUEST/REPLY. Instead of an ack, the peer reply from one output is returned to the
+// source. Response replaces Acknowledgement (the two are mutually exclusive).
+{
+  "Name": "MyContract-RequestReply",
+  "Workflow": { "Use": "adt" },
+  "Response": {
+    "IsEnabled": true,
+    "FromOutputId": 100,               // The responder leg whose peer reply is returned to the source.
+    "TimeoutMs": 30000                 // Mandatory wait for the reply; on timeout -> protocol error.
+  },
+  "Inputs":  [ { "InputId": 2 } ],
+  "Outputs": [ { "OutputId": 100 } ]
+}

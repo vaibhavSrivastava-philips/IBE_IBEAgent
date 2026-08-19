@@ -1,0 +1,9 @@
+// Contract starter — FILE RELAY. A File input fanned to a File output. File comm points are wired exactly
+// like Tcp/Http (by Id); nothing File-specific goes in the contract. The "file-blob" workflow reconstructs
+// a base64 { filename, filecontent } envelope and names the output file from it.
+{
+  "Name": "File-Relay",
+  "Workflow": { "Use": "file-blob" },
+  "Inputs":  [ { "InputId": 3 } ],     // 3 = a FileInbound SourceEndpointId.
+  "Outputs": [ { "OutputId": 300 } ]   // 300 = a FileOutbound OutputId.
+}
