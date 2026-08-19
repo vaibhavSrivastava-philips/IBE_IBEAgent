@@ -44,7 +44,7 @@ public static class ServiceCollectionExtensions
                     Proxy = tcp.Proxy,
                 },
                 tcp.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(tcp.OutputId, new EndpointReplayTarget(tcp.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(tcp.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         foreach (var http in endpoints.HttpOutbound)
@@ -63,7 +63,7 @@ public static class ServiceCollectionExtensions
                     Proxy = http.Proxy,
                 },
                 http.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(http.OutputId, new EndpointReplayTarget(http.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(http.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         foreach (var ws in endpoints.WebSocketOutbound)
@@ -80,7 +80,7 @@ public static class ServiceCollectionExtensions
                     Proxy = ws.Proxy,
                 },
                 ws.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(ws.OutputId, new EndpointReplayTarget(ws.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(ws.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         foreach (var file in endpoints.FileOutbound)
@@ -101,7 +101,7 @@ public static class ServiceCollectionExtensions
                     AllowMessageDirectedPath = file.AllowMessageDirectedPath,
                 },
                 codec);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(file.OutputId, new EndpointReplayTarget(file.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(file.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         services.AddForwardWorker(configuration, targets);

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Text.Json;
 
 namespace IbePerf;
@@ -34,9 +35,12 @@ internal static class LoadVerb
         for (var c = 0; c < cfg.Connections; c++)
         {
             var conn = c;
-            workers.Add(target.Proto == "tcp"
-                ? Task.Run(() => TcpWorkerAsync(conn, target, cfg, mix, recs, warmupEnd, end))
-                : Task.Run(() => HttpWorkerAsync(conn, target, cfg, mix, recs, warmupEnd, end)));
+            workers.Add(target.Proto switch
+            {
+                "tcp" => Task.Run(() => TcpWorkerAsync(conn, target, cfg, mix, recs, warmupEnd, end)),
+                "ws" => Task.Run(() => WsWorkerAsync(conn, target, cfg, mix, recs, warmupEnd, end)),
+                _ => Task.Run(() => HttpWorkerAsync(conn, target, cfg, mix, recs, warmupEnd, end)),
+            });
         }
         await Task.WhenAll(workers);
 
@@ -159,6 +163,57 @@ internal static class LoadVerb
         if (text.Contains("MSA|AA", StringComparison.Ordinal)) return "AA";
         if (text.Contains("MSA|AE", StringComparison.Ordinal) || text.Contains("MSA|AR", StringComparison.Ordinal)) return "AE";
         return "recv";
+    }
+
+    // WebSocket: one HL7 payload per binary message; ack is one binary message back on the same socket.
+    private static async Task WsWorkerAsync(int conn, PerfEndpoint ep, ScenarioCfg cfg, string[] mix,
+        ConcurrentQueue<Rec> recs, long warmupEnd, long end)
+    {
+        var rng = new Random(conn * 7919 + 1);
+        var perConnInterval = cfg.RateMsgsPerSec > 0 ? Stopwatch_FreqTimes(1) / (cfg.RateMsgsPerSec / cfg.Connections) : 0;
+        using var socket = new ClientWebSocket();
+        await socket.ConnectAsync(new Uri(ep.Url!), CancellationToken.None);
+        var recvBuf = new byte[65536];
+        var sinceBurst = 0;
+
+        while (Qpc.Now() < end)
+        {
+            var seq = Interlocked.Increment(ref _seq);
+            var (type, size) = Pick(mix, rng);
+            var payload = Hl7Corpus.Build(type, seq, size);
+
+            var send = Qpc.Now();
+            await socket.SendAsync(payload, WebSocketMessageType.Binary, endOfMessage: true, CancellationToken.None);
+            var reply = await ReceiveWsMessageAsync(socket, recvBuf, CancellationToken.None);
+            var ack = Qpc.Now();
+            var status = reply is null ? "none" : Classify(reply);
+            recs.Enqueue(new Rec(seq, conn, send, ack, Qpc.ToMs(ack - send), send < warmupEnd, status, payload.Length));
+
+            if (perConnInterval > 0)
+            {
+                var remainMs = Qpc.ToMs((long)perConnInterval - (Qpc.Now() - send));
+                if (remainMs > 1) await Task.Delay((int)remainMs);
+            }
+            if (cfg.IdleGapSec > 0 && cfg.BurstSize > 0 && ++sinceBurst >= cfg.BurstSize)
+            {
+                sinceBurst = 0;
+                await Task.Delay(cfg.IdleGapSec * 1000);
+            }
+        }
+        try { await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None); } catch { /* best effort */ }
+    }
+
+    // Accumulates WebSocket fragments into one message; null when the peer closes.
+    private static async Task<byte[]?> ReceiveWsMessageAsync(WebSocket socket, byte[] buffer, CancellationToken ct)
+    {
+        using var acc = new MemoryStream(256);
+        while (true)
+        {
+            var r = await socket.ReceiveAsync(buffer, ct);
+            if (r.MessageType == WebSocketMessageType.Close) return null;
+            acc.Write(buffer, 0, r.Count);
+            if (r.EndOfMessage) return acc.ToArray();
+        }
     }
 
     private static void WriteResults(string outDir, ScenarioCfg cfg, PerfEndpoint target, Rec[] all)

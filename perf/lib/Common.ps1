@@ -99,6 +99,10 @@ function Get-InboundPort {
         $uri = [Uri]$c.Endpoints.HttpInbound[0].Prefix
         return [int]$uri.Port
     }
+    if ($c.Endpoints.PSObject.Properties.Name -contains 'WebSocketInbound' -and $c.Endpoints.WebSocketInbound.Count -gt 0) {
+        $uri = [Uri]($c.Endpoints.WebSocketInbound[0].Prefix -replace '^ws', 'http')
+        return [int]$uri.Port
+    }
     throw "no inbound endpoint in $ContractPath"
 }
 

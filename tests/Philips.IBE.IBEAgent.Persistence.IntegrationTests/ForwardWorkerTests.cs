@@ -74,6 +74,7 @@ public sealed class ForwardWorkerTests : IDisposable
         await worker.RunOneSweepAsync(CancellationToken.None);
 
         Assert.Single(target.Replayed);
+        Assert.Empty(await store.FetchDueAsync(10, CancellationToken.None)); // success -> worker resolved the entry by id
     }
 
     [Fact]

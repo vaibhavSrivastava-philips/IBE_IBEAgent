@@ -20,7 +20,8 @@ public sealed class Topology
     public static Topology Load(string path)
     {
         var t = new Topology();
-        using var doc = JsonDocument.Parse(File.ReadAllText(path));
+        var jsonOpts = new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
+        using var doc = JsonDocument.Parse(File.ReadAllText(path), jsonOpts);
         var root = doc.RootElement;
 
         if (root.TryGetProperty("Endpoints", out var eps))
@@ -43,6 +44,22 @@ public sealed class Topology
                 var url = GetStr(e, "Endpoint", "");
                 var (host, port) = ParseHostPort(url);
                 t.Outbound.Add(new PerfEndpoint("http", "out", GetInt(e, "OutputId"), host, port, url, "hl7v2"));
+            }
+
+            // WebSocket inbound Prefix is the HttpListener (http[s]://) form; clients connect ws[s]://.
+            foreach (var e in Array(eps, "WebSocketInbound"))
+            {
+                var prefix = GetStr(e, "Prefix", "");
+                var (host, port) = ParseHostPort(prefix);
+                t.Inbound.Add(new PerfEndpoint("ws", "in", GetInt(e, "SourceEndpointId"), host, port, ToWsScheme(prefix), GetStr(e, "Format", "hl7v2")));
+            }
+
+            // WebSocket outbound Endpoint is the ws[s]:// URL the agent dials; the sink hosts the http[s]:// listener.
+            foreach (var e in Array(eps, "WebSocketOutbound"))
+            {
+                var url = GetStr(e, "Endpoint", "");
+                var (host, port) = ParseHostPort(url);
+                t.Outbound.Add(new PerfEndpoint("ws", "out", GetInt(e, "OutputId"), host, port, ToWsScheme(url), "hl7v2"));
             }
         }
 
@@ -81,6 +98,19 @@ public sealed class Topology
     {
         if (Uri.TryCreate(url, UriKind.Absolute, out var u)) return (u.Host, u.Port);
         return ("localhost", 0);
+    }
+
+    // http[s]:// -> ws[s]:// (the client connect URL); leaves ws[s]:// untouched.
+    private static string ToWsScheme(string url) =>
+        url.Replace("https://", "wss://", StringComparison.OrdinalIgnoreCase)
+           .Replace("http://", "ws://", StringComparison.OrdinalIgnoreCase);
+
+    // ws[s]:// -> http[s]:// (the HttpListener prefix the WS sink binds), trailing slash guaranteed.
+    public static string ToHttpListenerPrefix(string wsUrl)
+    {
+        var http = wsUrl.Replace("wss://", "https://", StringComparison.OrdinalIgnoreCase)
+                        .Replace("ws://", "http://", StringComparison.OrdinalIgnoreCase);
+        return http.EndsWith('/') ? http : http + "/";
     }
 }
 
@@ -126,7 +156,12 @@ public sealed record ScenarioCfg
 
     public SinkCfg Sink { get; init; } = new();
 
-    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
 
     public static ScenarioCfg Load(string path) =>
         JsonSerializer.Deserialize<ScenarioCfg>(File.ReadAllText(path), JsonOpts)

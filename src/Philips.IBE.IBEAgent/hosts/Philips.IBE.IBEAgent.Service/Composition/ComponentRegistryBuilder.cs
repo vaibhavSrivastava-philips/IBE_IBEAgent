@@ -17,7 +17,7 @@ public static class ComponentRegistryBuilder
 {
     public static ComponentRegistry Build(AgentEndpointsOptions endpoints, CatalogOptions catalog, ILoggerFactory loggerFactory, TcpDuplexSessionRegistry? tcpDuplexSessions = null, WebSocketDuplexSessionRegistry? webSocketDuplexSessions = null)
     {
-        var registry = new ComponentRegistry();
+        var registry = new ComponentRegistry(loggerFactory);
 
         // §3.10 — generic Core stages (name -> factory). Module-owned so the host stays thin (OCP);
         // protocol modules register their own stages the same way when they gain any.

@@ -27,7 +27,7 @@
       "FromInputIds": [ 2 ],            // Optional. Restrict this leg to specific inputs. Omit = all.
       "RouteWhen": { "hl7.messageType": "ADT" }, // Optional CONTENT filter (needs a classifier stage). Leave one output WITHOUT RouteWhen as a catch-all.
       "DeliveryGuarantee": "AtLeastOnce", // AtMostOnce (default) | AtLeastOnce (store-and-forward).
-      "Retry": { "MaxAttempts": 5, "BackoffSeconds": 2, "Backoff": "Exponential" },
+      "Retry": { "MaxAttempts": 5, "BackoffSeconds": 2, "Backoff": "Exponential" }, // inline retry; omit the block = MaxAttempts 1 (disabled)
       "Channel": { "Capacity": 2048 },
       "Batching": { "Enabled": true, "MaxCount": 500, "MaxLatencyMs": 10000 }   // FSE owns when to batch; the batch codec comes from the Format.
     }

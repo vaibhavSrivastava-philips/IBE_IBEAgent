@@ -1,0 +1,39 @@
+{
+  // Sample WebSocket round-trip contract for the perf harness. Run with:
+  //   pwsh -File perf/Invoke-PerfSuite.ps1 -Contract perf/contracts/ws-roundtrip.json
+  // The agent hosts a WS server on the inbound Prefix (http:// listener form; clients connect ws://),
+  // and dials the outbound Endpoint (ws://) as a WS client. The harness load-gen connects ws:// to the
+  // inbound; the harness sink hosts the ws:// downstream. Uses the "adt" workflow from catalogData.json.
+  "Endpoints": {
+    "WebSocketInbound": [
+      {
+        "SourceEndpointId": 7,
+        "Prefix": "http://localhost:6104/ibe/ws/",
+        "Format": "hl7v2",
+        "MaxConcurrentMessages": 200,
+        "ReceiveBufferSize": 8192
+      }
+    ],
+    "WebSocketOutbound": [
+      {
+        "OutputId": 407,
+        "Endpoint": "ws://localhost:6204/ibe/ws/",
+        "PoolSize": 8,
+        "ReceiveBufferSize": 8192,
+        "ExpectReply": true
+      }
+    ]
+  },
+  "Contracts": [
+    {
+      "Name": "Perf-Ws-To-Ws",
+      "Workflow": { "Use": "adt" },
+      "Inputs": [ { "InputId": 7 } ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Response": { "IsEnabled": false },
+      "Outputs": [
+        { "OutputId": 407, "DeliveryGuarantee": "AtMostOnce" }
+      ]
+    }
+  ]
+}

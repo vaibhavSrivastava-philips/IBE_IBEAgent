@@ -3,31 +3,22 @@ using Philips.IBE.IBEAgent.Abstractions;
 namespace Philips.IBE.IBEAgent.Persistence;
 
 // §3.9 — out-of-process replay target: wraps a bare IOutboundEndpoint (no queue/dispatcher; the
-// ForwardWorker already serializes replays one at a time) and resolves/re-parks directly against
-// the SAME IForwardStore row the in-process DeliveryLeg would have used. Used only by the
-// out-of-process ForwardService host; the in-process host reuses the compiled DeliveryLeg instead.
+// ForwardWorker serializes replays one at a time). Delivers straight through and throws on failure;
+// the ForwardWorker owns resolve-on-success / reschedule / park (keyed by the store entry id). Used
+// only by the out-of-process ForwardService host; the in-process host reuses the compiled DeliveryLeg.
 public sealed class EndpointReplayTarget : IReplayTarget, IAsyncDisposable
 {
-    private readonly int _outputId;
     private readonly IOutboundEndpoint _endpoint;
-    private readonly IForwardStore _store;
 
-    public EndpointReplayTarget(int outputId, IOutboundEndpoint endpoint, IForwardStore store)
-    {
-        _outputId = outputId;
-        _endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-    }
+    public EndpointReplayTarget(IOutboundEndpoint endpoint)
+        => _endpoint = endpoint ?? throw new ArgumentNullException(nameof(endpoint));
 
     public async ValueTask ReplayAsync(MessageContext context, CancellationToken cancellationToken)
     {
         context.MarkReplay();
         var result = await _endpoint.SendAsync(context, cancellationToken);
-
-        if (result.Outcome == DeliveryOutcome.Delivered)
-            await _store.ResolveAsync(context, _outputId, cancellationToken);
-        else
-            throw new InvalidOperationException(result.Error ?? "delivery failed"); // ForwardWorker reschedules/parks
+        if (result.Outcome != DeliveryOutcome.Delivered)
+            throw new InvalidOperationException(result.Error ?? "delivery failed"); // worker reschedules/parks; resolve-on-success is the worker's job
     }
 
     public async ValueTask DisposeAsync()

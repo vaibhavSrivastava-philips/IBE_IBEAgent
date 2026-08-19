@@ -114,11 +114,12 @@ Per‑input and per‑output queue tuning (same shape).
 
 ### Retry {#retry}
 Per‑leg inline retry; exhausted retries fall through to store‑and‑forward for `AtLeastOnce`.
+Omit the block to leave retry **disabled** (`MaxAttempts` defaults to `1`).
 | Key | Type | Default | Meaning |
 |-----|------|---------|---------|
-| `MaxAttempts` | int | `3` | Delivery attempts (≥ 1). |
-| `BackoffSeconds` | int | `2` | Base backoff. |
-| `Backoff` | enum | `Exponential` | `Fixed` \| `Exponential`. |
+| `MaxAttempts` | int | `1` | Total delivery attempts (≥ 1). `1` = no retry; `> 1` enables inline retry. |
+| `BackoffSeconds` | int | `2` | Base backoff between attempts. |
+| `Backoff` | enum | `Exponential` | `Fixed` (constant) \| `Exponential` (`BackoffSeconds × 2^(n‑1)`). |
 
 ### Batching {#batching}
 FSE owns *whether/when* to batch; the batch **codec** comes from the `Format`.

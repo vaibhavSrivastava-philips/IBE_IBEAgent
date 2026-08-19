@@ -46,6 +46,10 @@ pwsh -File perf/Invoke-PerfSuite.ps1
 # One scenario, skip the rebuild
 pwsh -File perf/Invoke-PerfSuite.ps1 -Scenario baseline -SkipBuild
 
+# Drive an alternate topology without touching your live contractData.json
+# (ships a WebSocket round-trip contract; the agent + harness both use it)
+pwsh -File perf/Invoke-PerfSuite.ps1 -Contract perf/contracts/ws-roundtrip.json
+
 # Compare against a previous run
 pwsh -File perf/Invoke-PerfSuite.ps1 -Baseline perf/results/20260807-120000
 
@@ -140,20 +144,32 @@ optional baseline %-diff.
 
 ## 7. Extending the harness
 
+### Test a different topology (`-Contract`)
+The suite drives whatever protocol the contract's input uses (auto-detected from `contractData.json`).
+To test a topology without editing your live contract, pass `-Contract <file>` — it is used for both the
+harness (load/sink) and the agent. Ready-made samples live in `perf/contracts/`:
+- `ws-roundtrip.json` — **WebSocket** inbound → WebSocket outbound (Enhanced ack), ports 6104/6204.
+
+Supported peer protocols today: **TCP/MLLP, HTTP, WebSocket**. The same scenario matrix runs over any of them.
+
 ### Add a scenario
 Edit `perf.config.json` → add an object to `scenarios[]`. No code, no rebuild of the tool.
 
-### Add a new protocol peer (e.g. WebSocket, or File load)
-Topology already flows from `contractData.json`; the tool keys behaviour off `PerfEndpoint.Proto`.
-To support a new protocol end-to-end:
+### Add a new protocol peer (e.g. File)
+Topology already flows from `contractData.json`; the tool keys behaviour off `PerfEndpoint.Proto`
+(`tcp` / `http` / `ws` are implemented — use them as the template). To support another protocol end-to-end:
 1. **Topology** — in `perf/tools/IbePerf/Model.cs`, `Topology.Load` maps each config endpoint kind to a
    `PerfEndpoint(Proto, Role, Id, Host, Port, Url, Format)`. Add parsing for the new
-   `Endpoints.<Kind>Inbound` / `<Kind>Outbound` arrays, tagging `Proto` (e.g. `"ws"`, `"file"`).
+   `Endpoints.<Kind>Inbound` / `<Kind>Outbound` arrays, tagging `Proto` (e.g. `"file"`).
 2. **Sink** — in `SinkVerb.RunAsync`, add a branch for the new `ep.Proto` that stands up the listener
-   (e.g. a `WebSocket` server, or a folder watcher for File) and enqueues a `Recv(seq, Qpc.Now(), proto, order)`.
+   (e.g. a folder watcher for File) and enqueues a `Recv(seq, Qpc.Now(), proto, order)`.
 3. **Load** — in `LoadVerb.RunAsync` / `ResolveTarget`, add a `<Proto>WorkerAsync` mirroring
-   `TcpWorkerAsync`: build the message (`Hl7Corpus.Build`), send, capture `send`/`ack` ticks, enqueue a `Rec`.
+   `TcpWorkerAsync` / `WsWorkerAsync`: build the message (`Hl7Corpus.Build`), send, capture `send`/`ack`
+   ticks, enqueue a `Rec`.
 4. Nothing else changes — `report` is protocol-agnostic (it reads `summary.json`/`sink.json`).
+
+> WebSocket is a worked example of exactly these three steps (`ws` branch in the sink + `WsWorkerAsync`
+> in the load + `WebSocketInbound`/`WebSocketOutbound` parsing in `Topology`).
 
 Keep peers behind these two extension points (`sink` branch + `load` worker); the corpus, framing, QPC
 clock, percentile math, and report are shared.
