@@ -127,7 +127,7 @@ What it covers:
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Relay / cross-transport | File to File, File to TCP, File to HTTP, TCP to File, HTTP to File                                                                                                                                                            |
 | Disposition             | Move to `processed/` (on delivery), Move to `error/` (delivery to a dead port fails), Watermark (file left in place, `.lastProcessedTime` advanced, not re-read). Driven by the `KeepOriginalFiles` knob: `false` -> Move, `true` -> Watermark; Watermark auto-arms the marker to "now" on first start (pre-existing backlog skipped). |
-| Content                 | base64 blob envelope (`{filename, filecontent, destinationpath}`) decoded by the `blob-envelope-extract` pipeline — the output file is named from `filename` and `destinationpath` is ignored; and a base64 payload decoded by the output leg's base64 codec |
+| Content                 | base64 blob envelope (`{filename, filecontent}`) decoded by the `blob-envelope-extract` pipeline — the output file is named from `filename`; when an envelope also carries `destinationpath`, the File sink writes there (honored via the `blob.path` header when `AllowMessageDirectedPath` is on, the default); and a base64 payload decoded by the output leg's base64 codec |
 
 Each scenario writes its input/output under `artifacts/file-<run-id>/s<nn>/{in,out}`.
 The base64 scenarios need a base64 codec and a `blob` pipeline, which the workflow

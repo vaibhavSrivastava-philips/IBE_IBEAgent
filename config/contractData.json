@@ -1,215 +1,274 @@
 {
   "Endpoints": {
-    "TcpInbound": [
-      {
-        "SourceEndpointId": 1,
-        "Port": 5101,
-        "Format": "hl7v2",
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      },
-      {
-        "SourceEndpointId": 11,
-        "Port": 6101,
-        "Format": "hl7v2",
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      }
-    ],
-    "HttpInbound": [
-      {
-        "SourceEndpointId": 2,
-        "Prefix": "https://+:5102/ibe/",
-        "Format": "hl7v2",
-        "ReplyTimeout": "00:01:15",
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      },
-      {
-        "SourceEndpointId": 12,
-        "Prefix": "https://+:6102/ibe/",
-        "Format": "hl7v2",
-        "ReplyTimeout": "00:01:15",
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      }
-    ],
-    "WebSocketInbound": [
-      {
-        "SourceEndpointId": 3,
-        "Prefix": "https://+:5103/ibe/ws/",
-        "Format": "hl7v2",
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      },
-      {
-        "SourceEndpointId": 13,
-        "Prefix": "https://+:6103/ibe/ws/",
-        "Format": "hl7v2",
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      }
-    ],
-    "TcpOutbound": [
-      {
-        "OutputId": 101,
-        "Host": "127.0.0.1",
-        "Port": 5201,
-        "ExpectReply": true,
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      },
-      {
-        "OutputId": 201,
-        "Host": "127.0.0.1",
-        "Port": 7201,
-        "ExpectReply": true,
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      }
-    ],
+    // "TcpInbound": [
+    //   {
+    //     "SourceEndpointId": 1,
+    //     "Port": 5101,
+    //     "Format": "hl7v2",
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "RequireClientCertificate": true,
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   },
+    //   {
+    //     "SourceEndpointId": 11,
+    //     "Port": 6101,
+    //     "Format": "hl7v2",
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "RequireClientCertificate": true,
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   }
+    // ],
+    // "HttpInbound": [
+    //   {
+    //     "SourceEndpointId": 2,
+    //     "Prefix": "https://+:5102/ibe/",
+    //     "Format": "hl7v2",
+    //     "ReplyTimeout": "00:01:15",
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "RequireClientCertificate": true,
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   },
+    //   {
+    //     "SourceEndpointId": 12,
+    //     "Prefix": "https://+:6102/ibe/",
+    //     "Format": "hl7v2",
+    //     "ReplyTimeout": "00:01:15",
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "RequireClientCertificate": true,
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   }
+    // ],
+    // "WebSocketInbound": [
+    //   {
+    //     "SourceEndpointId": 3,
+    //     "Prefix": "https://+:5103/ibe/ws/",
+    //     "Format": "hl7v2",
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "RequireClientCertificate": true,
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   },
+    //   {
+    //     "SourceEndpointId": 13,
+    //     "Prefix": "https://+:6103/ibe/ws/",
+    //     "Format": "hl7v2",
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "RequireClientCertificate": true,
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   }
+    // ],
+    // "TcpOutbound": [
+    //   {
+    //     "OutputId": 101,
+    //     "Host": "127.0.0.1",
+    //     "Port": 5201,
+    //     "ExpectReply": true,
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   },
+    //   {
+    //     "OutputId": 201,
+    //     "Host": "127.0.0.1",
+    //     "Port": 7201,
+    //     "ExpectReply": true,
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   }
+    // ],
     "HttpOutbound": [
+    //   {
+    //     "OutputId": 102,
+    //     "Endpoint": "https://localhost:5202/ibe/inbound",
+    //     "ContentType": "application/octet-stream",
+    //     "TimeoutSeconds": 30,
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   },
+    //   {
+    //     "OutputId": 202,
+    //     "Endpoint": "https://localhost:7202/ibe/inbound",
+    //     "ContentType": "application/octet-stream",
+    //     "TimeoutSeconds": 30,
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   },
       {
-        "OutputId": 102,
-        "Endpoint": "https://localhost:5202/ibe/inbound",
-        "ContentType": "application/octet-stream",
-        "TimeoutSeconds": 30,
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
-      },
-      {
-        "OutputId": 202,
-        "Endpoint": "https://localhost:7202/ibe/inbound",
-        "ContentType": "application/octet-stream",
-        "TimeoutSeconds": 30,
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
+        "OutputId": 105,
+        "Endpoint": "http://localhost:9105/ibe/inbound",
+        "ContentType": "application/json",
+        "TimeoutSeconds": 30
       }
     ],
-    "WebSocketOutbound": [
+    // "WebSocketOutbound": [
+    //   {
+    //     "OutputId": 103,
+    //     "Endpoint": "wss://localhost:6103/ibe/ws",
+    //     "ExpectReply": true,
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   },
+    //   {
+    //     "OutputId": 203,
+    //     "Endpoint": "wss://localhost:7203/ibe/ws",
+    //     "ExpectReply": true,
+    //     "Ssl": {
+    //       "Enabled": true,
+    //       "Mode": "TwoWay",
+    //       "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+    //       "CertificatePassword": "1",
+    //       "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+    //       "TrustedCertificateAuthorityPassword": "1"
+    //     }
+    //   }
+    // ],
+
+    // Manual File-in -> File-out test. Drop a file in C:\ibe-test\in -> agent reads it, runs the
+    // "blob" pipeline (reconstructs a base64 {filename, filecontent} envelope into the original bytes;
+    // plain files pass through), and writes it to C:\ibe-test\out.
+    "FileInbound": [
       {
-        "OutputId": 103,
-        "Endpoint": "wss://localhost:6103/ibe/ws",
-        "ExpectReply": true,
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
+        "SourceEndpointId": 4,
+        "Directory": "C:\\ibe-test\\in",
+        "FilePattern": "*.hl7;*.txt;*.dat;*.json",
+        "PollIntervalSeconds": 2,
+        "Format": "hl7v2",
+        "KeepOriginalFiles": false,
+        "RetentionDays": 0
       },
       {
-        "OutputId": 203,
-        "Endpoint": "wss://localhost:7203/ibe/ws",
-        "ExpectReply": true,
-        "Ssl": {
-          "Enabled": true,
-          "Mode": "TwoWay",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
-        }
+        "SourceEndpointId": 5,
+        "Directory": "C:\\ibe-test\\http-in",
+        "FilePattern": "*.pdf;*.png;*.jpg;*.jpeg;*.json;*.xml;*.txt;*.hl7;*.dat",
+        "PollIntervalSeconds": 2,
+        "Format": "hl7v2",
+        "KeepOriginalFiles": false,
+        "RetentionDays": 0
+      }
+    ],
+    "FileOutbound": [
+      {
+        "OutputId": 104,
+        "Directory": "C:\\ibe-test\\out",
+        "FileNameTemplate": "out_{timestamp}.{ext}",
+        "DefaultExtension": "hl7",
+        "AllowMessageDirectedPath": true   // honor an envelope's destinationpath (blob.path) as the output dir; false = always write to Directory
       }
     ]
   },
   "Contracts": [
+    // {
+    //   "Name": "Contract1-Ingress-And-Bridge",
+    //   "Workflow": { "Use": "adt" },
+    //   "Inputs": [
+    //     { "InputId": 1 },
+    //     { "InputId": 2 },
+    //     { "InputId": 3 }
+    //   ],
+    //   "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+    //   "Outputs": [
+    //     { "OutputId": 101 },
+    //     { "OutputId": 102 },
+    //     { "OutputId": 103 }
+    //   ]
+    // },
+    // {
+    //   "Name": "Contract2-Relay-To-Targets",
+    //   "Workflow": { "Use": "adt" },
+    //   "Inputs": [
+    //     { "InputId": 11 },
+    //     { "InputId": 12 },
+    //     { "InputId": 13 }
+    //   ],
+    //   "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+    //   "Outputs": [
+    //     { "OutputId": 201 },
+    //     { "OutputId": 202 },
+    //     { "OutputId": 203 }
+    //   ]
+    // },
     {
-      "Name": "Contract1-Ingress-And-Bridge",
-      "Template": "adt",
-      "Inputs": [
-        { "InputId": 1 },
-        { "InputId": 2 },
-        { "InputId": 3 }
-      ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Name": "Demo-File-To-File",
+      "Workflow": { "Use": "file-blob" },
+      "Inputs": [ { "InputId": 4 } ],
+      "Acknowledgement": { "IsEnabled": false },
+      "Response": { "IsEnabled": false },
       "Outputs": [
-        { "OutputId": 101 },
-        { "OutputId": 102 },
-        { "OutputId": 103 }
+        { "OutputId": 104 }
       ]
     },
     {
-      "Name": "Contract2-Relay-To-Targets",
-      "Template": "adt",
-      "Inputs": [
-        { "InputId": 11 },
-        { "InputId": 12 },
-        { "InputId": 13 }
-      ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Name": "Legacy-File-To-Http",
+      "Workflow": { "Use": "file-http-relay" },
+      "Inputs": [ { "InputId": 5 } ],
+      "Acknowledgement": { "IsEnabled": false },
+      "Response": { "IsEnabled": false },
       "Outputs": [
-        { "OutputId": 201 },
-        { "OutputId": 202 },
-        { "OutputId": 203 }
+        { "OutputId": 105 }
       ]
     }
   ]

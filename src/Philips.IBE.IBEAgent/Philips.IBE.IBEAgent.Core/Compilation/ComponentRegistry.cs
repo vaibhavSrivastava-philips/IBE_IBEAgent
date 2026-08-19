@@ -8,7 +8,7 @@ namespace Philips.IBE.IBEAgent.Core;
 // Catalog (named DTOs) — this is the "name -> real instance" resolver used by the compiler.
 public sealed class ComponentRegistry
 {
-    private readonly Dictionary<string, Func<IMessageStage>> _stages = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Func<StageParameters, IMessageStage>> _stages = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<CodecOptions, IMessageCodec>> _messageCodecs = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<CodecOptions, IBatchCodec>> _batchCodecs = new(StringComparer.Ordinal);
     private readonly Dictionary<int, Func<OutputOptions, IOutboundEndpoint>> _endpointFactories = new();
@@ -17,7 +17,7 @@ public sealed class ComponentRegistry
 
     public IReadOnlyList<IEndpointLifecycle> OutboundEndpointLifecycles => _outboundEndpointLifecycles;
 
-    public ComponentRegistry RegisterStage(string name, Func<IMessageStage> factory)
+    public ComponentRegistry RegisterStage(string name, Func<StageParameters, IMessageStage> factory)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(factory);
@@ -62,11 +62,12 @@ public sealed class ComponentRegistry
     public bool TryGetAckFormatter(string format, AckShape shape, out IAckFormatter? formatter)
         => _ackFormatters.TryGetValue((format, shape), out formatter);
 
-    public IMessageStage CreateStage(string name)
+    public IMessageStage CreateStage(string name, StageParameters parameters)
     {
+        ArgumentNullException.ThrowIfNull(parameters);
         if (!_stages.TryGetValue(name, out var factory))
             throw new InvalidOperationException($"No stage registered with name '{name}'.");
-        return factory();
+        return factory(parameters);
     }
 
     public IMessageCodec CreateMessageCodec(string name, CodecOptions options)

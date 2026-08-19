@@ -3,6 +3,7 @@ using System.Net.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Security;
 namespace Philips.IBE.IBEAgent.Endpoints.Http;
 
@@ -156,6 +157,10 @@ public sealed class HttpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         AddIfPresent(TransportCorrelationHeaders.WireRequestId, TransportCorrelationHeaders.RequestId);
         AddIfPresent(TransportCorrelationHeaders.WireMessageId, TransportCorrelationHeaders.MessageId);
         AddIfPresent(TransportCorrelationHeaders.WireLogicalEndpointId, TransportCorrelationHeaders.LogicalEndpointId);
+
+        // Transparent content-type passthrough: surface the request's media type for a downstream output to honor.
+        if (_options.RelayContentType && !string.IsNullOrWhiteSpace(request.ContentType))
+            headers[ContentHeaders.ContentType] = request.ContentType;
 
         return headers;
 

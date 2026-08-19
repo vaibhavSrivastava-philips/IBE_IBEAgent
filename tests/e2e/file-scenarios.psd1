@@ -19,6 +19,8 @@
 #   Content     - 'plain' (HL7) | 'envelope' (base64 blob envelope, decoded by
 #                 the blob-envelope-extract pipeline, output name from filename) |
 #                 'base64' (base64 payload decoded by the output leg's base64 codec).
+#   DirectedPath- envelope only: also set the envelope's "destinationpath" so the File
+#                 sink writes to that directory (via blob.path) instead of Directory.
 #
 @{
     Scenarios = @(
@@ -38,5 +40,12 @@
         # ---- Content (base64 codec + blob envelope) -------------------------
         @{ Name = 'File in -> File out, base64 blob envelope';  Input = 'file'; Output = 'file'; Ack = 'none'; Content = 'envelope' }
         @{ Name = 'File in -> File out, base64 payload codec';  Input = 'file'; Output = 'file'; Ack = 'none'; Content = 'base64' }
+
+        # ---- Message-directed output path (envelope destinationpath) --------
+        @{ Name = 'File in -> File out, envelope destinationpath'; Input = 'file'; Output = 'file'; Ack = 'none'; Content = 'envelope'; DirectedPath = $true }
+
+        # ---- Content-Type classification (legacy HttpSender parity) ----------
+        @{ Name = 'File(.pdf) in -> HTTP out, Content-Type from extension';              Input = 'file'; Output = 'http'; Ack = 'none'; FileExtension = 'pdf'; ExpectContentType = 'application/pdf' }
+        @{ Name = 'File envelope(scan.png) in -> HTTP out, Content-Type from blob name'; Input = 'file'; Output = 'http'; Ack = 'none'; Content = 'envelope'; EnvelopeFileName = 'scan.png'; ExpectContentType = 'image/png' }
     )
 }

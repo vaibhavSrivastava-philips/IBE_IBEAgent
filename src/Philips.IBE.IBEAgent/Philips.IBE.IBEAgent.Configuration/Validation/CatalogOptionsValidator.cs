@@ -34,16 +34,33 @@ public static class CatalogOptionsValidator
             }
         }
 
-        foreach (var (name, template) in catalog.Templates)
+        foreach (var (name, workflow) in catalog.Workflows)
         {
-            if (!string.IsNullOrWhiteSpace(template.Pipeline) && !catalog.Pipelines.ContainsKey(template.Pipeline))
+            if (!string.IsNullOrWhiteSpace(workflow.Pipeline) && !catalog.Pipelines.ContainsKey(workflow.Pipeline))
             {
-                result.AddError($"Catalog template '{name}' references unknown Pipeline '{template.Pipeline}'.");
+                result.AddError($"Catalog workflow '{name}' references unknown Pipeline '{workflow.Pipeline}'.");
             }
 
-            if (!string.IsNullOrWhiteSpace(template.Format) && !catalog.Formats.ContainsKey(template.Format))
+            if (!string.IsNullOrWhiteSpace(workflow.Format) && !catalog.Formats.ContainsKey(workflow.Format))
             {
-                result.AddError($"Catalog template '{name}' references unknown Format '{template.Format}'.");
+                result.AddError($"Catalog workflow '{name}' references unknown Format '{workflow.Format}'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(workflow.Format) && workflow.Formats is { Count: > 0 })
+            {
+                result.AddError($"Catalog workflow '{name}' declares both Format and Formats; use one (Formats is the multi-format set, Format is the single-format shorthand).");
+            }
+
+            foreach (var formatName in workflow.Formats ?? [])
+            {
+                if (string.IsNullOrWhiteSpace(formatName))
+                {
+                    result.AddError($"Catalog workflow '{name}' has a blank entry in Formats.");
+                }
+                else if (!catalog.Formats.ContainsKey(formatName))
+                {
+                    result.AddError($"Catalog workflow '{name}' references unknown Format '{formatName}' in Formats.");
+                }
             }
         }
 

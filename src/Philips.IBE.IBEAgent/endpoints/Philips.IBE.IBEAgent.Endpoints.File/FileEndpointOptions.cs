@@ -11,6 +11,7 @@ public sealed class FileOutboundOptions
     public string? FileNameTemplate { get; init; }          // null/blank -> FileNameResolver.DefaultTemplate
     public string DefaultExtension { get; init; } = "txt";  // fills the {ext} token
     public bool CreateDirectory { get; init; } = true;
+    public bool AllowMessageDirectedPath { get; init; } = true;   // honor an envelope's destinationpath (blob.path header) as the output directory (legacy parity); false = always write to Directory
 }
 
 // Transport config for a File INPUT source: which folder to poll and how.

@@ -67,6 +67,7 @@ public sealed class FileOutboundEndpointConfig
     public required string Directory { get; init; }
     public string? FileNameTemplate { get; init; }        // null/blank -> FileNameResolver default (timestamp+correlationId)
     public string DefaultExtension { get; init; } = "txt";
+    public bool AllowMessageDirectedPath { get; init; } = true;   // honor an envelope's destinationpath as the output dir (legacy parity)
 }
 
 // Host-level config wrapper — binds the "Endpoints" section (contractData.json) into what the

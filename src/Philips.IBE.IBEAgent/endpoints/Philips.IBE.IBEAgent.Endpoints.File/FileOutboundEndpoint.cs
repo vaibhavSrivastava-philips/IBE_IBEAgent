@@ -1,4 +1,5 @@
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Core;
 using IoFile = System.IO.File;   // the enclosing namespace ends in ".File", which shadows System.IO.File
 
 namespace Philips.IBE.IBEAgent.Endpoints.File;
@@ -26,17 +27,17 @@ public sealed class FileOutboundEndpoint : IOutboundEndpoint
         {
             var wire = _codec?.Encode(context) ?? context.Payload;
 
-            var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_options.Directory));
+            var root = ResolveOutputDirectory(context);
             if (_options.CreateDirectory)
                 Directory.CreateDirectory(root);
 
             var fileName = FileNameResolver.Resolve(context, _options.FileNameTemplate, _options.DefaultExtension);
             var targetPath = Path.GetFullPath(Path.Combine(root, fileName));
 
-            // Defense-in-depth: the name is already sanitized to a bare file name; assert the final
-            // path stays directly inside the configured directory (no traversal).
+            // The file name is already sanitized to a bare name; assert it did not introduce a directory
+            // component (traversal guard on the NAME). The directory itself may be message-directed below.
             if (!string.Equals(Path.GetDirectoryName(targetPath), root, StringComparison.OrdinalIgnoreCase))
-                return new DeliveryResult(DeliveryOutcome.Failed, "resolved path escaped the configured directory");
+                return new DeliveryResult(DeliveryOutcome.Failed, "resolved file name escaped the target directory");
 
             tempPath = Path.Combine(root, Path.GetRandomFileName() + ".tmp");
             await IoFile.WriteAllBytesAsync(tempPath, wire, cancellationToken);
@@ -59,5 +60,17 @@ public sealed class FileOutboundEndpoint : IOutboundEndpoint
                 catch (UnauthorizedAccessException) { }
             }
         }
+    }
+
+    // Output directory = the configured Directory, unless the message carries a blob.path (an envelope's
+    // destinationpath) and this leg allows message-directed paths (legacy parity).
+    private string ResolveOutputDirectory(MessageContext context)
+    {
+        if (_options.AllowMessageDirectedPath
+            && context.Headers.TryGetValue(BlobHeaders.BlobPath, out var messagePath)
+            && !string.IsNullOrWhiteSpace(messagePath))
+            return Path.TrimEndingDirectorySeparator(Path.GetFullPath(messagePath));
+
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(_options.Directory));
     }
 }

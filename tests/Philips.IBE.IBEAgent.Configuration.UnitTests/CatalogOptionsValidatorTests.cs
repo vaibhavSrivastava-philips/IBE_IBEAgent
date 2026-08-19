@@ -101,11 +101,11 @@ public sealed class CatalogOptionsValidatorTests
     }
 
     [Fact]
-    public void Template_referencing_unknown_pipeline_fails()
+    public void Workflow_referencing_unknown_pipeline_fails()
     {
         var catalog = new CatalogOptions
         {
-            Templates = new Dictionary<string, ContractTemplateOptions> { ["t"] = new() { Pipeline = "missing" } },
+            Workflows = new Dictionary<string, ContractWorkflowOptions> { ["t"] = new() { Pipeline = "missing" } },
         };
 
         var result = CatalogOptionsValidator.Validate(catalog);
@@ -114,11 +114,11 @@ public sealed class CatalogOptionsValidatorTests
     }
 
     [Fact]
-    public void Template_referencing_unknown_format_fails()
+    public void Workflow_referencing_unknown_format_fails()
     {
         var catalog = new CatalogOptions
         {
-            Templates = new Dictionary<string, ContractTemplateOptions> { ["t"] = new() { Format = "missing" } },
+            Workflows = new Dictionary<string, ContractWorkflowOptions> { ["t"] = new() { Format = "missing" } },
         };
 
         var result = CatalogOptionsValidator.Validate(catalog);
@@ -127,18 +127,49 @@ public sealed class CatalogOptionsValidatorTests
     }
 
     [Fact]
-    public void Valid_formats_and_templates_pass()
+    public void Valid_formats_and_workflows_pass()
     {
         var catalog = new CatalogOptions
         {
             Codecs = new Dictionary<string, CodecOptions> { ["hl7v2"] = new() { Type = "hl7v2" } },
             Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["validate"] },
             Formats = new Dictionary<string, OutputFormatOptions> { ["hl7-standard"] = new() { Codec = "hl7v2" } },
-            Templates = new Dictionary<string, ContractTemplateOptions> { ["adt"] = new() { Pipeline = "main", Format = "hl7-standard" } },
+            Workflows = new Dictionary<string, ContractWorkflowOptions> { ["adt"] = new() { Pipeline = "main", Format = "hl7-standard" } },
         };
 
         var result = CatalogOptionsValidator.Validate(catalog);
 
         Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Workflow_declaring_both_format_and_formats_fails()
+    {
+        var catalog = new CatalogOptions
+        {
+            Codecs = new Dictionary<string, CodecOptions> { ["hl7v2"] = new() { Type = "hl7v2" } },
+            Formats = new Dictionary<string, OutputFormatOptions> { ["hl7-standard"] = new() { Codec = "hl7v2" } },
+            Workflows = new Dictionary<string, ContractWorkflowOptions>
+            {
+                ["t"] = new() { Format = "hl7-standard", Formats = ["hl7-standard"] },
+            },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.Contains(result.Errors, e => e.Contains("both Format and Formats"));
+    }
+
+    [Fact]
+    public void Workflow_with_unknown_formats_entry_fails()
+    {
+        var catalog = new CatalogOptions
+        {
+            Workflows = new Dictionary<string, ContractWorkflowOptions> { ["t"] = new() { Formats = ["missing"] } },
+        };
+
+        var result = CatalogOptionsValidator.Validate(catalog);
+
+        Assert.Contains(result.Errors, e => e.Contains("unknown Format 'missing' in Formats"));
     }
 }

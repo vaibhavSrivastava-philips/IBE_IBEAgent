@@ -8,7 +8,7 @@ namespace Philips.IBE.IBEAgent.Core.UnitTests;
 public sealed class BlobEnvelopeExtractStageTests
 {
     [Fact]
-    public async Task Extracts_content_and_sets_the_name_header_ignoring_destinationpath()
+    public async Task Extracts_content_and_sets_the_name_and_path_headers()
     {
         var raw = Encoding.UTF8.GetBytes("PDF-BYTES");
         var envelope = $"{{\"filename\":\"report.pdf\",\"destinationpath\":\"out/sub\",\"filecontent\":\"{Convert.ToBase64String(raw)}\"}}";
@@ -19,7 +19,7 @@ public sealed class BlobEnvelopeExtractStageTests
         Assert.False(result.Filtered);
         Assert.Equal("PDF-BYTES", Encoding.UTF8.GetString(ctx.Payload.Span));   // payload replaced with decoded bytes
         Assert.Equal("report.pdf", ctx.Headers[BlobHeaders.BlobName]);
-        Assert.False(ctx.Headers.ContainsKey("blob.path"));                     // destinationpath is intentionally not honored
+        Assert.Equal("out/sub", ctx.Headers[BlobHeaders.BlobPath]);            // destinationpath surfaced for a sink to honor
     }
 
     [Fact]

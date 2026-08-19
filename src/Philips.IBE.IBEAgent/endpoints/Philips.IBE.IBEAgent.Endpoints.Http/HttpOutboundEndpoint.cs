@@ -1,6 +1,7 @@
 // HttpOutboundEndpoint.cs
 using System.Net;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Security;
 namespace Philips.IBE.IBEAgent.Endpoints.Http;
 
@@ -71,7 +72,11 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
         {
             var wire = _codec?.Encode(context) ?? context.Payload;
             using var content = new ByteArrayContent(wire.ToArray());
-            content.Headers.TryAddWithoutValidation("Content-Type", _options.ContentType);
+            // An upstream-decided media type (relay or the media-type stage) wins; otherwise the endpoint default.
+            var mediaType = context.Headers.TryGetValue(ContentHeaders.ContentType, out var contentType) && !string.IsNullOrWhiteSpace(contentType)
+                ? contentType
+                : _options.ContentType;
+            content.Headers.TryAddWithoutValidation("Content-Type", mediaType);
 
             using var request = new HttpRequestMessage(HttpMethod.Post, _options.Endpoint) { Content = content };
             request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireRequestId, context.CorrelationId);

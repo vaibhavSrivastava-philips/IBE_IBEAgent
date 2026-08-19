@@ -98,6 +98,7 @@ public static class ServiceCollectionExtensions
                     Directory = file.Directory,
                     FileNameTemplate = file.FileNameTemplate,
                     DefaultExtension = file.DefaultExtension,
+                    AllowMessageDirectedPath = file.AllowMessageDirectedPath,
                 },
                 codec);
             targets.Add(new KeyValuePair<int, IReplayTarget>(file.OutputId, new EndpointReplayTarget(file.OutputId, endpoint, store)));

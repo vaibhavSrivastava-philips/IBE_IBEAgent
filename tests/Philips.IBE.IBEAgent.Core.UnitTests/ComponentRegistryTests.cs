@@ -10,9 +10,9 @@ public sealed class ComponentRegistryTests
     [Fact]
     public void CreateStage_returns_registered_instance()
     {
-        var registry = new ComponentRegistry().RegisterStage("noop", () => new FakeStage());
+        var registry = new ComponentRegistry().RegisterStage("noop", _ => new FakeStage());
 
-        var stage = registry.CreateStage("noop");
+        var stage = registry.CreateStage("noop", StageParameters.None);
 
         Assert.IsType<FakeStage>(stage);
     }
@@ -22,7 +22,7 @@ public sealed class ComponentRegistryTests
     {
         var registry = new ComponentRegistry();
 
-        Assert.Throws<InvalidOperationException>(() => registry.CreateStage("missing"));
+        Assert.Throws<InvalidOperationException>(() => registry.CreateStage("missing", StageParameters.None));
     }
 
     [Fact]

@@ -17,6 +17,10 @@ public sealed class HttpInboundOptions
     // port via netsh/httpcfg); Ssl.Mode still governs *client certificate* enforcement (TwoWay = mTLS)
     // and drives the composition root to require an https:// Prefix.
     public SslOptions Ssl { get; init; } = new();
+
+    // When true, the inbound request's Content-Type is captured into the content.type header so a
+    // header-capable output (HTTP) can relay it verbatim (transparent content-type passthrough).
+    public bool RelayContentType { get; init; }
 }
 
 public sealed class HttpOutboundOptions

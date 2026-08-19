@@ -39,7 +39,7 @@ public sealed class ContractCompiler
             i => i.InputId,
             i => (IMessageChannel)new BoundedInMemoryChannel(i.Channel.Capacity, i.Channel.OverflowPolicy));
 
-        var pipeline = PipelineBuilder.Build(contract.Pipeline, _catalog, _registry);
+        var pipeline = PipelineBuilder.Build(contract.Pipeline, _catalog, _registry, contract.StageParameterSets);
 
         var legs = contract.Outputs.Select(o => BuildLeg(o, contract.Name)).ToList();
 

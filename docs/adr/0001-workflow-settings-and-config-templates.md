@@ -1,14 +1,17 @@
 # ADR 0001 — Workflow-based configuration delegation (the "Settings" model) + config template folder
 
-- **Status:** Proposed
+- **Status:** Accepted (implemented 2026-08-18)
 - **Date:** 2026-08-03
 - **Deciders:** IBE Agent engine team
 - **Supersedes:** the fixed `Catalog.Templates` split (rename + extension; see "Naming" below)
 - **Related:** `docs/architecture/Refactor_ArchitectureDoc_v4.md` §8 (Contract/Catalog model), §3.7/§3.7a (template resolution)
 
 > This ADR captures the design agreed during the 2026-08 configuration-flexibility discussion.
-> It is a **design record only** — no engine code has been changed yet. Illustrative JSON below is
-> **proposed** shape, not current shape.
+> **Implemented 2026-08-18** (rollout phases 1–6 in §8): the `Template`→`Workflow` rename, multi-format
+> Workflows, the `Settings` model (with the always-object `Workflow` reference), the
+> `CreateStage(name, StageParameters)` seam, Resources (`Kind: file`/`secret` + a resolved manifest), and the
+> generated `config/templates/` tree (retiring `template.json`). The illustrative JSON below is close to,
+> but not identical to, the shipped shape (e.g. `Workflow` is always an object; `Settings` values are strings).
 
 ---
 

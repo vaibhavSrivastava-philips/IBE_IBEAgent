@@ -26,8 +26,8 @@ public sealed class PipelineBuilderTests
     {
         var order = new List<string>();
         var registry = new ComponentRegistry()
-            .RegisterStage("a", () => new RecordingStage("a", order))
-            .RegisterStage("b", () => new RecordingStage("b", order));
+            .RegisterStage("a", _ => new RecordingStage("a", order))
+            .RegisterStage("b", _ => new RecordingStage("b", order));
         var catalog = new CatalogOptions
         {
             Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["a", "b"] },
@@ -38,6 +38,26 @@ public sealed class PipelineBuilderTests
         await pipeline.ExecuteAsync(ctx);
 
         Assert.Equal(["a", "b"], order);
+    }
+
+    [Fact]
+    public void Build_passes_stage_parameters_to_each_stage_factory()
+    {
+        string? seen = null;
+        var registry = new ComponentRegistry()
+            .RegisterStage("cap", p => { seen = p.Get("Ruleset"); return new RecordingStage("cap", []); });
+        var catalog = new CatalogOptions
+        {
+            Pipelines = new Dictionary<string, IReadOnlyList<string>> { ["main"] = ["cap"] },
+        };
+        var parameters = new Dictionary<string, StageParameters>
+        {
+            ["cap"] = new StageParameters { Values = new Dictionary<string, string?> { ["Ruleset"] = "site-a.rules.json" } },
+        };
+
+        PipelineBuilder.Build("main", catalog, registry, parameters);
+
+        Assert.Equal("site-a.rules.json", seen);
     }
 
     private static MessageContext MakeContext() =>

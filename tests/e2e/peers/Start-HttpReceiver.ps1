@@ -50,6 +50,7 @@ try {
                 url       = $context.Request.Url.AbsolutePath
                 method    = $context.Request.HttpMethod
                 length    = $body.Length
+                contentType = $context.Request.ContentType
                 text      = $body
             }
             $firstLine = ($body -split "`r")[0]
