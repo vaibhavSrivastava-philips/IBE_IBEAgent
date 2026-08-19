@@ -60,6 +60,7 @@ public sealed class FileOutboundEndpointConfig
     public required string Directory { get; init; }
     public string? FileNameTemplate { get; init; }
     public string DefaultExtension { get; init; } = "txt";
+    public bool AllowMessageDirectedPath { get; init; } = true;   // honor an envelope's destinationpath as the output dir (legacy parity)
     public string? Encoding { get; init; }
 }
 

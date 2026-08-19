@@ -80,7 +80,7 @@ function Get-OutputFilesWithMarker {
         [Parameter(Mandatory)][string]$Marker
     )
     $matches = @()
-    if (-not (Test-Path -LiteralPath $Directory)) { return $matches }
+    if (-not (Test-Path -LiteralPath $Directory)) { return , $matches }
     $files = Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension -ne '.tmp' }
     foreach ($f in $files) {

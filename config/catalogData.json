@@ -1,41 +1,49 @@
 {
-  // Developer-owned building blocks. FSE contracts reference these BY NAME only; FSEs never
-  // assemble stages or pick raw codecs. Four layers, each referencing the previous by name:
-  //   Codecs    - registered encoders (plug-in Type + params)
-  //   Pipelines - ordered processing stages; shared per contract, run once before fan-out
-  //   Formats   - per-output-leg encoding bundle: a message Codec (+ optional BatchCodec)
-  //   Templates - a contract blueprint an FSE picks: a shared Pipeline + a default per-leg Format
-  //
-  // This is the "plug-and-play code" side. Message-level/operational settings (Acknowledgement,
-  // Retry, DeliveryGuarantee, Channel, batch enable/thresholds) are NOT here - they stay FSE-owned
-  // in contractData.json.
   "Catalog": {
 
     "Codecs": {
-      "hl7v2": { "Type": "hl7v2" }          // pass-through HL7 v2 message codec
+      "hl7v2": { "Type": "hl7v2" },        
+      "base64": { "Type": "base64" }       
     },
 
-    // Named stage lists. Every stage token must be registered in the ComponentRegistry (via a
-    // module-owned AddXxxStages() extension called from ComponentRegistryBuilder). Empty pipelines
-    // are rejected by validation. "passthrough" is a TEMPORARY no-op stage (Core) that passes the
-    // message through unchanged, until real stages (validate/filter/enrich) exist.
     "Pipelines": {
-      "main": [ "passthrough" ]
+      "main": [ "passthrough" ],
+      "blob": [ "blob-envelope-extract" ],   
+      "file-http": [ "blob-envelope-extract", "media-type" ]   
     },
 
-    // Per-leg encoding bundles. Codec names a Codecs entry (one message -> bytes).
-    // BatchCodec (optional) names the Codecs entry used when an FSE enables batching on a leg.
     "Formats": {
-      "hl7-standard": { "Codec": "hl7v2" }
+      "hl7-standard": { "Codec": "hl7v2" },
+      "raw-bytes": { "Codec": "base64" }
     },
 
-    // Contract blueprints. Pipeline is optional (omit = no processing stages). Format supplies the
-    // default per-leg encoding; individual outputs may override it with their own Format. ReplyOnFilter
-    // (dev default) decides what happens to a message the pipeline FILTERS: true = reply with an
-    // intentional HL7 AR reject (carrying the reason); false/omitted = silently drop it. An FSE may
-    // override it on the contract.
-    "Templates": {
-      "adt": { "Pipeline": "main", "Format": "hl7-standard", "ReplyOnFilter": false }
+    "Workflows": {
+      "adt": {
+        "Pipeline": "main",
+        "Format": "hl7-standard",
+        "Settings": {
+          "AckTimeoutSeconds": { "Description": "Seconds to wait for downstream delivery before NACK.", "Default": "30", "Min": 5, "Max": 60, "Bind": "Acknowledgement.TimeoutMs", "Scale": 1000 },
+          "ReplyOnFilter": { "Description": "Reply with an HL7 AR reject when a message is filtered (true) or drop it silently (false).", "Default": "false", "Allowed": [ "true", "false" ], "Bind": "ReplyOnFilter" }
+        }
+      },
+      "adt-multi": { "Pipeline": "main", "Formats": [ "hl7-standard", "raw-bytes" ] }, 
+      "file-blob": { "Pipeline": "blob", "Format": "hl7-standard" }, 
+      "file-http-relay": { "Pipeline": "file-http", "Format": "hl7-standard" } 
+    },
+
+    "MediaTypes": {
+      ".pdf": "application/pdf",
+      ".png": "image/png",
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".json": "application/json",
+      ".xml": "application/xml",
+      ".txt": "text/plain",
+      ".hl7": "application/hl7-v2+er7"
+    },
+
+    "Resources": {
+      "adt-default-rules": { "ContentType": "application/vnd.ibe.filter-rules+json", "Ref": "adt-default.rules.json" }
     }
   }
 }

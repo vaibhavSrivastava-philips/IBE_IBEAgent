@@ -194,6 +194,26 @@ function Wait-ForCapture {
     return $false
 }
 
+# Returns the Content-Type recorded for the first capture line whose body contains the marker
+# (used to assert media-type classification / content-type relay on an HTTP outbound leg).
+function Get-CaptureContentType {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Marker
+    )
+    $text = Get-CaptureText -Path $Path
+    if (-not $text) { return $null }
+    foreach ($line in ($text -split "`r?`n")) {
+        if (-not $line.Trim()) { continue }
+        try { $rec = $line | ConvertFrom-Json } catch { continue }
+        if (($rec.PSObject.Properties.Name -contains 'text') -and "$($rec.text)".Contains($Marker)) {
+            if ($rec.PSObject.Properties.Name -contains 'contentType') { return $rec.contentType }
+            return $null
+        }
+    }
+    return $null
+}
+
 # --- Port readiness ----------------------------------------------------------
 # A bare TCP connect that confirms a listener is accepting on the port. Used for
 # both TCP and HTTP inbound endpoints (HttpListener also binds a TCP port). It

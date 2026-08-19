@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Security;
 namespace Philips.IBE.IBEAgent.Endpoints.Http;
 
@@ -85,6 +86,12 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
                 options: _options,
                 logger: _logger,
                 cancellationToken: cancellationToken);
+            using var content = new ByteArrayContent(wire.ToArray());
+            // An upstream-decided media type (relay or the media-type stage) wins; otherwise the endpoint default.
+            var mediaType = context.Headers.TryGetValue(ContentHeaders.ContentType, out var contentType) && !string.IsNullOrWhiteSpace(contentType)
+                ? contentType
+                : _options.ContentType;
+            content.Headers.TryAddWithoutValidation("Content-Type", mediaType);
 
             var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 

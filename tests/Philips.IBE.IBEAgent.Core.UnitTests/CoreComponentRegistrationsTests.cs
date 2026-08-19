@@ -1,3 +1,4 @@
+using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Configuration;
 using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.TestKit;
@@ -11,7 +12,7 @@ public sealed class CoreComponentRegistrationsTests
     {
         var registry = new ComponentRegistry().AddCoreStages();
 
-        var stage = registry.CreateStage(PassThroughStage.Name);
+        var stage = registry.CreateStage(PassThroughStage.Name, StageParameters.None);
 
         Assert.IsType<PassThroughStage>(stage);
     }

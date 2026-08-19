@@ -115,25 +115,32 @@ function New-Hl7Message {
 # marker is always the message id; for the envelope case it also drives the
 # expected output file name (blob.name).
 function New-ScenarioMessage {
-    param([hashtable]$Scenario, [string]$MessageId, [int]$Index)
+    param([hashtable]$Scenario, [string]$MessageId, [int]$Index, [string]$DirectedDir)
 
     $content = Get-Field $Scenario 'Content' 'plain'
     $hl7 = New-Hl7Message -MessageId $MessageId -Index $Index
+    $ext = Get-Field $Scenario 'FileExtension' 'hl7'          # dropped-file extension -> media-type classification input
+    $expectCt = Get-Field $Scenario 'ExpectContentType' $null # if set, the workflow asserts the delivered Content-Type
 
     switch ($content) {
         'envelope' {
             $decoded = "BLOB-CONTENT $MessageId"
             $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($decoded))
-            $outName = "blob-$MessageId.dat"
-            $envelope = @{ filename = $outName; destinationpath = 'ignored-subfolder'; filecontent = $b64 } | ConvertTo-Json -Compress
-            return @{ Payload = $envelope; Extension = 'hl7'; DeliveredMarker = $MessageId; ExpectedOutputName = $outName }
+            $outName = Get-Field $Scenario 'EnvelopeFileName' "blob-$MessageId.dat"
+            if ((Get-Field $Scenario 'DirectedPath' $false) -and $DirectedDir) {
+                # envelope carries a destinationpath -> the File sink writes to that dir (blob.path)
+                $envelope = @{ filename = $outName; destinationpath = $DirectedDir; filecontent = $b64 } | ConvertTo-Json -Compress
+                return @{ Payload = $envelope; Extension = $ext; DeliveredMarker = $MessageId; ExpectedOutputName = $outName; ExpectedOutputDir = $DirectedDir; ExpectContentType = $expectCt }
+            }
+            $envelope = @{ filename = $outName; filecontent = $b64 } | ConvertTo-Json -Compress
+            return @{ Payload = $envelope; Extension = $ext; DeliveredMarker = $MessageId; ExpectedOutputName = $outName; ExpectedOutputDir = $null; ExpectContentType = $expectCt }
         }
         'base64' {
             $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($hl7))
-            return @{ Payload = $b64; Extension = 'hl7'; DeliveredMarker = $MessageId; ExpectedOutputName = $null }
+            return @{ Payload = $b64; Extension = $ext; DeliveredMarker = $MessageId; ExpectedOutputName = $null; ExpectedOutputDir = $null; ExpectContentType = $expectCt }
         }
         default {
-            return @{ Payload = $hl7; Extension = 'hl7'; DeliveredMarker = $MessageId; ExpectedOutputName = $null }
+            return @{ Payload = $hl7; Extension = $ext; DeliveredMarker = $MessageId; ExpectedOutputName = $null; ExpectedOutputDir = $null; ExpectContentType = $expectCt }
         }
     }
 }
@@ -149,7 +156,7 @@ function New-FileContractData {
     switch ($Scenario.Input) {
         'file' {
             $endpoints['FileInbound'] = @(
-                @{ SourceEndpointId = $inputId; Directory = $InDir; FilePattern = '*.hl7;*.dat;*.txt'; PollIntervalSeconds = 1; Format = 'hl7v2'; KeepOriginalFiles = ($disposition -eq 'Watermark') }
+                @{ SourceEndpointId = $inputId; Directory = $InDir; FilePattern = '*.hl7;*.dat;*.txt;*.json;*.xml;*.pdf;*.png;*.jpg;*.jpeg'; PollIntervalSeconds = 1; Format = 'hl7v2'; KeepOriginalFiles = ($disposition -eq 'Watermark') }
             )
         }
         'tcp' {
@@ -188,7 +195,8 @@ function New-FileContractData {
         Inputs  = @(@{ InputId = $inputId })
         Outputs = $outputs
     }
-    if ($content -eq 'envelope') { $contract['Pipeline'] = 'blob' }
+    if (Get-Field $Scenario 'ExpectContentType' $null) { $contract['Pipeline'] = 'file-http' }   # blob-envelope-extract + media-type (Content-Type classification)
+    elseif ($content -eq 'envelope') { $contract['Pipeline'] = 'blob' }
 
     switch ($Scenario.Ack) {
         'none' {
@@ -212,7 +220,8 @@ function Write-AgentCatalog {
     $catalog = @{
         Catalog = @{
             Codecs    = @{ hl7v2 = @{ Type = 'hl7v2' }; base64 = @{ Type = 'base64' } }
-            Pipelines = @{ main = @('passthrough'); blob = @('blob-envelope-extract') }
+            Pipelines = @{ main = @('passthrough'); blob = @('blob-envelope-extract'); 'file-http' = @('blob-envelope-extract', 'media-type') }
+            MediaTypes = @{ '.pdf' = 'application/pdf'; '.png' = 'image/png'; '.jpg' = 'image/jpeg'; '.jpeg' = 'image/jpeg'; '.json' = 'application/json'; '.xml' = 'application/xml'; '.txt' = 'text/plain'; '.hl7' = 'application/hl7-v2+er7' }
         }
     }
     Set-Content -LiteralPath (Join-Path $AgentDir 'catalogData.json') -Value ($catalog | ConvertTo-Json -Depth 8) -Encoding UTF8
@@ -258,6 +267,7 @@ function Invoke-Scenario {
     $scenarioDir = Join-Path $RunDir ('s{0:D2}' -f $Index)
     $inDir = Join-Path $scenarioDir 'in'
     $outDir = Join-Path $scenarioDir 'out'
+    $directedDir = Join-Path $scenarioDir 'directed'   # envelope destinationpath target (message-directed output)
     if ($Scenario.Input -eq 'file') { New-Item -ItemType Directory -Path $inDir -Force | Out-Null }
     if ($Scenario.Output -eq 'file') { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
 
@@ -276,6 +286,7 @@ function Invoke-Scenario {
         Disposition = if ($Scenario.Input -eq 'file') { $disposition } else { 'n/a' }
         Delivered   = 'No'
         Source      = ''
+        ContentType = ''
         Verdict     = 'FAIL'
         Detail      = ''
         AgentLog    = $agentOutLog
@@ -301,7 +312,7 @@ function Invoke-Scenario {
         }
         Log '  agent inbound ready'
 
-        $msg = New-ScenarioMessage -Scenario $Scenario -MessageId $messageId -Index $Index
+        $msg = New-ScenarioMessage -Scenario $Scenario -MessageId $messageId -Index $Index -DirectedDir $directedDir
 
         # ---- Inject from the upstream comm point ----
         switch ($Scenario.Input) {
@@ -326,7 +337,8 @@ function Invoke-Scenario {
         $deliveredDetail = ''
         switch ($Scenario.Output) {
             'file' {
-                $hit = Wait-ForOutputFile -Directory $outDir -Marker $msg.DeliveredMarker -TimeoutMs 15000
+                $expectDir = if ($msg.ExpectedOutputDir) { $msg.ExpectedOutputDir } else { $outDir }
+                $hit = Wait-ForOutputFile -Directory $expectDir -Marker $msg.DeliveredMarker -TimeoutMs 15000
                 $delivered = $hit.Found
                 if ($delivered -and $msg.ExpectedOutputName) {
                     if ($hit.Name -ne $msg.ExpectedOutputName) {
@@ -336,6 +348,12 @@ function Invoke-Scenario {
                     else { $deliveredDetail = "file '$($hit.Name)'" }
                 }
                 elseif ($delivered) { $deliveredDetail = "file '$($hit.Name)'" }
+                # message-directed path: the file must land in destinationpath, NOT the configured Directory
+                if ($delivered -and $msg.ExpectedOutputDir) {
+                    $leak = Wait-ForOutputFile -Directory $outDir -Marker $msg.DeliveredMarker -TimeoutMs 500
+                    if ($leak.Found) { $delivered = $false; $deliveredDetail = "leaked into the configured dir ('$($leak.Name)')" }
+                    else { $deliveredDetail = "$deliveredDetail; wrote to destinationpath, not the configured dir" }
+                }
             }
             'tcp' {
                 $timeout = if ($expectError) { 4000 } else { 15000 }
@@ -376,9 +394,19 @@ function Invoke-Scenario {
             $record.Source = 'sent'
         }
 
+        # ---- Content-Type assertion (media-type classification / relay) ----
+        $contentTypeOk = $true
+        if ($msg.ExpectContentType -and $delivered) {
+            $actualCt = if ($Scenario.Output -eq 'http') { Get-CaptureContentType -Path $HttpCaptureFile -Marker $msg.DeliveredMarker } else { $null }
+            $record.ContentType = $actualCt
+            # A Content-Type may carry a charset suffix; match on the media-type prefix.
+            $contentTypeOk = ($actualCt -and $actualCt.StartsWith($msg.ExpectContentType))
+            $deliveredDetail = (@($deliveredDetail, "content-type=$actualCt") | Where-Object { $_ }) -join '; '
+        }
+
         # ---- Verdict ----
         $deliveryOk = if ($expectError) { -not $delivered } else { $delivered }
-        if ($deliveryOk -and $sourceOk) {
+        if ($deliveryOk -and $sourceOk -and $contentTypeOk) {
             $record.Verdict = 'PASS'
             $record.Detail = (@($deliveredDetail, $record.Source) | Where-Object { $_ }) -join '; '
             Log ("  verdict: PASS  (delivered: {0}; source: {1})" -f $record.Delivered, $record.Source) 'PASS'
@@ -387,6 +415,7 @@ function Invoke-Scenario {
             $reasons = @()
             if (-not $deliveryOk) { $reasons += if ($expectError) { 'message was delivered but a failure was expected' } else { "delivery not observed$(if ($deliveredDetail) { " ($deliveredDetail)" })" } }
             if (-not $sourceOk) { $reasons += "source outcome wrong ($($record.Source))" }
+            if (-not $contentTypeOk) { $reasons += "content-type '$($record.ContentType)' != expected '$($msg.ExpectContentType)'" }
             $record.Detail = ($reasons -join '; ')
             Log ("  verdict: FAIL  ({0})" -f $record.Detail) 'FAIL'
         }

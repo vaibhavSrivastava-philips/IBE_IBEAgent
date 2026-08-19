@@ -5,4 +5,5 @@ namespace Philips.IBE.IBEAgent.Core;
 public static class BlobHeaders
 {
     public const string BlobName = "blob.name";   // source-declared output file name (from a file envelope)
+    public const string BlobPath = "blob.path";   // source-declared output directory (from a file envelope's destinationpath)
 }

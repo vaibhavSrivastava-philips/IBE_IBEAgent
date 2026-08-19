@@ -19,10 +19,10 @@ public sealed class ServiceCollectionExtensionsTests
         {
             ["Catalog:Codecs:hl7v2:Type"] = "hl7v2",
             ["Catalog:Formats:hl7-standard:Codec"] = "hl7v2",
-            ["Catalog:Templates:adt:Format"] = "hl7-standard",
+            ["Catalog:Workflows:adt:Format"] = "hl7-standard",
 
             ["Contracts:0:Name"] = "Adt",
-            ["Contracts:0:Template"] = "adt",
+            ["Contracts:0:Workflow:Use"] = "adt",
             ["Contracts:0:Inputs:0:InputId"] = "1",
             ["Contracts:0:Outputs:0:OutputId"] = "100",
 
@@ -32,7 +32,7 @@ public sealed class ServiceCollectionExtensionsTests
         })
         .Build();
 
-    // Non-empty pipeline: the adt template names the "main" pipeline, which lists the "passthrough"
+    // Non-empty pipeline: the adt workflow names the "main" pipeline, which lists the "passthrough"
     // stage. Compiling this requires the real ComponentRegistryBuilder to have registered that stage
     // (via AddCoreStages) — otherwise CreateStage throws "No stage registered with name 'passthrough'".
     private static IConfiguration BuildPipelineConfiguration() => new ConfigurationBuilder()
@@ -41,11 +41,11 @@ public sealed class ServiceCollectionExtensionsTests
             ["Catalog:Codecs:hl7v2:Type"] = "hl7v2",
             ["Catalog:Formats:hl7-standard:Codec"] = "hl7v2",
             ["Catalog:Pipelines:main:0"] = "passthrough",
-            ["Catalog:Templates:adt:Format"] = "hl7-standard",
-            ["Catalog:Templates:adt:Pipeline"] = "main",
+            ["Catalog:Workflows:adt:Format"] = "hl7-standard",
+            ["Catalog:Workflows:adt:Pipeline"] = "main",
 
             ["Contracts:0:Name"] = "Adt",
-            ["Contracts:0:Template"] = "adt",
+            ["Contracts:0:Workflow:Use"] = "adt",
             ["Contracts:0:Inputs:0:InputId"] = "1",
             ["Contracts:0:Outputs:0:OutputId"] = "100",
 
@@ -55,7 +55,7 @@ public sealed class ServiceCollectionExtensionsTests
         })
         .Build();
 
-    // Legacy/manual path: no Template - developer concerns wired inline on the contract.
+    // Legacy/manual path: no Workflow - developer concerns wired inline on the contract.
     private static IConfiguration BuildInlineConfiguration() => new ConfigurationBuilder()
         .AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -139,7 +139,7 @@ public sealed class ServiceCollectionExtensionsTests
     }
 
     [Fact]
-    public async Task AddIbeAgentEngine_supports_legacy_inline_contracts_without_a_template()
+    public async Task AddIbeAgentEngine_supports_legacy_inline_contracts_without_a_workflow()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -173,10 +173,10 @@ public sealed class ServiceCollectionExtensionsTests
         {
             ["Catalog:Codecs:hl7v2:Type"] = "hl7v2",
             ["Catalog:Formats:hl7-standard:Codec"] = "hl7v2",
-            ["Catalog:Templates:adt:Format"] = "hl7-standard",
+            ["Catalog:Workflows:adt:Format"] = "hl7-standard",
 
             ["Contracts:0:Name"] = "FileFlow",
-            ["Contracts:0:Template"] = "adt",
+            ["Contracts:0:Workflow:Use"] = "adt",
             ["Contracts:0:Inputs:0:InputId"] = "1",
             ["Contracts:0:Outputs:0:OutputId"] = "100",
 

@@ -83,6 +83,48 @@ public sealed class FileOutboundEndpointTests
     }
 
     [Fact]
+    public async Task Writes_to_the_message_directed_path_when_allowed()
+    {
+        var configured = CreateTempDir();
+        var directed = CreateTempDir();
+        try
+        {
+            var endpoint = new FileOutboundEndpoint(   // AllowMessageDirectedPath defaults true
+                new FileOutboundOptions { Directory = configured, FileNameTemplate = "m.txt" }, codec: null);
+            var ctx = Message("c", "HELLO");
+            ctx.Headers[BlobHeaders.BlobPath] = directed;   // envelope destinationpath
+
+            var result = await endpoint.SendAsync(ctx, CancellationToken.None);
+
+            Assert.Equal(DeliveryOutcome.Delivered, result.Outcome);
+            Assert.True(IoFile.Exists(Path.Combine(directed, "m.txt")));        // landed in the message-directed dir
+            Assert.False(IoFile.Exists(Path.Combine(configured, "m.txt")));     // not the configured dir
+        }
+        finally { Directory.Delete(configured, recursive: true); Directory.Delete(directed, recursive: true); }
+    }
+
+    [Fact]
+    public async Task Ignores_the_message_directed_path_when_disabled()
+    {
+        var configured = CreateTempDir();
+        var directed = CreateTempDir();
+        try
+        {
+            var endpoint = new FileOutboundEndpoint(
+                new FileOutboundOptions { Directory = configured, FileNameTemplate = "m.txt", AllowMessageDirectedPath = false }, codec: null);
+            var ctx = Message("c", "HELLO");
+            ctx.Headers[BlobHeaders.BlobPath] = directed;
+
+            var result = await endpoint.SendAsync(ctx, CancellationToken.None);
+
+            Assert.Equal(DeliveryOutcome.Delivered, result.Outcome);
+            Assert.True(IoFile.Exists(Path.Combine(configured, "m.txt")));      // stayed in the configured dir
+            Assert.False(IoFile.Exists(Path.Combine(directed, "m.txt")));
+        }
+        finally { Directory.Delete(configured, recursive: true); Directory.Delete(directed, recursive: true); }
+    }
+
+    [Fact]
     public async Task DuplexOutbound_file_uses_logical_pair_for_output_directory_and_inbound_poll_directory()
     {
         var root = CreateTempDir();

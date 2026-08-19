@@ -1,0 +1,10 @@
+// Endpoint starter — FILE OUTBOUND. Copy into "Endpoints": { "FileOutbound": [ ... ] } in contractData.json.
+// Writes each delivered message to a file (atomic temp -> rename). The leg's ENCODING is NOT set here —
+// it comes from the contract (the Workflow's Format, a per-Output Format, or an inline Output.Encoding).
+{
+  "OutputId": 300,                            // REQUIRED, unique.
+  "Directory": "C:\\ibe\\out",                // REQUIRED. Destination folder (created if missing).
+  "FileNameTemplate": "Message_{timestamp}_{correlationId}.{ext}", // Optional. Tokens: {timestamp}, {correlationId}, {messageId}, {ext}. Omit = this default.
+  "DefaultExtension": "hl7",                  // Optional. Fills the {ext} token. Default "txt".
+  "AllowMessageDirectedPath": true            // Optional. Default true. If a blob envelope carries "destinationpath", write there instead of Directory.
+}

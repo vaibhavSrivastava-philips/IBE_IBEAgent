@@ -1,0 +1,35 @@
+// Contract starter — FAN-OUT with FSE overrides. One input fanned to several outputs, each independently
+// tuned (Format, Retry, Batching, content routing). Operational knobs the Workflow author delegated go in
+// "Workflow": { "Settings": { ... } } (see templates/workflows/adt.jsonc), NOT as contract fields.
+{
+  "Name": "MyContract-Fanout",
+  "Workflow": {
+    "Use": "adt",
+    "Settings": {
+      "AckTimeoutSeconds": "45",        // delegated knob (min 5; max 60) -> Acknowledgement.TimeoutMs
+      "ReplyOnFilter": "true"           // delegated knob (one of [true, false])
+    }
+  },
+
+  // Reply mode — choose AT MOST ONE (Acknowledgement XOR Response). Omit both = default ack.
+  "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+
+  "Inputs": [
+    { "InputId": 2, "Channel": { "Capacity": 1024, "DegreeOfParallelism": 1, "Ordered": false, "OverflowPolicy": "Wait" } }
+  ],
+
+  "Outputs": [
+    { "OutputId": 100 },                // inherits the Workflow's default Format.
+    {
+      "OutputId": 200,
+      "Format": "hl7-standard",         // Optional per-leg encoding override (a catalog Formats name). With a multi-format Workflow this MUST be one of its declared Formats.
+      "Required": true,                 // Default true. false = best-effort leg (does not gate the ack).
+      "FromInputIds": [ 2 ],            // Optional. Restrict this leg to specific inputs. Omit = all.
+      "RouteWhen": { "hl7.messageType": "ADT" }, // Optional CONTENT filter (needs a classifier stage). Leave one output WITHOUT RouteWhen as a catch-all.
+      "DeliveryGuarantee": "AtLeastOnce", // AtMostOnce (default) | AtLeastOnce (store-and-forward).
+      "Retry": { "MaxAttempts": 5, "BackoffSeconds": 2, "Backoff": "Exponential" }, // inline retry; omit the block = MaxAttempts 1 (disabled)
+      "Channel": { "Capacity": 2048 },
+      "Batching": { "Enabled": true, "MaxCount": 500, "MaxLatencyMs": 10000 }   // FSE owns when to batch; the batch codec comes from the Format.
+    }
+  ]
+}

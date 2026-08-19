@@ -42,11 +42,17 @@ internal sealed class CompiledEngine : IAsyncDisposable
         var replayTargets = new List<KeyValuePair<int, IReplayTarget>>();
         var replyPoliciesBySource = new Dictionary<int, ReplyPolicy>();
 
+        // §3.6 — Kind:file/secret Settings resolve here; files are confined to the resources root.
+        var resources = catalog.Resources.Count > 0
+            ? new ResourceResolver(Path.Combine(AppContext.BaseDirectory, "resources"), catalog.Resources)
+            : null;
+
         foreach (var contract in contracts)
         {
-            // §8 — flatten the FSE contract against the developer catalog (Template -> shared
+            // §8 — flatten the FSE contract against the developer catalog (Workflow -> shared
             // Pipeline + per-leg Format) so everything below sees concrete Encoding / batch codec.
-            var resolved = ContractTemplateResolver.Resolve(contract, catalog);
+            var resolved = ContractWorkflowResolver.Resolve(
+                contract, catalog, note => log.LogInformation("{ResolutionNote}", note), resources);
 
             var runtime = compiler.Compile(resolved);
             var inputIds = ContractOptionsValidator.ResolveInputs(resolved).Select(i => i.InputId).ToList();
@@ -64,6 +70,14 @@ internal sealed class CompiledEngine : IAsyncDisposable
             log.LogDebug(
                 "Compiled contract {ContractName}: {InputCount} input(s), {OutputCount} output(s).",
                 resolved.Name, inputIds.Count, runtime.Legs.Count);
+        }
+
+        if (resources is not null)
+        {
+            foreach (var entry in resources.Manifest)
+                log.LogInformation(
+                    "Resolved resource {Contract}/{Setting} -> {Path} ({ContentType}).",
+                    entry.Contract, entry.Setting, entry.Path, entry.ContentType);
         }
 
         // §6/§8 — per-source reply policy resolved per contract (Normal | Enhanced ack | Response).

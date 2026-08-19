@@ -1,0 +1,12 @@
+// Endpoint starter — TCP (MLLP) OUTBOUND. Copy into "Endpoints": { "TcpOutbound": [ ... ] } in
+// contractData.json. Every outbound needs a unique OutputId (referenced by a contract Output's OutputId).
+{
+  "OutputId": 100,                            // REQUIRED, unique.
+  "Host": "downstream.example.local",         // REQUIRED. Destination host.
+  "Port": 7001,                               // REQUIRED. Destination MLLP port.
+  "PoolSize": 8,                              // Optional. Pooled connections. Default 8.
+  "ExpectReply": true                         // Optional. Read the MLLP ack frame back. Default true.
+  // "Ssl":   { "Enabled": true, "Mode": "TwoWay", "CertificatePath": "...\\Client.pfx", "CertificatePassword": "...",
+  //            "TrustedCertificateAuthorityPath": "...\\Root.pfx" }   // Optional TLS.
+  // "Proxy": { "Host": "proxy.local", "Port": 8080 }                  // Optional HTTP CONNECT tunnel.
+}

@@ -30,8 +30,9 @@ public sealed class InMemoryForwardStoreTests
         var store = CreateStore();
         var ctx = MessageContextBuilder.Create(payload: "hello");
         await store.StoreAsync(ctx, outputId: 1, error: null, CancellationToken.None);
+        var entry = (await store.FetchDueAsync(10, CancellationToken.None)).Single();
 
-        await store.ResolveAsync(ctx, outputId: 1, CancellationToken.None);
+        await store.ResolveAsync(entry.Id, CancellationToken.None);
 
         var due = await store.FetchDueAsync(10, CancellationToken.None);
         Assert.Empty(due);

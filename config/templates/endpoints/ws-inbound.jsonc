@@ -1,0 +1,11 @@
+// Endpoint starter — WebSocket INBOUND. Copy into "Endpoints": { "WebSocketInbound": [ ... ] } in
+// contractData.json. Use ws:// (or wss:// with Ssl) in the Prefix.
+{
+  "SourceEndpointId": 6,                       // REQUIRED, unique.
+  "Prefix": "ws://localhost:8080/ibe/ws/",     // REQUIRED. Listener prefix (trailing slash required).
+  "Format": "hl7v2",                           // Default "hl7v2".
+  "MaxConcurrentMessages": 100,                // Optional. Default 100.
+  "ReceiveBufferSize": 8192                    // Optional. Per-connection receive buffer. Default 8192.
+  // "Ssl": { "Enabled": true, "Mode": "TwoWay", "CertificatePath": "...\\Server.pfx", "CertificatePassword": "...",
+  //          "TrustedCertificateAuthorityPath": "...\\Root.pfx", "RequireClientCertificate": true } // wss:// TLS.
+}

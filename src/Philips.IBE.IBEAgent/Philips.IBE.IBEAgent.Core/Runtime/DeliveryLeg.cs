@@ -74,11 +74,15 @@ public sealed class DeliveryLeg : IReplayTarget
         return _queue.EnqueueAsync(context, cancellationToken);
     }
 
-    // Leg-targeted replay (Phase 6): reuses THIS leg's path; never re-routes/re-processes/re-replies.
-    public ValueTask ReplayAsync(MessageContext context, CancellationToken cancellationToken)
+    // Leg-targeted replay (§3.9): delivers straight through THIS leg's endpoint (BYPASSES the queue)
+    // and reports the outcome to the ForwardWorker by throwing on failure. Never re-routes/re-processes/
+    // re-replies; resolve/reschedule/park is the worker's job, keyed by the store entry id.
+    public async ValueTask ReplayAsync(MessageContext context, CancellationToken cancellationToken)
     {
         context.MarkReplay();
-        return _queue.EnqueueAsync(context, cancellationToken);
+        var result = await _endpoint.SendAsync(context, cancellationToken); // decorator suppresses inline retry on replay
+        if (result.Outcome != DeliveryOutcome.Delivered)
+            throw new InvalidOperationException(result.Error ?? "delivery failed");
     }
 
     public Task RunAsync(CancellationToken cancellationToken)
@@ -143,12 +147,10 @@ public sealed class DeliveryLeg : IReplayTarget
                 _logger.LogInformation(
                     "Delivered message {CorrelationId} for contract {ContractName} from source {SourceEndpointId} to output {OutputId} in {ElapsedMs}ms (send {SendMs}ms).",
                     ctx.CorrelationId, _contractName, ctx.SourceEndpointId, OutputId, e2eMs, sendMs);
-                if (ctx.IsReplay && _forward is not null)
-                    await _forward.ResolveAsync(ctx, OutputId, cancellationToken); // replay delivered -> clear entry
             }
 
-            if (!ctx.IsReplay)
-                ctx.Reply.ReportLeg(OutputId, Required, result); // FRESH only: a replay never produces a second reply
+            // Replays bypass this queue (see ReplayAsync), so every message here is FRESH -> report to the reply.
+            ctx.Reply.ReportLeg(OutputId, Required, result);
         }
     }
 

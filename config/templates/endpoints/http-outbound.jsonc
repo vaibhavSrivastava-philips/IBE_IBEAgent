@@ -1,0 +1,12 @@
+// Endpoint starter — HTTP OUTBOUND. Copy into "Endpoints": { "HttpOutbound": [ ... ] } in contractData.json.
+{
+  "OutputId": 200,                                        // REQUIRED, unique.
+  "Endpoint": "http://downstream.example.local/ibe/inbound", // REQUIRED. Destination URL.
+  "ContentType": "application/octet-stream",              // Optional. Default "application/octet-stream".
+  "TimeoutSeconds": 30,                                   // Optional. Request timeout. Default 30.
+  "MaxConnectionsPerServer": 8,                           // Optional. Pooled connections per host. Default 8.
+  "PooledConnectionLifetimeSeconds": 300,                 // Optional. Recycle a pooled connection after N seconds (picks up DNS changes). Default 300.
+  "PooledConnectionIdleTimeoutSeconds": 120               // Optional. Close an idle pooled connection after N seconds. Default 120.
+  // "Ssl":   { "Enabled": true, "Mode": "TwoWay", "CertificatePath": "...\\Client.pfx", "CertificatePassword": "..." } // Optional TLS (use https:// in Endpoint).
+  // "Proxy": { "Host": "proxy.local", "Port": 8080 }     // Optional HTTP CONNECT tunnel.
+}

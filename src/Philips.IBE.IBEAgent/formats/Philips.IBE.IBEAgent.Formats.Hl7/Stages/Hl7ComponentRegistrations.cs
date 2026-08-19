@@ -14,7 +14,7 @@ public static class Hl7ComponentRegistrations
         ArgumentNullException.ThrowIfNull(loggerFactory);
 
         var classifyLogger = loggerFactory.CreateLogger<Hl7ClassifyStage>();
-        registry.RegisterStage(Hl7ClassifyStage.Name, () => new Hl7ClassifyStage(classifyLogger));
+        registry.RegisterStage(Hl7ClassifyStage.Name, _ => new Hl7ClassifyStage(classifyLogger));
 
         return registry;
     }

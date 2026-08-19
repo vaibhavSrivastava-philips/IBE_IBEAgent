@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Endpoints.Http;
 using Philips.IBE.IBEAgent.TestKit;
 
@@ -33,6 +34,42 @@ public sealed class HttpOutboundEndpointTests
         Assert.Equal("adt.hl7", handler.Headers["filesourcepath"]);
         Assert.Equal("v1", handler.Headers["X-Custom"]);         // any fwd.* header forwarded (generic, not File-specific)
         Assert.False(handler.Headers.ContainsKey("blob.name"));
+    }
+
+    [Fact]
+    public async Task Honors_the_content_type_header_over_the_endpoint_default()
+    {
+        var handler = new CapturingHandler();
+        using var client = new HttpClient(handler);
+        var endpoint = new HttpOutboundEndpoint(
+            new HttpOutboundOptions { Endpoint = new Uri("http://localhost/ibe/inbound"), ContentType = "application/json" },
+            codec: null, client);
+
+        var ctx = new MessageContext("cid", 1, MessageFormats.Hl7v2, new FakeAckToken(), new RecordingReplyContext(),
+            payload: Encoding.UTF8.GetBytes("%PDF-1.7"),
+            headers: new Dictionary<string, string>(StringComparer.Ordinal) { [ContentHeaders.ContentType] = "application/pdf" });
+
+        await endpoint.SendAsync(ctx, CancellationToken.None);
+
+        Assert.Equal("application/pdf", handler.ContentType);
+    }
+
+    [Fact]
+    public async Task Falls_back_to_the_endpoint_content_type_when_no_header_is_set()
+    {
+        var handler = new CapturingHandler();
+        using var client = new HttpClient(handler);
+        var endpoint = new HttpOutboundEndpoint(
+            new HttpOutboundOptions { Endpoint = new Uri("http://localhost/ibe/inbound"), ContentType = "application/json" },
+            codec: null, client);
+
+        var ctx = new MessageContext("cid", 1, MessageFormats.Hl7v2, new FakeAckToken(), new RecordingReplyContext(),
+            payload: Encoding.UTF8.GetBytes("{}"),
+            headers: new Dictionary<string, string>(StringComparer.Ordinal));
+
+        await endpoint.SendAsync(ctx, CancellationToken.None);
+
+        Assert.Equal("application/json", handler.ContentType);
     }
 
     [Fact]
@@ -135,11 +172,13 @@ public sealed class HttpOutboundEndpointTests
     {
         public Dictionary<string, string> Headers { get; } = new(StringComparer.Ordinal);
         public byte[] Body { get; private set; } = [];
+        public string? ContentType { get; private set; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             foreach (var header in request.Headers)
                 Headers[header.Key] = string.Concat(header.Value);
+            ContentType = request.Content?.Headers.ContentType?.ToString();
             Body = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(cancellationToken);
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([]) };
         }

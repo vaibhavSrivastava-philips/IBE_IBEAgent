@@ -20,7 +20,7 @@ public static class ContractCatalogCrossValidator
         {
             if (string.IsNullOrWhiteSpace(output.Encoding))
             {
-                result.AddError($"Contract '{contract.Name}' Output {output.OutputId} has no resolved Encoding (set an Output.Encoding, an Output.Format, or a Template with a Format).");
+                result.AddError($"Contract '{contract.Name}' Output {output.OutputId} has no resolved Encoding (set an Output.Encoding, an Output.Format, or a Workflow with a Format).");
             }
             else if (!catalog.Codecs.ContainsKey(output.Encoding))
             {

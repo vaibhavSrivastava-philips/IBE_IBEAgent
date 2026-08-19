@@ -1,0 +1,9 @@
+// Contract starter — PASS-THROUGH (the common case). Name a Workflow and list endpoints; encoding and
+// stages come from the Workflow. Copy into the "Contracts": [ ... ] array of contractData.json (wire the
+// endpoints from templates/endpoints/ first — the InputIds/OutputIds below reference their Ids).
+{
+  "Name": "MyContract",
+  "Workflow": { "Use": "adt" },         // Object form (always). Names a catalog Workflows entry; add "Settings" to tune (see templates/workflows/).
+  "Inputs":  [ { "InputId": 1 } ],      // Each InputId is an inbound SourceEndpointId.
+  "Outputs": [ { "OutputId": 100 }, { "OutputId": 200 } ]   // Each OutputId is an outbound comm point.
+}

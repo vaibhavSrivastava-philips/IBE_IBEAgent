@@ -1,0 +1,11 @@
+// Endpoint starter — TCP (MLLP) INBOUND. Copy into "Endpoints": { "TcpInbound": [ ... ] } in
+// contractData.json. Every inbound needs a unique SourceEndpointId (referenced by a contract Input's
+// InputId). Optional fields show their default and can be omitted.
+{
+  "SourceEndpointId": 1,            // REQUIRED, unique.
+  "Port": 6661,                     // REQUIRED. MLLP TCP listen port.
+  "Format": "hl7v2",                // Message format tag (parser/stages/ack formatter). Default "hl7v2".
+  "MaxConcurrentMessages": 100      // Optional. Admission control (bounded). Default 100.
+  // "Ssl": { "Enabled": true, "Mode": "TwoWay", "CertificatePath": "...\\Server.pfx", "CertificatePassword": "...",
+  //          "TrustedCertificateAuthorityPath": "...\\Root.pfx", "RequireClientCertificate": true } // Optional TLS.
+}

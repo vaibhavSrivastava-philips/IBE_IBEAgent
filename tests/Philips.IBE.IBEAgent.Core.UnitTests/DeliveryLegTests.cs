@@ -61,20 +61,29 @@ public sealed class DeliveryLegTests
     }
 
     [Fact]
-    public async Task Replay_delivers_but_does_not_report()
+    public async Task Replay_delivers_directly_without_reporting()
     {
         var recording = new RecordingReplyContext();
         var ctx = MessageContextBuilder.Create(reply: recording);
         var endpoint = new FakeOutboundEndpoint();
         var leg = new DeliveryLeg(20, required: true, new BoundedInMemoryChannel(8), endpoint);
 
-        _ = leg.RunAsync(CancellationToken.None);
         await leg.ReplayAsync(ctx, CancellationToken.None);
-        await leg.DrainAsync(DrainTimeout);
 
         Assert.True(ctx.IsReplay);
-        Assert.Single(endpoint.Sent);
-        Assert.Empty(recording.Reports);   // a replay never produces a second reply
+        Assert.Single(endpoint.Sent);        // delivered straight through the endpoint, bypassing the queue
+        Assert.Empty(recording.Reports);     // a replay never produces a reply
+    }
+
+    [Fact]
+    public async Task Replay_throws_when_delivery_fails()
+    {
+        var ctx = MessageContextBuilder.Create();
+        var endpoint = new FakeOutboundEndpoint(_ => new DeliveryResult(DeliveryOutcome.Failed, "downstream"));
+        var leg = new DeliveryLeg(20, required: true, new BoundedInMemoryChannel(8), endpoint);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => leg.ReplayAsync(ctx, CancellationToken.None).AsTask());
     }
 
     [Fact]

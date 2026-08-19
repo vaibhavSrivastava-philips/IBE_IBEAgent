@@ -17,7 +17,7 @@ public sealed class ContractCompilerTests
     };
 
     private static ComponentRegistry ValidRegistry(FakeOutboundEndpoint endpoint) => new ComponentRegistry()
-        .RegisterStage("stamp", () => new FakeStage())
+        .RegisterStage("stamp", _ => new FakeStage())
         .RegisterMessageCodec("hl7v2", _ => new FakeMessageCodec())
         .RegisterOutboundEndpoint(100, _ => endpoint);
 

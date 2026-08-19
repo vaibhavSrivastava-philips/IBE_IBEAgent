@@ -47,7 +47,7 @@ public static class ServiceCollectionExtensions
                     Proxy = tcp.Proxy,
                 },
                 tcp.Encoding == "hl7v2" ? new Hl7v2Codec() : null);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(tcp.OutputId, new EndpointReplayTarget(tcp.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(tcp.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         foreach (var http in endpoints.HttpOutbound)
@@ -107,9 +107,10 @@ public static class ServiceCollectionExtensions
                     Directory = file.Directory,
                     FileNameTemplate = file.FileNameTemplate,
                     DefaultExtension = file.DefaultExtension,
+                    AllowMessageDirectedPath = file.AllowMessageDirectedPath,
                 },
                 codec);
-            targets.Add(new KeyValuePair<int, IReplayTarget>(file.OutputId, new EndpointReplayTarget(file.OutputId, endpoint, store)));
+            targets.Add(new KeyValuePair<int, IReplayTarget>(file.OutputId, new EndpointReplayTarget(endpoint)));
         }
 
         services.AddForwardWorker(configuration, targets);

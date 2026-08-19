@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Configuration;
 
@@ -8,16 +9,19 @@ namespace Philips.IBE.IBEAgent.Core;
 // Catalog (named DTOs) — this is the "name -> real instance" resolver used by the compiler.
 public sealed class ComponentRegistry
 {
-    private readonly Dictionary<string, Func<IMessageStage>> _stages = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Func<StageParameters, IMessageStage>> _stages = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<CodecOptions, IMessageCodec>> _messageCodecs = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<CodecOptions, IBatchCodec>> _batchCodecs = new(StringComparer.Ordinal);
     private readonly Dictionary<int, Func<OutputOptions, IOutboundEndpoint>> _endpointFactories = new();
     private readonly Dictionary<(string Format, AckShape Shape), IAckFormatter> _ackFormatters = new();
     private readonly List<IEndpointLifecycle> _outboundEndpointLifecycles = [];
+    private readonly ILoggerFactory? _loggerFactory;   // only for delivery-path decorators (e.g. RetryingOutboundEndpoint); null = no decorator logging
 
     public IReadOnlyList<IEndpointLifecycle> OutboundEndpointLifecycles => _outboundEndpointLifecycles;
 
-    public ComponentRegistry RegisterStage(string name, Func<IMessageStage> factory)
+    public ComponentRegistry(ILoggerFactory? loggerFactory = null) => _loggerFactory = loggerFactory;
+
+    public ComponentRegistry RegisterStage(string name, Func<StageParameters, IMessageStage> factory)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(factory);
@@ -62,11 +66,12 @@ public sealed class ComponentRegistry
     public bool TryGetAckFormatter(string format, AckShape shape, out IAckFormatter? formatter)
         => _ackFormatters.TryGetValue((format, shape), out formatter);
 
-    public IMessageStage CreateStage(string name)
+    public IMessageStage CreateStage(string name, StageParameters parameters)
     {
+        ArgumentNullException.ThrowIfNull(parameters);
         if (!_stages.TryGetValue(name, out var factory))
             throw new InvalidOperationException($"No stage registered with name '{name}'.");
-        return factory();
+        return factory(parameters);
     }
 
     public IMessageCodec CreateMessageCodec(string name, CodecOptions options)
@@ -88,8 +93,15 @@ public sealed class ComponentRegistry
         if (!_endpointFactories.TryGetValue(output.OutputId, out var factory))
             throw new InvalidOperationException($"No outbound endpoint registered for OutputId {output.OutputId}.");
         var endpoint = factory(output);
+        // Track lifecycle on the BARE endpoint so start/stop/dispose + duplex wiring still find it
+        // via OutboundEndpointLifecycles even when a decorator wraps the delivery path below.
         if (endpoint is IEndpointLifecycle lifecycle)
             _outboundEndpointLifecycles.Add(lifecycle);
+
+        // §3.7 — inline per-leg retry decorator, only when it would actually retry (MaxAttempts > 1).
+        if (output.Retry.MaxAttempts > 1)
+            endpoint = new RetryingOutboundEndpoint(endpoint, output.Retry, _loggerFactory?.CreateLogger<RetryingOutboundEndpoint>());
+
         return endpoint;
     }
 }

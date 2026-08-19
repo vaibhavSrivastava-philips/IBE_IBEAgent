@@ -65,19 +65,12 @@ public sealed class InMemoryForwardStore : IForwardStore
         return Task.CompletedTask;
     }
 
-    // Success -> delete (crash-safe outbox ordering: deliver -> confirm -> ResolveAsync, per §3.9).
-    // Idempotent: resolving an already-resolved/unknown entry is a no-op.
-    public Task ResolveAsync(MessageContext context, int outputId, CancellationToken cancellationToken)
+    // Success -> delete by entry id (crash-safe outbox ordering: deliver -> confirm -> ResolveAsync, per §3.9).
+    // Idempotent: resolving an already-removed/unknown id is a no-op.
+    public Task ResolveAsync(long id, CancellationToken cancellationToken)
     {
-        foreach (var row in _rows.Values)
-        {
-            if (row.OutputId == outputId && MatchesMessage(row, context))
-            {
-                _rows.TryRemove(row.Id, out _);
-                AgentDiagnostics.ForwardResolved.Add(1, new KeyValuePair<string, object?>("outputId", outputId));
-                break;
-            }
-        }
+        if (_rows.TryRemove(id, out var row))
+            AgentDiagnostics.ForwardResolved.Add(1, new KeyValuePair<string, object?>("outputId", row.OutputId));
         return Task.CompletedTask;
     }
 
@@ -124,18 +117,5 @@ public sealed class InMemoryForwardStore : IForwardStore
             AgentDiagnostics.ForwardParked.Add(1, new KeyValuePair<string, object?>("outputId", row.OutputId));
         }
         return Task.CompletedTask;
-    }
-
-    private bool MatchesMessage(Row row, MessageContext context)
-    {
-        try
-        {
-            var envelope = ReplayEnvelope.FromPlaintext(_protector.Unprotect(row.EncryptedMessage));
-            return envelope.MessageId == context.MessageId;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

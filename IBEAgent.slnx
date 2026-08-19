@@ -1,4 +1,4 @@
-﻿<Solution>
+<Solution>
   <Folder Name="/perf/" />
   <Folder Name="/perf/tools/">
     <Project Path="perf/tools/IbePerf/IbePerf.csproj" />
@@ -35,5 +35,9 @@
     <Project Path="tests/Philips.IBE.IBEAgent.Formats.Hl7.UnitTests/Philips.IBE.IBEAgent.Formats.Hl7.UnitTests.csproj" />
     <Project Path="tests/Philips.IBE.IBEAgent.Host.IntegrationTests/Philips.IBE.IBEAgent.Host.IntegrationTests.csproj" />
     <Project Path="tests/Philips.IBE.IBEAgent.Persistence.IntegrationTests/Philips.IBE.IBEAgent.Persistence.IntegrationTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/" />
+  <Folder Name="/tools/gen-templates/">
+    <Project Path="tools/gen-templates/GenTemplates.csproj" />
   </Folder>
 </Solution>

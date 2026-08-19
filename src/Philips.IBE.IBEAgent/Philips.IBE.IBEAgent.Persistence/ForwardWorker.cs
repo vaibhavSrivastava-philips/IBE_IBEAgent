@@ -128,9 +128,8 @@ public sealed class ForwardWorker : BackgroundService
 
         try
         {
-            await target.ReplayAsync(context, cancellationToken);
-            // Delivery/resolve happens inside the leg's own consumer loop (DeliveryLeg.ConsumeAsync
-            // calls IForwardStore.ResolveAsync on success) — the worker only re-enqueues here.
+            await target.ReplayAsync(context, cancellationToken); // delivers straight through the leg's endpoint; throws on failure
+            await _store.ResolveAsync(entry.Id, cancellationToken);  // delivered -> clear the entry (the worker owns resolve/reschedule/park)
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

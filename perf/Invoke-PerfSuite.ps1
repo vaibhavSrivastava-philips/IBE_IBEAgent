@@ -19,6 +19,7 @@
 param(
     [string]$Config = "$PSScriptRoot/perf.config.json",
     [string]$Scenario = '',
+    [string]$Contract = '',
     [switch]$SkipBuild,
     [string]$Baseline = '',
     [switch]$DryRun
@@ -54,6 +55,7 @@ if ($isBundle) {
 }
 
 $contractPath = Join-Path $configDir 'contractData.json'
+if ($Contract) { $contractPath = (Resolve-Path $Contract).Path }   # override: drive an alternate contract (e.g. a WebSocket topology)
 if (-not (Test-Path $contractPath)) { throw "contractData.json not found at $contractPath" }
 $contractName = (Get-Content $contractPath -Raw | ConvertFrom-Json).Contracts[0].Name
 
@@ -108,6 +110,8 @@ foreach ($sc in $scenarios) {
     # Refresh agent config from the live configDir (so we always test the CURRENT contract).
     Copy-Item (Join-Path $configDir '*.json') $agentDir -Force
     Copy-Item (Join-Path $configDir 'nlog.config') $agentDir -Force -ErrorAction SilentlyContinue
+    # A -Contract override replaces the agent's contractData.json with the alternate topology.
+    if ($Contract) { Copy-Item $contractPath (Join-Path $agentDir 'contractData.json') -Force }
 
     # Optional per-scenario logging-tier override (patch the agent's appsettings copy).
     if ($sc.ContainsKey('agentOverrides') -and $sc.agentOverrides.ContainsKey('loggingTier')) {

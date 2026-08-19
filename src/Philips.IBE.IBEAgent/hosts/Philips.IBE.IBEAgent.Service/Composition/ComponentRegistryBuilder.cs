@@ -17,11 +17,11 @@ public static class ComponentRegistryBuilder
 {
     public static ComponentRegistry Build(AgentEndpointsOptions endpoints, CatalogOptions catalog, ILoggerFactory loggerFactory, TcpDuplexSessionRegistry? tcpDuplexSessions = null, WebSocketDuplexSessionRegistry? webSocketDuplexSessions = null)
     {
-        var registry = new ComponentRegistry();
+        var registry = new ComponentRegistry(loggerFactory);
 
         // §3.10 — generic Core stages (name -> factory). Module-owned so the host stays thin (OCP);
         // protocol modules register their own stages the same way when they gain any.
-        registry.AddCoreStages();
+        registry.AddCoreStages(BuildMediaTypeMap(catalog));
         registry.AddHl7Stages(loggerFactory);   // protocol (HL7) stages, e.g. hl7-classify
 
         // §3.8/§6 — Enhanced-ack rendering: HL7's own (Format x Shape) generated ack.
@@ -95,6 +95,7 @@ public static class ComponentRegistryBuilder
                     Directory = file.Directory,
                     FileNameTemplate = file.FileNameTemplate,
                     DefaultExtension = file.DefaultExtension,
+                    AllowMessageDirectedPath = file.AllowMessageDirectedPath,
                 },
                 ResolveCodec(registry, catalog, output.Encoding)));
         }
@@ -137,4 +138,14 @@ public static class ComponentRegistryBuilder
         => encoding is { } name && catalog.Codecs.TryGetValue(name, out var codecOptions)
             ? registry.CreateMessageCodec(name, codecOptions)
             : null;
+
+    // Normalizes the developer-owned catalog MediaTypes map (".PDF"/"pdf" -> ".pdf") for the media-type stage.
+    private static IReadOnlyDictionary<string, string> BuildMediaTypeMap(CatalogOptions catalog)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (extension, mediaType) in catalog.MediaTypes)
+            if (!string.IsNullOrWhiteSpace(extension) && !string.IsNullOrWhiteSpace(mediaType))
+                map["." + extension.Trim().TrimStart('.').ToLowerInvariant()] = mediaType;
+        return map;
+    }
 }
