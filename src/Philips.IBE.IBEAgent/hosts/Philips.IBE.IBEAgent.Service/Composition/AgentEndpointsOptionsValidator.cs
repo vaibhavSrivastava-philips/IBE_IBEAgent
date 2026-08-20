@@ -204,12 +204,7 @@ public static class AgentEndpointsOptionsValidator
         ValidateCertificateReference(sectionName, endpointId, "local certificate", ssl.LocalCertificate, result);
         ValidateCertificateReference(sectionName, endpointId, "trusted certificate authority", ssl.TrustedCertificateAuthority, result);
 
-        if (!string.IsNullOrWhiteSpace(ssl.CertificatePassword) && !ssl.HasLocalCertificate())
-        {
-            result.AddError($"{sectionName} endpoint {endpointId} configures a certificate password but no certificate reference.");
-        }
-
-        if (ssl.Enabled == false && (ssl.HasLocalCertificate() || ssl.RequireClientCertificate || ssl.TrustedCertificateAuthority is not null || !string.IsNullOrWhiteSpace(ssl.TrustedCertificateAuthorityPath)))
+        if (ssl.Enabled == false && (ssl.HasLocalCertificate() || ssl.RequireClientCertificate || ssl.TrustedCertificateAuthority is not null))
         {
             result.AddError($"{sectionName} endpoint {endpointId} disables TLS but also configures certificate/trust material.");
         }

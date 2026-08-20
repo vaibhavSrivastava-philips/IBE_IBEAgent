@@ -20,7 +20,7 @@ public sealed class WebSocketSslEndpointTests
         {
             SourceEndpointId = 1,
             Prefix = "http://localhost:8080/ws/",     // not https://
-            Ssl = new SslOptions { Mode = SslMode.OneWay, CertificatePath = "unused.pfx" },
+            Ssl = new SslOptions { Mode = SslMode.OneWay, LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = "unused.pfx" } },
         };
 
         Assert.Throws<InvalidOperationException>(

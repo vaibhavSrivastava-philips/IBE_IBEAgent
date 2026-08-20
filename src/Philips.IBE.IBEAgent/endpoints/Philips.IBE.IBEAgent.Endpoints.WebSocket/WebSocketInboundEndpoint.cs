@@ -18,6 +18,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     private readonly RemoteCertificateValidationCallback? _clientCertValidator;
     private readonly WebSocketDuplexSessionRegistry? _duplexSessions;
     private readonly string _listenerPrefix;
+    private readonly HttpSslPortBinding? _sslBinding;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
@@ -35,11 +36,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
         _duplexSessions = duplexSessions;
 
-        if (options.Ssl.IsEnabled && !options.Prefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException(
-                $"WebSocket inbound endpoint has SSL mode {options.Ssl.Mode} configured but Prefix '{options.Prefix}' is not https://. " +
-                "The server certificate itself must be bound to the port out-of-process (e.g. via netsh http add sslcert); " +
-                "clients then connect with wss://.");
+        _sslBinding = HttpSslPortBinding.Create(options.Ssl, options.Prefix, options.SourceEndpointId, "WebSocket");
 
         if (options.Ssl.RequiresClientCertificate())
             _clientCertValidator = options.Ssl.CreateRemoteCertificateValidator();
@@ -50,6 +47,14 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        if (_sslBinding is not null)
+        {
+            _sslBinding.Bind();
+            _logger.LogInformation(
+                "WS inbound endpoint (source {SourceEndpointId}): SSL certificate bound to port {Port}.",
+                _options.SourceEndpointId, _sslBinding.Port);
+        }
+
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _listener.Start();
         _acceptLoop = AcceptLoopAsync(_cts.Token);
@@ -66,6 +71,15 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         if (_listener.IsListening) _listener.Stop();
         if (_acceptLoop is not null)
             try { await _acceptLoop.WaitAsync(cancellationToken); } catch (OperationCanceledException) { }
+
+        if (_sslBinding is not null)
+        {
+            _sslBinding.Unbind();
+            _logger.LogInformation(
+                "WS inbound endpoint (source {SourceEndpointId}): SSL certificate unbound from port {Port}.",
+                _options.SourceEndpointId, _sslBinding.Port);
+        }
+
         _logger.LogInformation("WS inbound endpoint (source {SourceEndpointId}) stopped.", _options.SourceEndpointId);
     }
 
@@ -93,6 +107,9 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     {
         if (!http.Request.IsWebSocketRequest)
         {
+            _logger.LogWarning(
+                "WS inbound (source {SourceEndpointId}): rejected non-WebSocket request from {RemoteEndPoint} (HTTP {Method} {Url}) — responded 400.",
+                _options.SourceEndpointId, http.Request.RemoteEndPoint, http.Request.HttpMethod, http.Request.Url);
             http.Response.StatusCode = 400;
             http.Response.Close();
             return;
@@ -239,24 +256,39 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         return duplexSession;
     }
 
-    // Mutual mode: HttpListener performs the TLS handshake itself (certificate bound to the port at
-    // the OS level), but client-certificate *validation* still runs here via the same
-    // RemoteCertificateValidationCallback shape used by TCP/HTTP, for a consistent SSL policy.
+    // Mutual TLS: http.sys negotiates the client certificate during the TLS handshake
+    // (HTTP_SERVICE_CONFIG_SSL_FLAG_NEGOTIATE_CLIENT_CERT is set on the port binding).
+    // Validation runs here for a consistent SSL policy with TCP, and hard-rejects:
+    //   • missing cert  → 403 (RemoteCertificateNotAvailable)
+    //   • chain failure → 403 (RemoteCertificateChainErrors)
+    //   • callback deny → 403
     private async Task<bool> ValidateClientCertificateAsync(HttpListenerContext http, CancellationToken ct)
     {
         var clientCert = await http.Request.GetClientCertificateAsync().WaitAsync(ct);
-        if (clientCert is null) return false;
+        if (clientCert is null)
+        {
+            _logger.LogWarning(
+                "WS inbound (source {SourceEndpointId}): client certificate required but not presented — connection rejected.",
+                _options.SourceEndpointId);
+            return false;
+        }
 
         using var chain = new System.Security.Cryptography.X509Certificates.X509Chain();
         var built = chain.Build(clientCert);
         var errors = built ? SslPolicyErrors.None : SslPolicyErrors.RemoteCertificateChainErrors;
-        return _clientCertValidator!(this, clientCert, chain, errors);
+        var accepted = _clientCertValidator!(this, clientCert, chain, errors);
+        if (!accepted)
+            _logger.LogWarning(
+                "WS inbound (source {SourceEndpointId}): client certificate validation failed (subject: {Subject}, errors: {Errors}) — connection rejected.",
+                _options.SourceEndpointId, clientCert.Subject, errors);
+        return accepted;
     }
 
     public async ValueTask DisposeAsync()
     {
         await StopAsync(CancellationToken.None);
         _cts?.Dispose();
+        _sslBinding?.Dispose();
         _admission.Dispose();
         ((IDisposable)_listener).Dispose();
     }

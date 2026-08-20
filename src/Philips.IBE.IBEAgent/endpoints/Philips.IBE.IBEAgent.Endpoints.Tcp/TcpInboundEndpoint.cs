@@ -74,6 +74,9 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
                 _logger.LogDebug(ex, "TCP inbound accept loop (source {SourceEndpointId}) ended.", _options.SourceEndpointId);
                 break;
             }
+            _logger.LogDebug(
+                "TCP inbound (source {SourceEndpointId}): accepted connection from {RemoteEndPoint}.",
+                _options.SourceEndpointId, client.Client.RemoteEndPoint);
             _ = HandleConnectionAsync(client, ct);   // one task per connection
         }
     }

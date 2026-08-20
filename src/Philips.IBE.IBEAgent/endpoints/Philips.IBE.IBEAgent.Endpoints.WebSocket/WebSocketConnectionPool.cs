@@ -1,57 +1,49 @@
 using System.Collections.Concurrent;
-using System.Net;
 using System.Net.WebSockets;
 using Philips.IBE.IBEAgent.Security;
+
 namespace Philips.IBE.IBEAgent.Endpoints.WebSocket;
 
-internal sealed class WebSocketConnectionPool(Uri endpoint, int size, SslOptions? ssl = null, ProxyOptions? proxy = null) : IAsyncDisposable
+// SRP: WebSocketConnectionPool is responsible ONLY for slot accounting and idle-connection reuse.
+// The physical work of configuring SSL/proxy and connecting is delegated to IWebSocketConnectionFactory.
+internal sealed class WebSocketConnectionPool : IAsyncDisposable
 {
-    private readonly SemaphoreSlim _slots = new(size, size);
+    private readonly SemaphoreSlim _slots;
     private readonly ConcurrentQueue<ClientWebSocket> _idle = new();
-    private readonly SslOptions _ssl = ssl ?? new SslOptions();
-    private readonly ProxyOptions _proxy = proxy ?? new ProxyOptions();
+    private readonly IWebSocketConnectionFactory _factory;
+
+    // Production constructor: creates the default WebSocketConnectionFactory internally.
+    public WebSocketConnectionPool(Uri endpoint, int size, SslOptions? ssl = null, ProxyOptions? proxy = null)
+        : this(size, new WebSocketConnectionFactory(endpoint, ssl ?? new SslOptions(), proxy ?? new ProxyOptions()))
+    { }
+
+    // DIP constructor: accept any IWebSocketConnectionFactory (e.g. a test double).
+    public WebSocketConnectionPool(int size, IWebSocketConnectionFactory factory)
+    {
+        _slots   = new SemaphoreSlim(size, size);
+        _factory = factory;
+    }
 
     public async Task<ClientWebSocket> RentAsync(bool forceFresh, CancellationToken ct)
     {
         await _slots.WaitAsync(ct);
+
         ClientWebSocket? existing = null;
-        if (!forceFresh && _idle.TryDequeue(out existing) && existing.State == WebSocketState.Open) return existing;
+        if (!forceFresh && _idle.TryDequeue(out existing) && existing.State == WebSocketState.Open)
+            return existing;
+
         existing?.Dispose();
 
-        var socket = new ClientWebSocket();
-
-        if (_ssl.IsEnabled)
-        {
-            socket.Options.RemoteCertificateValidationCallback = _ssl.CreateRemoteCertificateValidator();
-            if (_ssl.RequiresRemoteCertificate)
-            {
-                var clientCertificate = _ssl.LoadLocalCertificate()
-                    ?? throw new InvalidOperationException(
-                        $"WebSocket outbound endpoint ({endpoint}) has SSL mode Mutual but no CertificatePath configured.");
-                socket.Options.ClientCertificates.Add(clientCertificate);
-            }
-        }
-
-        if (_proxy.IsEnabled)
-        {
-            var proxyUri = new Uri($"http://{_proxy.Host}:{_proxy.Port}");
-            var webProxy = new WebProxy(proxyUri);
-            if (_proxy.HasCredentials)
-                webProxy.Credentials = new NetworkCredential(_proxy.Username, _proxy.Password);
-            socket.Options.Proxy = webProxy;
-        }
-
-        await socket.ConnectAsync(endpoint, ct);
-        return socket;
+        return await _factory.CreateAsync(ct);
     }
 
-    public void Return(ClientWebSocket socket)                          // healthy -> reuse
+    public void Return(ClientWebSocket socket)          // healthy -> reuse
     {
         if (socket.State == WebSocketState.Open) _idle.Enqueue(socket); else socket.Dispose();
         _slots.Release();
     }
 
-    public void Discard(ClientWebSocket socket)                         // broken -> drop
+    public void Discard(ClientWebSocket socket)         // broken -> drop
     {
         socket.Dispose();
         _slots.Release();
