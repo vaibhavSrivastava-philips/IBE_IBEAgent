@@ -7,6 +7,15 @@
         "Format": "hl7v2"
       }
     ],
+    "WebSocketInbound": [
+      {
+        "SourceEndpointId": 7,
+        "Prefix": "http://localhost:5103/ibe/ws/",
+        "Format": "hl7v2",
+        "MaxConcurrentMessages": 100,
+        "ReceiveBufferSize": 8192
+      }
+    ],
     "HttpOutbound": [
       {
         "OutputId": 105,
@@ -19,6 +28,15 @@
         "Endpoint": "http://localhost:5202/ibe/inbound",
         "ContentType": "application/octet-stream",
         "TimeoutSeconds": 5
+      }
+    ],
+    "WebSocketOutbound": [
+      {
+        "OutputId": 107,
+        "Endpoint": "ws://localhost:5203/ibe/ws/",
+        "PoolSize": 8,
+        "ReceiveBufferSize": 8192,
+        "ExpectReply": true
       }
     ],
     "FileInbound": [
@@ -86,6 +104,23 @@
           "OutputId": 106,
           "DeliveryGuarantee": "AtLeastOnce",
           "Retry": { "MaxAttempts": 1, "BackoffSeconds": 2, "Backoff": "Fixed" }
+        }
+      ]
+    },
+    {
+      // WebSocket round-trip with retry. Sender: demo/upstream/Send-WebSocketMessage.ps1 (ws://localhost:5103/ibe/ws/).
+      // Receiver: demo/downstream/Start-WebSocketReceiver.ps1 (http://localhost:5203/ibe/ws/). Enhanced ack relays
+      // the receiver's MSA back to the sender; AtLeastOnce + Retry persists and replays on delivery failure.
+      "Name": "Demo-Ws-To-Ws",
+      "Workflow": { "Use": "adt" },
+      "Inputs": [ { "InputId": 7 } ],
+      "Acknowledgement": { "IsEnabled": false, "IsEnhanced": false, "Shape": "Single" },
+      "Response": { "IsEnabled": true, "FromOutputId": 107, "TimeoutMs": 30000 },
+      "Outputs": [
+        {
+          "OutputId": 107,
+          "DeliveryGuarantee": "AtLeastOnce",
+          "Retry": { "MaxAttempts": 3, "BackoffSeconds": 2, "Backoff": "Exponential" }
         }
       ]
     }

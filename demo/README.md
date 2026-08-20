@@ -15,6 +15,7 @@ Everything runs on `localhost`, so it can be shown on a single machine.
    Send-TcpMessage.ps1  --------->  TCP inbound  :5101   ]                 [   TCP outbound  -> 127.0.0.1:5201  --------->  Start-TcpReceiver.ps1
                                                           }  contracts route  {
    Send-HttpMessage.ps1 --------->  HTTP inbound :5102   ]   and fan out      [   HTTP outbound -> :5202/ibe/inbound --->  Start-HttpReceiver.ps1
+   Send-WebSocketMessage.ps1 ---->  WS inbound   :5103   ]                 [   WS outbound   -> :5203/ibe/ws/     --->  Start-WebSocketReceiver.ps1
 ```
 
 The agent **owns** the four comm points declared in
@@ -28,6 +29,8 @@ systems are the scripts in this folder:
 | HTTP inbound (id 2)   | agent listens; peer posts in          | `http://localhost:5102/ibe/`       | [upstream/Send-HttpMessage.ps1](upstream/Send-HttpMessage.ps1) |
 | TCP outbound (id 101) | agent connects out; peer receives     | `127.0.0.1:5201`                   | [downstream/Start-TcpReceiver.ps1](downstream/Start-TcpReceiver.ps1) |
 | HTTP outbound (id 102)| agent connects out; peer receives     | `http://localhost:5202/ibe/inbound`| [downstream/Start-HttpReceiver.ps1](downstream/Start-HttpReceiver.ps1) |
+| WebSocket inbound (id 7)  | agent listens; peer sends in      | `ws://localhost:5103/ibe/ws/`      | [upstream/Send-WebSocketMessage.ps1](upstream/Send-WebSocketMessage.ps1) |
+| WebSocket outbound (id 107)| agent connects out; peer receives | `ws://localhost:5203/ibe/ws/`      | [downstream/Start-WebSocketReceiver.ps1](downstream/Start-WebSocketReceiver.ps1) |
 
 ## Prerequisites
 
@@ -45,6 +48,7 @@ downstream receivers first, then the agent, then the upstream sender.
    ```powershell
    pwsh -File demo/downstream/Start-TcpReceiver.ps1     # if the contract has a TCP output (id 101)
    pwsh -File demo/downstream/Start-HttpReceiver.ps1    # if the contract has an HTTP output (id 102)
+   pwsh -File demo/downstream/Start-WebSocketReceiver.ps1  # if the contract has a WebSocket output (id 107)
    ```
 
 2. **Start the agent** against the repository configuration:
@@ -61,6 +65,7 @@ downstream receivers first, then the agent, then the upstream sender.
    ```powershell
    pwsh -File demo/upstream/Send-TcpMessage.ps1     # feeds the TCP input (id 1)
    pwsh -File demo/upstream/Send-HttpMessage.ps1    # feeds the HTTP input (id 2)
+   pwsh -File demo/upstream/Send-WebSocketMessage.ps1   # feeds the WebSocket input (id 7)
    ```
 
 Each Enter sends one HL7 ADT message (from [messages/adt-a01.hl7](messages/adt-a01.hl7),
@@ -166,6 +171,61 @@ Two contracts are configured out of the box so all four comm points are live:
 
 - `Demo-Tcp-To-Http-Enhanced` - TCP in (1) to HTTP out (102), enhanced ack.
 - `Demo-Http-To-Tcp-Response` - HTTP in (2) to TCP out (101), response mode.
+
+## WebSocket round-trip (ships by default)
+
+A ready-to-run WebSocket contract is configured in
+[config/contractData.json](../config/contractData.json):
+
+```jsonc
+{
+  "Name": "Demo-Ws-To-Ws",
+  "Workflow": { "Use": "adt" },
+  "Inputs": [ { "InputId": 7 } ],                                   // WebSocket inbound :5103
+  "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+  "Response": { "IsEnabled": false },
+  "Outputs": [
+    {
+      "OutputId": 107,                                              // WebSocket outbound :5203
+      "DeliveryGuarantee": "AtLeastOnce",
+      "Retry": { "MaxAttempts": 3, "BackoffSeconds": 2, "Backoff": "Exponential" }
+    }
+  ]
+}
+```
+
+A WebSocket message is **one HL7 message per binary frame** (no MLLP framing). The agent hosts the
+inbound WS server, dials the outbound WS server, relays the downstream ack back to the sender (Enhanced
+ack), and - because the leg is `AtLeastOnce` - **persists and replays** on delivery failure.
+
+**Run it** (three terminals, in order):
+
+```powershell
+pwsh -File demo/downstream/Start-WebSocketReceiver.ps1   # 1. downstream WS system on :5203
+pwsh -File demo/Start-Agent.ps1                          # 2. the agent
+pwsh -File demo/upstream/Send-WebSocketMessage.ps1       # 3. upstream WS sender on :5103 (press Enter to send)
+```
+
+### Scenarios to test
+
+Each row is a change to the `Demo-Ws-To-Ws` contract and/or how you start the receiver. **Restart the
+agent after any config change.** The sender is always `Send-WebSocketMessage.ps1` (add `-NoAck` where noted).
+
+| # | Scenario | Contract / receiver setup | How to trigger | Expected result |
+|---|----------|---------------------------|----------------|-----------------|
+| 1 | **Basic flow + Enhanced ack** (default) | ships as-is | receiver running; press Enter to send | Sender shows `MSA\|AA\|RECEIVED-BY-WS-DOWNSTREAM` (the downstream's own reply, relayed) |
+| 2 | **Normal ack** | `"Acknowledgement": { "IsEnabled": true, "IsEnhanced": false, "Shape": "Single" }` | send | Sender gets a generated "received" ack immediately on acceptance (not the downstream's) |
+| 3 | **No ack** | `"Acknowledgement": { "IsEnabled": false }`, `"Response": { "IsEnabled": false }` | send with `-NoAck` | Message still delivered to the receiver; sender waits for nothing |
+| 4 | **Response mode** | `"Acknowledgement": { "IsEnabled": false }`, `"Response": { "IsEnabled": true, "TimeoutMs": 15000 }` | send | Downstream's reply is relayed to the sender as the response (single output only) |
+| 5 | **Negative ack (NACK)** | default contract; start receiver with `-Nack` | send | Downstream returns `MSA\|AE`; with Enhanced ack the sender sees the failure outcome |
+| 6 | **Fire-and-forget sink** | default contract; start receiver with `-NoReply` | send | Delivered, but no downstream reply -> Enhanced ack waits then reports timeout/failure |
+| 7 | **Retry / store-and-forward** | default (`AtLeastOnce`, 3x exponential) | **stop the receiver**, send 1-2 messages, then **restart the receiver** | Delivery fails, is persisted and retried with backoff; on restart the queued messages are replayed and delivered |
+| 8 | **Idle reconnect** | default contract | send, wait > a few seconds (receiver may drop idle sockets), send again | Second send still delivers (agent re-dials the WS downstream) |
+| 9 | **Fan-out** | `"Outputs": [ { "OutputId": 107 }, { "OutputId": 106 } ]` | run WS **and** HTTP receivers; send | One send is delivered to both the WS and HTTP downstreams |
+| 10 | **Cross-transport** | `"Inputs": [ { "InputId": 7 } ]`, `"Outputs": [ { "OutputId": 106 } ]` | run the **HTTP** receiver; send over WS | WS in -> HTTP out (the engine is transport-neutral) |
+
+> Ack semantics are identical to the other transports (see *Choose the reply mode*); WebSocket simply
+> carries each HL7 message and each ack as one binary frame.
 
 ## Notes
 
