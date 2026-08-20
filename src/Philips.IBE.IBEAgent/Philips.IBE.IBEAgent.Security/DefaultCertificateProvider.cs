@@ -1,29 +1,55 @@
+using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Philips.IBE.IBEAgent.Security;
 
+// OCP: add support for a new CertificateReferenceKind by registering an ICertificateLoader
+// in the loaders dictionary — no modification to this class required.
 public sealed class DefaultCertificateProvider : ICertificateProvider
 {
+    private readonly FrozenDictionary<CertificateReferenceKind, ICertificateLoader> _loaders;
+
+    // Default constructor: registers the built-in loaders for all supported kinds.
+    public DefaultCertificateProvider()
+        : this(new Dictionary<CertificateReferenceKind, ICertificateLoader>
+        {
+            [CertificateReferenceKind.File]          = new FileCertificateLoader(),
+            [CertificateReferenceKind.MountedSecret] = new FileCertificateLoader(),
+            [CertificateReferenceKind.WindowsStore]  = new WindowsStoreCertificateLoader(),
+            [CertificateReferenceKind.LinuxStore]    = new LinuxStoreCertificateLoader(),
+        })
+    { }
+
+    // Extensibility constructor: supply a custom loader map (e.g. add CloudKeyVault without modifying this class).
+    public DefaultCertificateProvider(IReadOnlyDictionary<CertificateReferenceKind, ICertificateLoader> loaders)
+    {
+        ArgumentNullException.ThrowIfNull(loaders);
+        _loaders = loaders.ToFrozenDictionary();
+    }
+
     public X509Certificate2? LoadCertificate(CertificateReference? reference, bool requirePrivateKey = false)
     {
         if (reference is null) return null;
 
-        var certificate = reference.Kind switch
-        {
-            CertificateReferenceKind.File or CertificateReferenceKind.MountedSecret => LoadFromFile(reference),
-            CertificateReferenceKind.WindowsStore => LoadFromWindowsStore(reference),
-            CertificateReferenceKind.LinuxStore => LoadFromLinuxStore(reference),
-            _ => throw new InvalidOperationException($"Unsupported certificate reference kind '{reference.Kind}'."),
-        };
+        if (!_loaders.TryGetValue(reference.Kind, out var loader))
+            throw new InvalidOperationException($"Unsupported certificate reference kind '{reference.Kind}'. " +
+                "Register a custom ICertificateLoader to support it.");
+
+        var certificate = loader.Load(reference);
 
         if (certificate is not null && requirePrivateKey && !certificate.HasPrivateKey)
             throw new InvalidOperationException("Configured certificate does not include a private key.");
 
         return certificate;
     }
+}
 
-    private static X509Certificate2? LoadFromFile(CertificateReference reference)
+// -- Built-in loaders --------------------------------------------------------------------------
+
+internal sealed class FileCertificateLoader : ICertificateLoader
+{
+    public X509Certificate2? Load(CertificateReference reference)
     {
         var path = reference.Path ?? reference.CertificatePath;
         if (string.IsNullOrWhiteSpace(path)) return null;
@@ -36,16 +62,21 @@ public sealed class DefaultCertificateProvider : ICertificateProvider
             ? X509CertificateLoader.LoadPkcs12FromFile(path, reference.Password)
             : X509CertificateLoader.LoadCertificateFromFile(path);
     }
+}
 
-    private static X509Certificate2? LoadFromLinuxStore(CertificateReference reference)
+internal sealed class LinuxStoreCertificateLoader : ICertificateLoader
+{
+    public X509Certificate2? Load(CertificateReference reference)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             throw new PlatformNotSupportedException("LinuxStore certificate references are only supported on Linux.");
-
-        return LoadFromFile(reference);
+        return new FileCertificateLoader().Load(reference);
     }
+}
 
-    private static X509Certificate2? LoadFromWindowsStore(CertificateReference reference)
+internal sealed class WindowsStoreCertificateLoader : ICertificateLoader
+{
+    public X509Certificate2? Load(CertificateReference reference)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             throw new PlatformNotSupportedException("WindowsStore certificate references are only supported on Windows.");
@@ -68,9 +99,11 @@ public sealed class DefaultCertificateProvider : ICertificateProvider
 
         return matches.Count switch
         {
-            0 => throw new InvalidOperationException("No certificate matched the configured Windows certificate store reference."),
+            0 => throw new InvalidOperationException(
+                "No certificate matched the configured Windows certificate store reference."),
             1 => matches[0],
-            _ => throw new InvalidOperationException("Multiple certificates matched the configured Windows certificate store reference; make it more specific."),
+            _ => throw new InvalidOperationException(
+                "Multiple certificates matched the configured Windows certificate store reference; make it more specific."),
         };
     }
 
@@ -81,7 +114,8 @@ public sealed class DefaultCertificateProvider : ICertificateProvider
         if (!string.IsNullOrWhiteSpace(reference.Thumbprint))
         {
             hasFilter = true;
-            if (!string.Equals(NormalizeThumbprint(certificate.Thumbprint), NormalizeThumbprint(reference.Thumbprint), StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(NormalizeThumbprint(certificate.Thumbprint),
+                    NormalizeThumbprint(reference.Thumbprint), StringComparison.OrdinalIgnoreCase))
                 return false;
         }
 
@@ -103,5 +137,7 @@ public sealed class DefaultCertificateProvider : ICertificateProvider
     }
 
     private static string NormalizeThumbprint(string? thumbprint)
-        => (thumbprint ?? string.Empty).Replace(" ", string.Empty, StringComparison.Ordinal).Replace(":", string.Empty, StringComparison.Ordinal);
+        => (thumbprint ?? string.Empty)
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace(":", string.Empty, StringComparison.Ordinal);
 }

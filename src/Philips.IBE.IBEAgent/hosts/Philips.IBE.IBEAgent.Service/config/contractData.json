@@ -1,107 +1,280 @@
 {
   "Endpoints": {
+
     "TcpInbound": [
       {
+        "Comment": "Mutual TLS — server presents Server.pfx, requires client cert validated against Root.pfx",
         "SourceEndpointId": 1,
         "Port": 5101,
         "Format": "hl7v2",
         "Ssl": {
-          "Enabled": true,
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+            "Password": "1"
+          },
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
         }
+      },
+      {
+        "Comment": "OneWay TLS — server presents Server.pfx only, no client cert required",
+        "SourceEndpointId": 11,
+        "Port": 5301,
+        "Format": "hl7v2",
+        "Ssl": {
+          "Mode": "OneWay",
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+            "Password": "1"
+          }
+        }
+      },
+      {
+        "Comment": "Plain (no SSL) — plaintext TCP",
+        "SourceEndpointId": 21,
+        "Port": 5501,
+        "Format": "hl7v2"
       }
     ],
+
     "HttpInbound": [
       {
+        "Comment": "Mutual TLS — https, server cert + require client cert",
         "SourceEndpointId": 2,
-        "Prefix": "https://localhost:5102/ibe/",
+        "Prefix": "https://localhost:5102/ibe/mutual/",
         "Format": "hl7v2",
         "ReplyTimeout": "00:00:15",
         "Ssl": {
-          "Enabled": true,
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+            "Password": "1"
+          },
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
         }
+      },
+      {
+        "Comment": "OneWay TLS — https, server cert only",
+        "SourceEndpointId": 12,
+        "Prefix": "https://localhost:5302/ibe/oneway/",
+        "Format": "hl7v2",
+        "ReplyTimeout": "00:00:15",
+        "Ssl": {
+          "Mode": "OneWay",
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+            "Password": "1"
+          }
+        }
+      },
+      {
+        "Comment": "Plain (no SSL) — http plaintext",
+        "SourceEndpointId": 22,
+        "Prefix": "http://localhost:5502/ibe/plain/",
+        "Format": "hl7v2",
+        "ReplyTimeout": "00:00:15"
       }
     ],
+
     "WebSocketInbound": [
       {
+        "Comment": "Mutual TLS — wss, server cert + require client cert",
         "SourceEndpointId": 3,
-        "Prefix": "https://localhost:5103/ibe/ws/",
+        "Prefix": "https://localhost:5103/ibe/ws/mutual/",
         "Format": "hl7v2",
         "Ssl": {
-          "Enabled": true,
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+            "Password": "1"
+          },
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
         }
+      },
+      {
+        "Comment": "OneWay TLS — wss, server cert only",
+        "SourceEndpointId": 13,
+        "Prefix": "https://localhost:5303/ibe/ws/oneway/",
+        "Format": "hl7v2",
+        "Ssl": {
+          "Mode": "OneWay",
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
+            "Password": "1"
+          }
+        }
+      },
+      {
+        "Comment": "Plain (no SSL) — ws plaintext",
+        "SourceEndpointId": 23,
+        "Prefix": "http://localhost:5503/ibe/ws/plain/",
+        "Format": "hl7v2"
       }
     ],
+
     "TcpOutbound": [
       {
+        "Comment": "Mutual TLS — presents Client.pfx, validates server against Root.pfx",
         "OutputId": 101,
         "Host": "127.0.0.1",
         "Port": 5201,
         "ExpectReply": true,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelayMilliseconds": 1000,
+        "ConnectRetryDelay": "00:00:01",
         "Ssl": {
-          "Enabled": true,
           "Mode": "Mutual",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+            "Password": "1"
+          },
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
         }
+      },
+      {
+        "Comment": "OneWay TLS — validates server against Root.pfx, no client cert",
+        "OutputId": 111,
+        "Host": "127.0.0.1",
+        "Port": 5401,
+        "ExpectReply": true,
+        "ConnectRetryCount": 2,
+        "ConnectRetryDelay": "00:00:01",
+        "Ssl": {
+          "Mode": "OneWay",
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
+        }
+      },
+      {
+        "Comment": "Plain (no SSL) — plaintext TCP",
+        "OutputId": 121,
+        "Host": "127.0.0.1",
+        "Port": 5601,
+        "ExpectReply": true,
+        "ConnectRetryCount": 2,
+        "ConnectRetryDelay": "00:00:01"
       }
     ],
+
     "HttpOutbound": [
       {
+        "Comment": "Mutual TLS — presents Client.pfx, validates server against Root.pfx",
         "OutputId": 102,
         "Endpoint": "https://localhost:5202/ibe/inbound",
         "ContentType": "application/octet-stream",
         "TimeoutSeconds": 30,
         "Ssl": {
-          "Enabled": true,
           "Mode": "Mutual",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+            "Password": "1"
+          },
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
         }
+      },
+      {
+        "Comment": "OneWay TLS — validates server against Root.pfx, no client cert",
+        "OutputId": 112,
+        "Endpoint": "https://localhost:5402/ibe/inbound",
+        "ContentType": "application/octet-stream",
+        "TimeoutSeconds": 30,
+        "Ssl": {
+          "Mode": "OneWay",
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
+        }
+      },
+      {
+        "Comment": "Plain (no SSL) — http plaintext",
+        "OutputId": 122,
+        "Endpoint": "http://localhost:5602/ibe/inbound",
+        "ContentType": "application/octet-stream",
+        "TimeoutSeconds": 30
       }
     ],
+
     "WebSocketOutbound": [
       {
+        "Comment": "Mutual TLS — wss, presents Client.pfx, validates server against Root.pfx",
         "OutputId": 103,
         "Endpoint": "wss://localhost:5203/ibe/ws",
         "ExpectReply": true,
         "Ssl": {
-          "Enabled": true,
           "Mode": "Mutual",
-          "CertificatePath": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-          "CertificatePassword": "1",
-          "TrustedCertificateAuthorityPath": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-          "TrustedCertificateAuthorityPassword": "1"
+          "LocalCertificate": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
+            "Password": "1"
+          },
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
         }
+      },
+      {
+        "Comment": "OneWay TLS — wss, validates server against Root.pfx, no client cert",
+        "OutputId": 113,
+        "Endpoint": "wss://localhost:5403/ibe/ws",
+        "ExpectReply": true,
+        "Ssl": {
+          "Mode": "OneWay",
+          "TrustedCertificateAuthority": {
+            "Kind": "File",
+            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
+            "Password": "1"
+          }
+        }
+      },
+      {
+        "Comment": "Plain (no SSL) — ws plaintext",
+        "OutputId": 123,
+        "Endpoint": "ws://localhost:5603/ibe/ws",
+        "ExpectReply": true
       }
     ]
   },
+
   "Contracts": [
     {
-      "Name": "Contract-Tcp-Http-Ws-Ssl",
+      "Name": "Contract-MutualTLS",
       "Workflow": { "Use": "adt" },
       "Inputs": [
         { "InputId": 1 },
@@ -113,6 +286,36 @@
         { "OutputId": 101 },
         { "OutputId": 102 },
         { "OutputId": 103 }
+      ]
+    },
+    {
+      "Name": "Contract-OneWayTLS",
+      "Workflow": { "Use": "adt" },
+      "Inputs": [
+        { "InputId": 11 },
+        { "InputId": 12 },
+        { "InputId": 13 }
+      ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Outputs": [
+        { "OutputId": 111 },
+        { "OutputId": 112 },
+        { "OutputId": 113 }
+      ]
+    },
+    {
+      "Name": "Contract-Plain",
+      "Workflow": { "Use": "adt" },
+      "Inputs": [
+        { "InputId": 21 },
+        { "InputId": 22 },
+        { "InputId": 23 }
+      ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false, "Shape": "Single" },
+      "Outputs": [
+        { "OutputId": 121 },
+        { "OutputId": 122 },
+        { "OutputId": 123 }
       ]
     }
   ]

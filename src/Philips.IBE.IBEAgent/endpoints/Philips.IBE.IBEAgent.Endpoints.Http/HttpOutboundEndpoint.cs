@@ -1,5 +1,6 @@
 // HttpOutboundEndpoint.cs
 using System.Net;
+using System.Security.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
@@ -22,11 +23,20 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
         IMessageCodec? codec,
         HttpClient? http = null,
         ILogger<HttpOutboundEndpoint>? logger = null)
+        : this(options, codec, http, logger, retryPolicy: null) { }
+
+    // Internal constructor used by tests and DI to inject a custom retry policy.
+    internal HttpOutboundEndpoint(
+        HttpOutboundOptions options,
+        IMessageCodec? codec,
+        HttpClient? http,
+        ILogger<HttpOutboundEndpoint>? logger,
+        IHttpSendRetryPolicy? retryPolicy)
     {
         _options = options;
         _codec = codec;
         _logger = logger ?? NullLogger<HttpOutboundEndpoint>.Instance;
-        _retryPolicy = new HttpSendRetryPolicy();
+        _retryPolicy = retryPolicy ?? new HttpSendRetryPolicy();
 
         if (http is not null)
         {
@@ -99,10 +109,17 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
                 ? new DeliveryResult(DeliveryOutcome.Delivered, ResponsePayload: body, ResponseFormat: context.Format)
                 : new DeliveryResult(DeliveryOutcome.Failed, $"HTTP {(int)response.StatusCode}");
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or AuthenticationException)
         {
             _logger.LogWarning(ex,
                 "HTTP outbound send to {Endpoint} failed.",
+                _options.Endpoint);
+            return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Unexpected error sending HTTP outbound message to {Endpoint}.",
                 _options.Endpoint);
             return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
         }

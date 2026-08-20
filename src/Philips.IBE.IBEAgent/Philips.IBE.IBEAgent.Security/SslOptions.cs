@@ -1,37 +1,34 @@
 namespace Philips.IBE.IBEAgent.Security;
 
 // Transport-neutral SSL/TLS configuration for an inbound or outbound endpoint leg. One shape reused
-// by TCP (SslStream) and HTTP (SocketsHttpHandler / HttpListener) so operators configure TLS the
-// same way regardless of protocol.
+// by TCP (SslStream), HTTP (SocketsHttpHandler / HttpListener), and WebSocket so operators configure
+// TLS the same way regardless of protocol.
+//
+// Production usage: always use LocalCertificate / TrustedCertificateAuthority with Kind=WindowsStore
+// and a Subject (CN) or FriendlyName so certificate renewal requires no configuration change.
 public sealed class SslOptions
 {
-    // Plain = plaintext. OneWay = TLS, only the remote peer's certificate is validated (typical
-    // client-facing web/API pattern). Mutual = mutual TLS: both sides present + validate a certificate.
+    // Plain = plaintext. OneWay = TLS, server cert only. Mutual = mTLS, both sides present a cert.
     public SslMode Mode { get; init; } = SslMode.Plain;
 
     // TLS behavior is inferred from endpoint role + configured certificate material.
     public bool? Enabled { get; init; }
     public bool RequireClientCertificate { get; init; }
+
+    // Server / client certificate for this side of the connection.
+    // Use Kind=WindowsStore with Subject (CN) for production — survives renewal without config changes.
     public CertificateReference? LocalCertificate { get; init; }
+
+    // Optional pinned CA/root used to validate the remote peer certificate.
+    // Use Kind=WindowsStore with Subject (CN) for production.
     public CertificateReference? TrustedCertificateAuthority { get; init; }
 
-    // Certificate presented by *this* side of the connection:
-    //  - inbound (server) endpoint: required for OneWay and Mutual.
-    //  - outbound (client) endpoint: required for Mutual only (client authentication).
-    public string? CertificatePath { get; init; }
-    public string? CertificatePassword { get; init; }
-
-    // Optional pinned CA/root used to validate the *remote* peer's certificate instead of (or in
-    // addition to) the machine trust store â€” useful for private/self-signed PKI in the field.
-    public string? TrustedCertificateAuthorityPath { get; init; }
-    public string? TrustedCertificateAuthorityPassword { get; init; }
-
-    // Dev/test escape hatch: accept any remote certificate (chain errors ignored). Must default to
-    // false so production configuration is secure-by-default.
+    // Dev/test escape hatch: accept any remote certificate (chain errors ignored).
+    // Must default to false so production configuration is secure-by-default.
     public bool AllowUntrustedCertificate { get; init; }
 
     public System.Security.Authentication.SslProtocols Protocols { get; init; }
-        = System.Security.Authentication.SslProtocols.None; // None = let the OS negotiate the best supported protocol
+        = System.Security.Authentication.SslProtocols.None; // None = OS negotiates best protocol
 
     public bool CheckCertificateRevocation { get; init; } = false;
 
@@ -39,28 +36,10 @@ public sealed class SslOptions
         ?? Mode != SslMode.Plain
         || RequireClientCertificate
         || LocalCertificate is not null
-        || TrustedCertificateAuthority is not null
-        || !string.IsNullOrWhiteSpace(CertificatePath)
-        || !string.IsNullOrWhiteSpace(TrustedCertificateAuthorityPath);
+        || TrustedCertificateAuthority is not null;
+
     public bool RequiresRemoteCertificate => RequireClientCertificate || Mode == SslMode.Mutual;
 
-    internal CertificateReference? EffectiveLocalCertificate => LocalCertificate ??
-        (string.IsNullOrWhiteSpace(CertificatePath)
-            ? null
-            : new CertificateReference
-            {
-                Kind = CertificateReferenceKind.File,
-                Path = CertificatePath,
-                Password = CertificatePassword,
-            });
-
-    internal CertificateReference? EffectiveTrustedAuthority => TrustedCertificateAuthority ??
-        (string.IsNullOrWhiteSpace(TrustedCertificateAuthorityPath)
-            ? null
-            : new CertificateReference
-            {
-                Kind = CertificateReferenceKind.File,
-                Path = TrustedCertificateAuthorityPath,
-                Password = TrustedCertificateAuthorityPassword,
-            });
+    internal CertificateReference? EffectiveLocalCertificate => LocalCertificate;
+    internal CertificateReference? EffectiveTrustedAuthority => TrustedCertificateAuthority;
 }

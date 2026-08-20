@@ -1,5 +1,6 @@
 // WebSocketOutboundEndpoint.cs
 using System.Net.WebSockets;
+using System.Security.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
@@ -27,12 +28,21 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
         IMessageCodec? codec,
         WebSocketDuplexSessionRegistry? duplexSessions = null,
         ILogger<WebSocketOutboundEndpoint>? logger = null)
+        : this(options, codec, duplexSessions, logger, connectRetryPolicy: null) { }
+
+    // Internal constructor used by tests and DI to inject a custom retry policy.
+    internal WebSocketOutboundEndpoint(
+        WebSocketOutboundOptions options,
+        IMessageCodec? codec,
+        WebSocketDuplexSessionRegistry? duplexSessions,
+        ILogger<WebSocketOutboundEndpoint>? logger,
+        IWebSocketConnectRetryPolicy? connectRetryPolicy)
     {
         _options = options;
         _codec = codec;
         _duplexSessions = duplexSessions;
         _logger = logger ?? NullLogger<WebSocketOutboundEndpoint>.Instance;
-        _connectRetryPolicy = new WebSocketConnectRetryPolicy();
+        _connectRetryPolicy = connectRetryPolicy ?? new WebSocketConnectRetryPolicy();
         _pool = new WebSocketConnectionPool(options.Endpoint, options.Mode == CommunicationMode.DuplexOutbound ? 1 : options.PoolSize, options.Ssl, options.Proxy);
     }
 
@@ -101,10 +111,17 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
             healthy = true;
             return new DeliveryResult(DeliveryOutcome.Delivered);
         }
-        catch (Exception ex) when (ex is WebSocketException or IOException or OperationCanceledException)
+        catch (Exception ex) when (ex is WebSocketException or IOException or OperationCanceledException or AuthenticationException)
         {
             _logger.LogWarning(ex,
                 "WebSocket outbound send to {Endpoint} failed.",
+                _options.Endpoint);
+            return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Unexpected error sending WebSocket outbound message to {Endpoint}.",
                 _options.Endpoint);
             return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
         }

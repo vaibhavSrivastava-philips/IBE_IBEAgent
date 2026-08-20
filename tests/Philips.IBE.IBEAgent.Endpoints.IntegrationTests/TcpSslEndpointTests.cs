@@ -22,7 +22,7 @@ public sealed class TcpSslEndpointTests
             {
                 SourceEndpointId = 1,
                 Port = 0,
-                Ssl = new SslOptions { Mode = SslMode.OneWay, CertificatePath = certPath },
+                Ssl = new SslOptions { Mode = SslMode.OneWay, LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = certPath } },
             };
             await using var endpoint = new TcpInboundEndpoint(options, dispatcher, new FakeReplyContextFactory());
             await endpoint.StartAsync(CancellationToken.None);
@@ -58,7 +58,7 @@ public sealed class TcpSslEndpointTests
             {
                 SourceEndpointId = 1,
                 Port = 0,
-                Ssl = new SslOptions { Mode = SslMode.Mutual, CertificatePath = certPath, AllowUntrustedCertificate = true },
+                Ssl = new SslOptions { Mode = SslMode.Mutual, LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = certPath }, AllowUntrustedCertificate = true },
             };
             await using var endpoint = new TcpInboundEndpoint(options, new FakeMessageDispatcher(), new FakeReplyContextFactory());
             await endpoint.StartAsync(CancellationToken.None);
@@ -99,7 +99,7 @@ public sealed class TcpSslEndpointTests
                 Ssl = new SslOptions
                 {
                     Mode = SslMode.Mutual,
-                    CertificatePath = serverCertPath,
+                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = serverCertPath },
                     AllowUntrustedCertificate = true,   // self-signed client cert in this test
                 },
             };
@@ -114,7 +114,7 @@ public sealed class TcpSslEndpointTests
                 Ssl = new SslOptions
                 {
                     Mode = SslMode.Mutual,
-                    CertificatePath = clientCertPath,
+                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = clientCertPath },
                     AllowUntrustedCertificate = true,   // self-signed server cert in this test
                 },
             };
@@ -151,7 +151,7 @@ public sealed class TcpSslEndpointTests
                 Ssl = new SslOptions
                 {
                     Enabled = true,
-                    CertificatePath = serverCertPath,
+                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = serverCertPath },
                     RequireClientCertificate = true,
                     AllowUntrustedCertificate = true,
                 },
@@ -167,7 +167,7 @@ public sealed class TcpSslEndpointTests
                 Ssl = new SslOptions
                 {
                     Enabled = true,
-                    CertificatePath = clientCertPath,
+                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = clientCertPath },
                     AllowUntrustedCertificate = true,
                 },
             };

@@ -141,11 +141,37 @@ material is configured (or `Mode`/`Enabled` is set). Common keys:
 |-----|------|---------|---------|
 | `Mode` | enum | `None` | `None` \| `OneWay` (validate the peer) \| `TwoWay` (mutual TLS). |
 | `Enabled` | bool? | inferred | Preferred switch; if omitted, inferred from `Mode`/cert material. |
-| `CertificatePath` / `CertificatePassword` | string | none | This side's cert (server for inbound; client for `TwoWay` outbound). |
-| `TrustedCertificateAuthorityPath` / `...Password` | string | none | Pinned CA to validate the peer (private/self‑signed PKI). |
+| `LocalCertificate` | object | none | This side's certificate (server for inbound; client for `TwoWay` outbound). Use `Kind=WindowsStore` for production. |
+| `TrustedCertificateAuthority` | object | none | Pinned CA to validate the remote peer (private/self‑signed PKI). Use `Kind=WindowsStore` for production. |
 | `RequireClientCertificate` | bool | `false` | Inbound: require + validate a client cert (mTLS). |
 | `AllowUntrustedCertificate` | bool | `false` | **Dev/test only** — accept any peer cert. Never in production. |
 | `CheckCertificateRevocation` | bool | `false` | Enable CRL/OCSP checks. |
+
+**`LocalCertificate` / `TrustedCertificateAuthority` sub-keys (`CertificateReference`):**
+
+| Key | Type | Meaning |
+|-----|------|---------|
+| `Kind` | enum | `WindowsStore` (production) · `File` (dev/test only) · `LinuxStore` · `MountedSecret` |
+| `StoreName` | string | Windows store name, e.g. `My` (default), `Root`, `CA`. |
+| `StoreLocation` | string | `LocalMachine` (default for services) or `CurrentUser`. |
+| `Subject` | string | Certificate CN / subject — renewal‑safe; selects the newest valid match. |
+| `FriendlyName` | string | Alternative to `Subject` for Windows store lookup. |
+| `Thumbprint` | string | Exact thumbprint match (pinned, renewal‑unsafe — avoid in production). |
+| `Path` | string | **File only** — path to `.pfx` or `.pem` file. Dev/test only. |
+| `Password` | string | **File only** — PFX password. Dev/test only. |
+
+**Production example (`WindowsStore` by Subject):**
+```json
+"Ssl": {
+  "Mode": "OneWay",
+  "LocalCertificate": {
+    "Kind": "WindowsStore",
+    "StoreName": "My",
+    "StoreLocation": "LocalMachine",
+    "Subject": "CN=my-service.example.com"
+  }
+}
+```
 
 ## Proxy (shared, outbound only)
 

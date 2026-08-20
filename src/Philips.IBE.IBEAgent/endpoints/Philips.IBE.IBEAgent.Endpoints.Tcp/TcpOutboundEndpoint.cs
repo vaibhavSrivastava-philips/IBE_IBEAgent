@@ -29,12 +29,21 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
         IMessageCodec? codec,
         ILogger<TcpOutboundEndpoint>? logger = null,
         TcpDuplexSessionRegistry? duplexSessions = null)
+        : this(options, codec, logger, duplexSessions, connectRetryPolicy: null) { }
+
+    // Internal constructor used by tests and DI to inject custom retry policy / pool.
+    internal TcpOutboundEndpoint(
+        TcpOutboundOptions options,
+        IMessageCodec? codec,
+        ILogger<TcpOutboundEndpoint>? logger,
+        TcpDuplexSessionRegistry? duplexSessions,
+        ITcpConnectRetryPolicy? connectRetryPolicy)
     {
         _options = options;
         _codec = codec;
         _logger = logger ?? NullLogger<TcpOutboundEndpoint>.Instance;
         _duplexSessions = duplexSessions;
-        _connectRetryPolicy = new TcpConnectRetryPolicy();
+        _connectRetryPolicy = connectRetryPolicy ?? new TcpConnectRetryPolicy();
         _pool = new TcpConnectionPool(options.Host, options.Port,
             options.Mode == CommunicationMode.DuplexOutbound ? 1 : options.PoolSize,
             options.Ssl, options.Proxy);
@@ -219,6 +228,12 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
             {
                 _logger.LogDebug(ex, "TCP DuplexOutbound reader disconnected from {Host}:{Port}; reconnecting.", _options.Host, _options.Port);
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Unexpected error in TCP DuplexOutbound reader for {Host}:{Port}; reconnecting.",
+                    _options.Host, _options.Port);
+            }
             finally
             {
                 var current = Interlocked.Exchange(ref _duplexConnection, null);
@@ -248,7 +263,17 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
             headers: envelope.Headers);
 
         ctx.Reply.Attach(ctx);
-        await _dispatcher!.DispatchAsync(ctx, cancellationToken);
+        try
+        {
+            await _dispatcher!.DispatchAsync(ctx, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to dispatch inbound message {CorrelationId} on TCP DuplexOutbound source {SourceEndpointId}.",
+                ctx.CorrelationId, _options.SourceEndpointId.Value);
+        }
     }
 
     // One delivery attempt; fully owns the rented connection's lifecycle (return on success, discard on
