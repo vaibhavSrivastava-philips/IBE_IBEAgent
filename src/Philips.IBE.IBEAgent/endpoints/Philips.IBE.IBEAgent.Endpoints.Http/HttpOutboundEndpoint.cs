@@ -1,5 +1,7 @@
 // HttpOutboundEndpoint.cs
 using System.Net;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
 using Philips.IBE.IBEAgent.Core;
 using Philips.IBE.IBEAgent.Security;
@@ -9,14 +11,22 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
 {
     private readonly HttpOutboundOptions _options;
     private readonly IMessageCodec? _codec;
+    private readonly ILogger<HttpOutboundEndpoint> _logger;
     private readonly HttpClient _http;
     private readonly bool _ownsClient;
+    private readonly IHttpSendRetryPolicy _retryPolicy;
 
     // Prefer passing a pooled HttpClient (IHttpClientFactory) from the host in Phase 7.
-    public HttpOutboundEndpoint(HttpOutboundOptions options, IMessageCodec? codec, HttpClient? http = null)
+    public HttpOutboundEndpoint(
+        HttpOutboundOptions options,
+        IMessageCodec? codec,
+        HttpClient? http = null,
+        ILogger<HttpOutboundEndpoint>? logger = null)
     {
         _options = options;
         _codec = codec;
+        _logger = logger ?? NullLogger<HttpOutboundEndpoint>.Instance;
+        _retryPolicy = new HttpSendRetryPolicy();
 
         if (http is not null)
         {
@@ -71,6 +81,11 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
         try
         {
             var wire = _codec?.Encode(context) ?? context.Payload;
+            using var response = await _retryPolicy.SendAsync(
+                sendAsync: ct => SendHttpRequestAsync(context, wire, ct),
+                options: _options,
+                logger: _logger,
+                cancellationToken: cancellationToken);
             using var content = new ByteArrayContent(wire.ToArray());
             // An upstream-decided media type (relay or the media-type stage) wins; otherwise the endpoint default.
             var mediaType = context.Headers.TryGetValue(ContentHeaders.ContentType, out var contentType) && !string.IsNullOrWhiteSpace(contentType)
@@ -78,27 +93,37 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
                 : _options.ContentType;
             content.Headers.TryAddWithoutValidation("Content-Type", mediaType);
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, _options.Endpoint) { Content = content };
-            request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireRequestId, context.CorrelationId);
-            request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireMessageId, context.MessageId.ToString("N"));
-            if (!string.IsNullOrWhiteSpace(_options.LogicalEndpointId))
-                request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireLogicalEndpointId, _options.LogicalEndpointId);
-
-            foreach (var (key, value) in context.Headers)   // opt-in metadata (fwd.*) -> protocol headers
-                if (ForwardHeaders.TryGetName(key, out var name))
-                    request.Headers.TryAddWithoutValidation(name, value);
-
-            using var response = await _http.SendAsync(request, cancellationToken);
             var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
 
             return response.IsSuccessStatusCode
                 ? new DeliveryResult(DeliveryOutcome.Delivered, ResponsePayload: body, ResponseFormat: context.Format)
                 : new DeliveryResult(DeliveryOutcome.Failed, $"HTTP {(int)response.StatusCode}");
         }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
         {
+            _logger.LogWarning(ex,
+                "HTTP outbound send to {Endpoint} failed.",
+                _options.Endpoint);
             return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
         }
+    }
+
+    private async Task<HttpResponseMessage> SendHttpRequestAsync(MessageContext context, ReadOnlyMemory<byte> wire, CancellationToken cancellationToken)
+    {
+        using var content = new ByteArrayContent(wire.ToArray());
+        content.Headers.TryAddWithoutValidation("Content-Type", _options.ContentType);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, _options.Endpoint) { Content = content };
+        request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireRequestId, context.CorrelationId);
+        request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireMessageId, context.MessageId.ToString("N"));
+        if (!string.IsNullOrWhiteSpace(_options.LogicalEndpointId))
+            request.Headers.TryAddWithoutValidation(TransportCorrelationHeaders.WireLogicalEndpointId, _options.LogicalEndpointId);
+
+        foreach (var (key, value) in context.Headers)   // opt-in metadata (fwd.*) -> protocol headers
+            if (ForwardHeaders.TryGetName(key, out var name))
+                request.Headers.TryAddWithoutValidation(name, value);
+
+        return await _http.SendAsync(request, cancellationToken);
     }
 
     public void Dispose() { if (_ownsClient) _http.Dispose(); }
