@@ -43,7 +43,7 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
         _duplexSessions = duplexSessions;
         _logger = logger ?? NullLogger<WebSocketOutboundEndpoint>.Instance;
         _connectRetryPolicy = connectRetryPolicy ?? new WebSocketConnectRetryPolicy();
-        _pool = new WebSocketConnectionPool(options.Endpoint, options.Mode == CommunicationMode.DuplexOutbound ? 1 : options.PoolSize, options.Ssl, options.Proxy);
+        _pool = new WebSocketConnectionPool(options.Endpoint, options.Mode == CommunicationMode.DuplexOutbound ? 1 : options.PoolSize, options.Tls, options.Proxy);
     }
 
     public void ConfigureInboundDispatch(IMessageDispatcher dispatcher, IReplyContextFactory replyFactory)
@@ -184,15 +184,15 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
                 _logger.LogDebug("WebSocket DuplexOutbound reader canceled for endpoint {Endpoint}.", _options.Endpoint);
                 break;
             }
-            catch (Exception ex) when (ex is WebSocketException or IOException)
+            catch (Exception ex) when (ex is WebSocketException or IOException or ObjectDisposedException)
             {
-                _logger.LogWarning(ex,
-                    "WebSocket DuplexOutbound reader disconnected from {Endpoint}; reconnecting.",
-                    _options.Endpoint);
+                // Expected: peer closed, network drop, or local dispose during shutdown.
+                if (!cancellationToken.IsCancellationRequested)
+                    _logger.LogDebug(ex, "WebSocket DuplexOutbound reader disconnected from {Endpoint}; will reconnect.", _options.Endpoint);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
+                _logger.LogWarning(ex,
                     "Unexpected error in WebSocket DuplexOutbound reader for {Endpoint}; reconnecting.",
                     _options.Endpoint);
             }
@@ -257,7 +257,10 @@ public sealed class WebSocketOutboundEndpoint : IOutboundEndpoint, IEndpointLife
             {
                 result = await session.Socket.ReceiveAsync(buffer, cancellationToken);
                 if (result.MessageType == WebSocketMessageType.Close)
-                    throw new WebSocketException("peer closed WebSocket duplex session");
+                {
+                    _logger.LogDebug("WebSocket DuplexOutbound: peer closed session gracefully for {Endpoint}.", _options.Endpoint);
+                    return;   // graceful close — exit cleanly, outer loop will reconnect if needed
+                }
                 acc.Write(buffer, 0, result.Count);
             } while (!result.EndOfMessage);
 

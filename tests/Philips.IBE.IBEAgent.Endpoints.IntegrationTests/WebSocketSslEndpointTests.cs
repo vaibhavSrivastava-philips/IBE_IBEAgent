@@ -11,16 +11,16 @@ using Philips.IBE.IBEAgent.TestKit;
 
 namespace Philips.IBE.IBEAgent.Endpoints.IntegrationTests;
 
-public sealed class WebSocketSslEndpointTests
+public sealed class WebSocketTlsEndpointTests
 {
     [Fact]
-    public void Constructor_throws_when_ssl_enabled_but_prefix_is_plain_http()
+    public void Constructor_throws_when_tls_enabled_but_prefix_is_plain_http()
     {
         var options = new WebSocketInboundOptions
         {
             SourceEndpointId = 1,
             Prefix = "http://localhost:8080/ws/",     // not https://
-            Ssl = new SslOptions { Mode = SslMode.OneWay, LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = "unused.pfx" } },
+            Tls = new TlsOptions { Mode = TlsMode.OneWay, Certificate = new CertificateReference { Subject = "unused" } },
         };
 
         Assert.Throws<InvalidOperationException>(
@@ -28,7 +28,7 @@ public sealed class WebSocketSslEndpointTests
     }
 
     [Fact]
-    public async Task Outbound_connects_over_tls_to_a_oneway_ssl_server_and_exchanges_message()
+    public async Task Outbound_connects_over_tls_to_a_oneway_tls_server_and_exchanges_message()
     {
         var certificate = TestCertificateFactory.CreateSelfSigned();
         var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -66,7 +66,7 @@ public sealed class WebSocketSslEndpointTests
         var options = new WebSocketOutboundOptions
         {
             Endpoint = new Uri($"wss://localhost:{port}/ws/"),
-            Ssl = new SslOptions { Mode = SslMode.OneWay, AllowUntrustedCertificate = true }, // self-signed test cert
+            Tls = new TlsOptions { Mode = TlsMode.OneWay, SkipCertificateValidation = true }, // self-signed test cert
         };
         await using var endpoint = new WebSocketOutboundEndpoint(options, codec: null);
 
@@ -103,7 +103,7 @@ public sealed class WebSocketSslEndpointTests
         var options = new WebSocketOutboundOptions
         {
             Endpoint = new Uri($"wss://localhost:{port}/ws/"),
-            Ssl = new SslOptions { Mode = SslMode.OneWay },   // AllowUntrustedCertificate NOT set -> secure default
+            Tls = new TlsOptions { Mode = TlsMode.OneWay },   // SkipCertificateValidation NOT set -> secure default
         };
         await using var endpoint = new WebSocketOutboundEndpoint(options, codec: null);
 

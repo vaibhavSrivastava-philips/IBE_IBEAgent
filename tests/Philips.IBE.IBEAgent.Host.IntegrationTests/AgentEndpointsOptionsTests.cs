@@ -295,7 +295,7 @@ public sealed class AgentEndpointsOptionsTests
                 {
                     SourceEndpointId = 1,
                     Port = 6000,
-                    Ssl = new SslOptions { Enabled = true },
+                    Tls = new TlsOptions { Enabled = true },
                 },
             ],
         };
@@ -317,7 +317,7 @@ public sealed class AgentEndpointsOptionsTests
                 {
                     SourceEndpointId = 1,
                     Prefix = "http://localhost:6000/ibe/",
-                    Ssl = new SslOptions { Enabled = true },
+                    Tls = new TlsOptions { Enabled = true },
                 },
             ],
         };
@@ -339,7 +339,7 @@ public sealed class AgentEndpointsOptionsTests
                 {
                     SourceEndpointId = 1,
                     Prefix = "https://localhost:6000/ibe/",
-                    Ssl = new SslOptions { RequireClientCertificate = true },
+                    Tls = new TlsOptions { RequireClientCertificate = true },
                 },
             ],
         };
@@ -347,7 +347,7 @@ public sealed class AgentEndpointsOptionsTests
         var result = AgentEndpointsOptionsValidator.Validate(endpoints);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("requires client certificates but has no trusted certificate authority/reference configured"));
+        Assert.Contains(result.Errors, e => e.Contains("requires client certificates but has no trusted root certificate authority configured"));
     }
 
     [Fact]
@@ -362,13 +362,12 @@ public sealed class AgentEndpointsOptionsTests
                     OutputId = 1,
                     Host = "localhost",
                     Port = 6000,
-                    Ssl = new SslOptions
+                    Tls = new TlsOptions
                     {
                         Enabled = true,
-                        LocalCertificate = new CertificateReference
+                        Certificate = new CertificateReference
                         {
-                            Kind = CertificateReferenceKind.File,
-                            Path = "client.pfx",
+                            Subject = "IBEAgent-Client",
                         },
                     },
                 },
@@ -381,7 +380,7 @@ public sealed class AgentEndpointsOptionsTests
     }
 
     [Fact]
-    public void Endpoint_validator_rejects_file_certificate_reference_without_path()
+    public void Endpoint_validator_rejects_certificate_reference_without_selector()
     {
         var endpoints = new AgentEndpointsOptions
         {
@@ -392,10 +391,10 @@ public sealed class AgentEndpointsOptionsTests
                     OutputId = 1,
                     Host = "localhost",
                     Port = 6000,
-                    Ssl = new SslOptions
+                    Tls = new TlsOptions
                     {
                         Enabled = true,
-                        LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File },
+                        Certificate = new CertificateReference { },
                     },
                 },
             ],
@@ -404,11 +403,11 @@ public sealed class AgentEndpointsOptionsTests
         var result = AgentEndpointsOptionsValidator.Validate(endpoints);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("uses File reference but no Path or CertificatePath is configured"));
+        Assert.Contains(result.Errors, e => e.Contains("must specify at least one of: Subject, Thumbprint, or FriendlyName"));
     }
 
     [Fact]
-    public void Endpoint_validator_rejects_private_key_path_without_certificate_path()
+    public void Endpoint_validator_allows_certificate_reference_with_thumbprint()
     {
         var endpoints = new AgentEndpointsOptions
         {
@@ -419,14 +418,12 @@ public sealed class AgentEndpointsOptionsTests
                     OutputId = 1,
                     Host = "localhost",
                     Port = 6000,
-                    Ssl = new SslOptions
+                    Tls = new TlsOptions
                     {
                         Enabled = true,
-                        LocalCertificate = new CertificateReference
+                        Certificate = new CertificateReference
                         {
-                            Kind = CertificateReferenceKind.File,
-                            Path = "client.pfx",
-                            PrivateKeyPath = "client.key",
+                            Thumbprint = "AABBCCDDEEFF",
                         },
                     },
                 },
@@ -435,12 +432,11 @@ public sealed class AgentEndpointsOptionsTests
 
         var result = AgentEndpointsOptionsValidator.Validate(endpoints);
 
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("PrivateKeyPath but no CertificatePath"));
+        Assert.True(result.IsValid, string.Join(Environment.NewLine, result.Errors));
     }
 
     [Fact]
-    public void Endpoint_validator_rejects_windows_store_reference_without_selector()
+    public void Endpoint_validator_allows_certificate_reference_with_friendly_name()
     {
         var endpoints = new AgentEndpointsOptions
         {
@@ -451,41 +447,12 @@ public sealed class AgentEndpointsOptionsTests
                     OutputId = 1,
                     Host = "localhost",
                     Port = 6000,
-                    Ssl = new SslOptions
+                    Tls = new TlsOptions
                     {
                         Enabled = true,
-                        LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.WindowsStore },
-                    },
-                },
-            ],
-        };
-
-        var result = AgentEndpointsOptionsValidator.Validate(endpoints);
-
-        Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("WindowsStore reference but no Thumbprint, Subject, or FriendlyName selector"));
-    }
-
-    [Fact]
-    public void Endpoint_validator_allows_mounted_secret_certificate_reference_with_certificate_path()
-    {
-        var endpoints = new AgentEndpointsOptions
-        {
-            TcpOutbound =
-            [
-                new TcpOutboundEndpointConfig
-                {
-                    OutputId = 1,
-                    Host = "localhost",
-                    Port = 6000,
-                    Ssl = new SslOptions
-                    {
-                        Enabled = true,
-                        LocalCertificate = new CertificateReference
+                        Certificate = new CertificateReference
                         {
-                            Kind = CertificateReferenceKind.MountedSecret,
-                            CertificatePath = "/var/run/secrets/client.crt",
-                            PrivateKeyPath = "/var/run/secrets/client.key",
+                            FriendlyName = "IBEAgent Client",
                         },
                     },
                 },
@@ -508,7 +475,7 @@ public sealed class AgentEndpointsOptionsTests
                 {
                     OutputId = 1,
                     Endpoint = new Uri("http://localhost:6003/ibe/outbound/"),
-                    Ssl = new SslOptions { Enabled = true },
+                    Tls = new TlsOptions { Enabled = true },
                 },
             ],
         };
@@ -530,7 +497,7 @@ public sealed class AgentEndpointsOptionsTests
                 {
                     OutputId = 1,
                     Endpoint = new Uri("ws://localhost:6005/ws/"),
-                    Ssl = new SslOptions { Enabled = true },
+                    Tls = new TlsOptions { Enabled = true },
                 },
             ],
         };
@@ -542,7 +509,7 @@ public sealed class AgentEndpointsOptionsTests
     }
 
     [Fact]
-    public void Endpoint_validator_rejects_allow_untrusted_certificate_for_production_safe_tls()
+    public void Endpoint_validator_rejects_skip_certificate_validation_for_production_safe_tls()
     {
         var endpoints = new AgentEndpointsOptions
         {
@@ -553,10 +520,10 @@ public sealed class AgentEndpointsOptionsTests
                     OutputId = 1,
                     Host = "localhost",
                     Port = 6000,
-                    Ssl = new SslOptions
+                    Tls = new TlsOptions
                     {
                         Enabled = true,
-                        AllowUntrustedCertificate = true,
+                        SkipCertificateValidation = true,
                     },
                 },
             ],
@@ -565,7 +532,7 @@ public sealed class AgentEndpointsOptionsTests
         var result = AgentEndpointsOptionsValidator.Validate(endpoints);
 
         Assert.False(result.IsValid);
-        Assert.Contains(result.Errors, e => e.Contains("enables AllowUntrustedCertificate, which is not permitted for production-safe TLS configuration"));
+        Assert.Contains(result.Errors, e => e.Contains("enables SkipCertificateValidation, which is not permitted for production-safe TLS configuration"));
     }
 
     private static AgentEndpointsOptions BindEndpoints(Dictionary<string, string?> settings)

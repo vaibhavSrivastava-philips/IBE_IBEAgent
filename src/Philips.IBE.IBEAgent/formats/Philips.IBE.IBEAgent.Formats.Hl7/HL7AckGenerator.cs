@@ -25,12 +25,33 @@ public static class HL7AckGenerator
 
     // Builds an HL7 negative ACK via the library's GetNACK: MSA-1 = code (e.g. "AR" application reject),
     // carrying the reason as the MSA text message. Used for an intentional drop (filtered) or an error.
+    // Falls back to BuildFallbackNack when GetNACK returns null or when the input cannot be parsed
+    // (e.g. raw MLLP ACK frames, keep-alive probes, or binary payloads).
     public static string GenerateHL7Reject(string message, string code, string? reason)
     {
-        var incomingMessage = new Message(message);
-        incomingMessage.ParseMessage();
-        var nack = incomingMessage.GetNACK(code, reason ?? string.Empty);
-        return nack.SerializeMessage(false);
+        try
+        {
+            var incomingMessage = new Message(message);
+            incomingMessage.ParseMessage();
+            var nack = incomingMessage.GetNACK(code, reason ?? string.Empty);
+            if (nack is not null)
+                return nack.SerializeMessage(false);
+
+            // GetNACK returns null when MSH lacks enough fields to echo back.
+            return BuildFallbackNack(TryGetControlId(incomingMessage), reason ?? $"Application {code}");
+        }
+        catch
+        {
+            // Input is not parseable HL7 (e.g. MLLP control frame, binary probe).
+            return BuildFallbackNack(string.Empty, reason ?? $"Application {code}");
+        }
+    }
+
+    // Best-effort MSH-10 (message control id) extraction; returns empty string on any failure.
+    private static string TryGetControlId(Message message)
+    {
+        try { return message.Segments("MSH")[0].Fields(10).Value ?? string.Empty; }
+        catch { return string.Empty; }
     }
 
     // Reads MSA-1 (the acknowledgement code) out of an ACK message — used when relaying a downstream

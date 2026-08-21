@@ -13,8 +13,8 @@ internal sealed class WebSocketConnectionPool : IAsyncDisposable
     private readonly IWebSocketConnectionFactory _factory;
 
     // Production constructor: creates the default WebSocketConnectionFactory internally.
-    public WebSocketConnectionPool(Uri endpoint, int size, SslOptions? ssl = null, ProxyOptions? proxy = null)
-        : this(size, new WebSocketConnectionFactory(endpoint, ssl ?? new SslOptions(), proxy ?? new ProxyOptions()))
+    public WebSocketConnectionPool(Uri endpoint, int size, TlsOptions? tls = null, ProxyOptions? proxy = null)
+        : this(size, new WebSocketConnectionFactory(endpoint, tls ?? new TlsOptions(), proxy ?? new ProxyOptions()))
     { }
 
     // DIP constructor: accept any IWebSocketConnectionFactory (e.g. a test double).

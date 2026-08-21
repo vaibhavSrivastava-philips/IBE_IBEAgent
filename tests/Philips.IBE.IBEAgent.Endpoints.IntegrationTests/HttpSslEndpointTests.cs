@@ -13,13 +13,13 @@ namespace Philips.IBE.IBEAgent.Endpoints.IntegrationTests;
 public sealed class HttpSslEndpointTests
 {
     [Fact]
-    public void Constructor_throws_when_ssl_enabled_but_prefix_is_plain_http()
+    public void Constructor_throws_when_tls_enabled_but_prefix_is_plain_http()
     {
         var options = new HttpInboundOptions
         {
             SourceEndpointId = 1,
             Prefix = "http://localhost:8080/ibe/",     // not https://
-            Ssl = new SslOptions { Mode = SslMode.OneWay, LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = "unused.pfx" } },
+            Tls = new TlsOptions { Mode = TlsMode.OneWay, Certificate = new CertificateReference { Subject = "unused" } },
         };
 
         Assert.Throws<InvalidOperationException>(
@@ -52,7 +52,7 @@ public sealed class HttpSslEndpointTests
         var options = new HttpOutboundOptions
         {
             Endpoint = new Uri($"https://localhost:{port}/ibe"),
-            Ssl = new SslOptions { Mode = SslMode.OneWay, AllowUntrustedCertificate = true }, // self-signed test cert
+            Tls = new TlsOptions { Mode = TlsMode.OneWay, SkipCertificateValidation = true }, // self-signed test cert
         };
         using var endpoint = new HttpOutboundEndpoint(options, codec: null);
 
@@ -88,7 +88,7 @@ public sealed class HttpSslEndpointTests
         {
             Endpoint = new Uri($"https://localhost:{port}/ibe"),
             Timeout = TimeSpan.FromSeconds(5),
-            Ssl = new SslOptions { Mode = SslMode.OneWay },   // AllowUntrustedCertificate NOT set -> secure default
+            Tls = new TlsOptions { Mode = TlsMode.OneWay },   // SkipCertificateValidation NOT set -> secure default
         };
         using var endpoint = new HttpOutboundEndpoint(options, codec: null);
 

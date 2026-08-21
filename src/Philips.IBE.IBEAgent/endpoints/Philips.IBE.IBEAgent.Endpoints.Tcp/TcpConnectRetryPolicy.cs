@@ -39,8 +39,8 @@ internal sealed class TcpConnectRetryPolicy : ITcpConnectRetryPolicy
                 if (attempt == attempts)
                     break;
 
-                logger.LogWarning(ex,
-                    "TCP outbound connect attempt {Attempt}/{TotalAttempts} to {Host}:{Port} failed. Retrying in {DelayMs} ms.",
+                logger.LogDebug(ex,
+                    "TCP outbound connect attempt {Attempt}/{TotalAttempts} to {Host}:{Port} failed; retrying in {DelayMs} ms.",
                     attempt,
                     attempts,
                     options.Host,

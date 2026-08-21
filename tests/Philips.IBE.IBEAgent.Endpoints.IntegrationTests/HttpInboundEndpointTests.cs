@@ -16,7 +16,7 @@ public sealed class HttpInboundEndpointTests
         var dispatcher = new FakeMessageDispatcher();
         var options = new HttpInboundOptions
         {
-            SourceEndpointId = 3, Prefix = prefix, Format = "hl7v2", ReplyTimeout = TimeSpan.FromSeconds(10),
+            SourceEndpointId = 3, Prefix = prefix, Format = "hl7v2", ReplyTimeoutInMs = 10_000,
         };
         await using var endpoint = new HttpInboundEndpoint(options, dispatcher, new FakeReplyContextFactory());
         await endpoint.StartAsync(CancellationToken.None);
@@ -44,7 +44,7 @@ public sealed class HttpInboundEndpointTests
         var prefix = $"http://localhost:{TestSupport.GetFreePort()}/ibe/";
         var options = new HttpInboundOptions
         {
-            SourceEndpointId = 1, Prefix = prefix, ReplyTimeout = TimeSpan.FromMilliseconds(300),
+            SourceEndpointId = 1, Prefix = prefix, ReplyTimeoutInMs = 300,
         };
         await using var endpoint = new HttpInboundEndpoint(options, new FakeMessageDispatcher(), new FakeReplyContextFactory());
         await endpoint.StartAsync(CancellationToken.None);
@@ -62,7 +62,7 @@ public sealed class HttpInboundEndpointTests
         var dispatcher = new FakeMessageDispatcher();
         var options = new HttpInboundOptions
         {
-            SourceEndpointId = 3, Prefix = prefix, ReplyTimeout = TimeSpan.FromSeconds(10), RelayContentType = true,
+            SourceEndpointId = 3, Prefix = prefix, ReplyTimeoutInMs = 10_000, RelayContentType = true,
         };
         await using var endpoint = new HttpInboundEndpoint(options, dispatcher, new FakeReplyContextFactory());
         await endpoint.StartAsync(CancellationToken.None);

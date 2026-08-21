@@ -16,9 +16,9 @@ namespace Philips.IBE.IBEAgent.Security;
 //   them after the call — the same pattern as raw Win32 C code.
 //
 // Requirements: the process must run as Administrator (or LocalSystem for a Windows Service).
-public sealed class HttpSslCertBinder : IHttpSslPortBinder
+public sealed class HttpSslCertBinder : IHttpTlsPortBinder
 {
-    public static readonly IHttpSslPortBinder Instance = new HttpSslCertBinder();
+    public static readonly IHttpTlsPortBinder Instance = new HttpSslCertBinder();
     private HttpSslCertBinder() { }
 
     private static readonly Guid AppId = new("E8A1B2C3-D4E5-F6A7-B8C9-D0E1F2A3B4C5");

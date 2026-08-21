@@ -9,10 +9,10 @@ using Philips.IBE.IBEAgent.TestKit;
 
 namespace Philips.IBE.IBEAgent.Endpoints.IntegrationTests;
 
-public sealed class TcpSslEndpointTests
+public sealed class TcpTlsEndpointTests
 {
     [Fact]
-    public async Task OneWay_ssl_inbound_accepts_tls_client_and_exchanges_message()
+    public async Task OneWay_tls_inbound_accepts_tls_client_and_exchanges_message()
     {
         var certPath = TestCertificateFactory.CreateSelfSignedPfxFile();
         try
@@ -22,9 +22,10 @@ public sealed class TcpSslEndpointTests
             {
                 SourceEndpointId = 1,
                 Port = 0,
-                Ssl = new SslOptions { Mode = SslMode.OneWay, LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = certPath } },
+                Tls = new TlsOptions { Mode = TlsMode.OneWay, Certificate = new CertificateReference() },
             };
-            await using var endpoint = new TcpInboundEndpoint(options, dispatcher, new FakeReplyContextFactory());
+            await using var endpoint = new TcpInboundEndpoint(options, dispatcher, new FakeReplyContextFactory(),
+                certificateProvider: new FileCertificateProvider(certPath));
             await endpoint.StartAsync(CancellationToken.None);
 
             using var client = new TcpClient();
@@ -49,7 +50,7 @@ public sealed class TcpSslEndpointTests
     }
 
     [Fact]
-    public async Task Mutual_ssl_inbound_rejects_client_without_certificate()
+    public async Task Mutual_tls_inbound_rejects_client_without_certificate()
     {
         var certPath = TestCertificateFactory.CreateSelfSignedPfxFile();
         try
@@ -58,9 +59,10 @@ public sealed class TcpSslEndpointTests
             {
                 SourceEndpointId = 1,
                 Port = 0,
-                Ssl = new SslOptions { Mode = SslMode.Mutual, LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = certPath }, AllowUntrustedCertificate = true },
+                Tls = new TlsOptions { Mode = TlsMode.Mutual, Certificate = new CertificateReference(), SkipCertificateValidation = true },
             };
-            await using var endpoint = new TcpInboundEndpoint(options, new FakeMessageDispatcher(), new FakeReplyContextFactory());
+            await using var endpoint = new TcpInboundEndpoint(options, new FakeMessageDispatcher(), new FakeReplyContextFactory(),
+                certificateProvider: new FileCertificateProvider(certPath));
             await endpoint.StartAsync(CancellationToken.None);
 
             using var client = new TcpClient();
@@ -85,7 +87,7 @@ public sealed class TcpSslEndpointTests
     }
 
     [Fact]
-    public async Task Mutual_ssl_roundtrip_between_outbound_and_inbound_endpoints()
+    public async Task Mutual_tls_roundtrip_between_outbound_and_inbound_endpoints()
     {
         var serverCertPath = TestCertificateFactory.CreateSelfSignedPfxFile();
         var clientCertPath = TestCertificateFactory.CreateSelfSignedPfxFile();
@@ -96,14 +98,15 @@ public sealed class TcpSslEndpointTests
             {
                 SourceEndpointId = 9,
                 Port = 0,
-                Ssl = new SslOptions
+                Tls = new TlsOptions
                 {
-                    Mode = SslMode.Mutual,
-                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = serverCertPath },
-                    AllowUntrustedCertificate = true,   // self-signed client cert in this test
+                    Mode = TlsMode.Mutual,
+                    Certificate = new CertificateReference(),
+                    SkipCertificateValidation = true,   // self-signed client cert in this test
                 },
             };
-            await using var inbound = new TcpInboundEndpoint(inboundOptions, dispatcher, new FakeReplyContextFactory());
+            await using var inbound = new TcpInboundEndpoint(inboundOptions, dispatcher, new FakeReplyContextFactory(),
+                certificateProvider: new FileCertificateProvider(serverCertPath));
             await inbound.StartAsync(CancellationToken.None);
 
             var outboundOptions = new TcpOutboundOptions
@@ -111,14 +114,15 @@ public sealed class TcpSslEndpointTests
                 Host = "127.0.0.1",
                 Port = inbound.BoundPort,
                 ExpectReply = true,
-                Ssl = new SslOptions
+                Tls = new TlsOptions
                 {
-                    Mode = SslMode.Mutual,
-                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = clientCertPath },
-                    AllowUntrustedCertificate = true,   // self-signed server cert in this test
+                    Mode = TlsMode.Mutual,
+                    Certificate = new CertificateReference(),
+                    SkipCertificateValidation = true,   // self-signed server cert in this test
                 },
             };
-            await using var outbound = new TcpOutboundEndpoint(outboundOptions, codec: null);
+            await using var outbound = new TcpOutboundEndpoint(outboundOptions, codec: null,
+                certificateProvider: new FileCertificateProvider(clientCertPath));
 
             var sendTask = outbound.SendAsync(MessageContextBuilder.Create(payload: "MUTUAL-TLS"), CancellationToken.None);
 
@@ -148,15 +152,16 @@ public sealed class TcpSslEndpointTests
             {
                 SourceEndpointId = 1,
                 Port = 0,
-                Ssl = new SslOptions
+                Tls = new TlsOptions
                 {
                     Enabled = true,
-                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = serverCertPath },
+                    Certificate = new CertificateReference(),
                     RequireClientCertificate = true,
-                    AllowUntrustedCertificate = true,
+                    SkipCertificateValidation = true,
                 },
             };
-            await using var inbound = new TcpInboundEndpoint(inboundOptions, dispatcher, new FakeReplyContextFactory());
+            await using var inbound = new TcpInboundEndpoint(inboundOptions, dispatcher, new FakeReplyContextFactory(),
+                certificateProvider: new FileCertificateProvider(serverCertPath));
             await inbound.StartAsync(CancellationToken.None);
 
             var outboundOptions = new TcpOutboundOptions
@@ -164,14 +169,15 @@ public sealed class TcpSslEndpointTests
                 Host = "127.0.0.1",
                 Port = inbound.BoundPort,
                 ExpectReply = true,
-                Ssl = new SslOptions
+                Tls = new TlsOptions
                 {
                     Enabled = true,
-                    LocalCertificate = new CertificateReference { Kind = CertificateReferenceKind.File, Path = clientCertPath },
-                    AllowUntrustedCertificate = true,
+                    Certificate = new CertificateReference(),
+                    SkipCertificateValidation = true,
                 },
             };
-            await using var outbound = new TcpOutboundEndpoint(outboundOptions, codec: null);
+            await using var outbound = new TcpOutboundEndpoint(outboundOptions, codec: null,
+                certificateProvider: new FileCertificateProvider(clientCertPath));
 
             var sendTask = outbound.SendAsync(MessageContextBuilder.Create(payload: "MUTUAL-TLS-INFERRED"), CancellationToken.None);
 

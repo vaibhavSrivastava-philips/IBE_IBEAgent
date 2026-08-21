@@ -22,7 +22,7 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
-    public TcpInboundEndpoint(TcpInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory, ILogger<TcpInboundEndpoint>? logger = null, TcpDuplexSessionRegistry? duplexSessions = null)
+    public TcpInboundEndpoint(TcpInboundOptions options, IMessageDispatcher dispatcher, IReplyContextFactory replyFactory, ILogger<TcpInboundEndpoint>? logger = null, TcpDuplexSessionRegistry? duplexSessions = null, ICertificateProvider? certificateProvider = null)
     {
         _options = options; _dispatcher = dispatcher; _replyFactory = replyFactory;
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
@@ -30,11 +30,13 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
         _logger = logger ?? NullLogger<TcpInboundEndpoint>.Instance;
         _duplexSessions = duplexSessions;
 
-        if (_options.Ssl.IsEnabled)
+        if (_options.Tls.IsEnabled)
         {
-            _serverCertificate = _options.Ssl.LoadLocalCertificate()
+            _serverCertificate = (certificateProvider != null
+                ? _options.Tls.LoadCertificate(certificateProvider)
+                : _options.Tls.LoadCertificate())
                 ?? throw new InvalidOperationException(
-                    $"TCP inbound endpoint (port {_options.Port}) has SSL mode {_options.Ssl.Mode} but no CertificatePath configured.");
+                    $"TCP inbound endpoint (port {_options.Port}) has TLS mode {_options.Tls.Mode} but no Certificate configured.");
         }
     }
 
@@ -91,18 +93,18 @@ public sealed class TcpInboundEndpoint : IInboundEndpoint, IAsyncDisposable
             TcpDuplexSession? duplexSession = null;
             try
             {
-                if (_options.Ssl.IsEnabled)
+                if (_options.Tls.IsEnabled)
                 {
                     sslStream = new SslStream(stream, leaveInnerStreamOpen: false,
-                        _options.Ssl.RequiresClientCertificate() ? _options.Ssl.CreateRemoteCertificateValidator() : null);
+                        _options.Tls.RequiresClientCertificate() ? _options.Tls.CreateRemoteCertificateValidator() : null);
                     stream = sslStream;
 
                     await sslStream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
                     {
                         ServerCertificate = _serverCertificate,
-                        ClientCertificateRequired = _options.Ssl.RequiresClientCertificate(),
-                        EnabledSslProtocols = _options.Ssl.Protocols,
-                        CertificateRevocationCheckMode = _options.Ssl.CheckCertificateRevocation
+                        ClientCertificateRequired = _options.Tls.RequiresClientCertificate(),
+                        EnabledSslProtocols = _options.Tls.Protocols,
+                        CertificateRevocationCheckMode = _options.Tls.CheckCertificateRevocation
                             ? X509RevocationMode.Online
                             : X509RevocationMode.NoCheck,
                     }, ct);

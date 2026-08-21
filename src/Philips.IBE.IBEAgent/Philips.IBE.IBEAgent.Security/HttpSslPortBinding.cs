@@ -6,17 +6,17 @@ namespace Philips.IBE.IBEAgent.Security;
 // Encapsulates the full lifecycle of binding a server TLS certificate to an http.sys port:
 // load -> import to store -> bind -> unbind -> dispose.
 //
-// DIP: depends on IHttpSslPortBinder (not the static HttpSslCertBinder) so the binding
+// DIP: depends on IHttpTlsPortBinder (not the static HttpSslCertBinder) so the binding
 // mechanism can be replaced in tests or on alternative platforms.
-public sealed class HttpSslPortBinding : IDisposable
+public sealed class HttpTlsPortBinding : IDisposable
 {
     private readonly X509Certificate2 _cert;
     private readonly int _port;
     private readonly bool _negotiateClientCertificate;
-    private readonly IHttpSslPortBinder _binder;
+    private readonly IHttpTlsPortBinder _binder;
     private bool _disposed;
 
-    private HttpSslPortBinding(X509Certificate2 cert, int port, bool negotiateClientCertificate, IHttpSslPortBinder binder)
+    private HttpTlsPortBinding(X509Certificate2 cert, int port, bool negotiateClientCertificate, IHttpTlsPortBinder binder)
     {
         _cert = cert;
         _port = port;
@@ -25,34 +25,34 @@ public sealed class HttpSslPortBinding : IDisposable
     }
 
     /// <summary>
-    /// Creates a binding scope for <paramref name="ssl"/> if SSL is enabled; returns
-    /// <c>null</c> when SSL is disabled so callers can treat the null case as "no TLS".
+    /// Creates a binding scope for <paramref name="tls"/> if TLS is enabled; returns
+    /// <c>null</c> when TLS is disabled so callers can treat the null case as "no TLS".
     /// Validates the prefix scheme and that a server certificate is configured.
     /// </summary>
     /// <param name="binder">
     /// Binder implementation to use. Pass <c>null</c> to use the production
     /// <see cref="HttpSslCertBinder.Instance"/> (Windows http.sys).
     /// </param>
-    public static HttpSslPortBinding? Create(
-        SslOptions ssl,
+    public static HttpTlsPortBinding? Create(
+        TlsOptions tls,
         string prefix,
         int sourceEndpointId,
         string endpointLabel,
-        IHttpSslPortBinder? binder = null)
+        IHttpTlsPortBinder? binder = null)
     {
-        if (!ssl.IsEnabled)
+        if (!tls.IsEnabled)
             return null;
 
         if (!prefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
-                $"{endpointLabel} inbound endpoint (source {sourceEndpointId}): SSL is enabled but Prefix '{prefix}' is not https://.");
+                $"{endpointLabel} inbound endpoint (source {sourceEndpointId}): TLS is enabled but Prefix '{prefix}' is not https://.");
 
-        var cert = ssl.LoadLocalCertificate()
+        var cert = tls.LoadCertificate()
             ?? throw new InvalidOperationException(
-                $"{endpointLabel} inbound endpoint (source {sourceEndpointId}): SSL is enabled but no server certificate is configured.");
+                $"{endpointLabel} inbound endpoint (source {sourceEndpointId}): TLS is enabled but no server certificate is configured.");
 
         var port = new Uri(prefix).Port;
-        return new HttpSslPortBinding(cert, port, ssl.RequiresRemoteCertificate, binder ?? HttpSslCertBinder.Instance);
+        return new HttpTlsPortBinding(cert, port, tls.RequiresRemoteCertificate, binder ?? HttpSslCertBinder.Instance);
     }
 
     /// <summary>Returns the port this binding is associated with.</summary>

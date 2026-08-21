@@ -53,17 +53,17 @@ public sealed class HttpOutboundEndpoint : IOutboundEndpoint, IDisposable
                 PooledConnectionIdleTimeout  = _options.PooledConnectionIdleTimeout,
             };
 
-            if (_options.Ssl.IsEnabled)
+            if (_options.Tls.IsEnabled)
             {
-                handler.SslOptions.EnabledSslProtocols = _options.Ssl.Protocols;
-                handler.SslOptions.RemoteCertificateValidationCallback = _options.Ssl.CreateRemoteCertificateValidator();
-                handler.SslOptions.CertificateRevocationCheckMode = _options.Ssl.CheckCertificateRevocation
+                handler.SslOptions.EnabledSslProtocols = _options.Tls.Protocols;
+                handler.SslOptions.RemoteCertificateValidationCallback = _options.Tls.CreateRemoteCertificateValidator();
+                handler.SslOptions.CertificateRevocationCheckMode = _options.Tls.CheckCertificateRevocation
                     ? System.Security.Cryptography.X509Certificates.X509RevocationMode.Online
                     : System.Security.Cryptography.X509Certificates.X509RevocationMode.NoCheck;
 
-                if (_options.Ssl.HasLocalCertificate())
+                if (_options.Tls.HasCertificate())
                 {
-                    var clientCertificate = _options.Ssl.LoadLocalCertificate()
+                    var clientCertificate = _options.Tls.LoadCertificate()
                         ?? throw new InvalidOperationException(
                             $"HTTP outbound endpoint ({_options.Endpoint}) has a client certificate reference that could not be resolved.");
                     handler.SslOptions.ClientCertificates = [clientCertificate];
