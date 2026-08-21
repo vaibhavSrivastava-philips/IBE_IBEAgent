@@ -85,7 +85,7 @@ public sealed class HttpOutboundEndpointTests
                 LogicalEndpointId = "partner-a",
                 SourceEndpointId = 33,
                 Prefix = callbackPrefix,
-                ReplyTimeout = TimeSpan.FromSeconds(10),
+                ReplyTimeoutInMs = 10_000,
             },
             dispatcher,
             replyFactory);
@@ -138,7 +138,7 @@ public sealed class HttpOutboundEndpointTests
                 LogicalEndpointId = "partner-a",
                 SourceEndpointId = 33,
                 Prefix = callbackPrefix,
-                ReplyTimeout = TimeSpan.FromSeconds(10),
+                ReplyTimeoutInMs = 10_000,
             },
             dispatcher,
             new FakeReplyContextFactory());

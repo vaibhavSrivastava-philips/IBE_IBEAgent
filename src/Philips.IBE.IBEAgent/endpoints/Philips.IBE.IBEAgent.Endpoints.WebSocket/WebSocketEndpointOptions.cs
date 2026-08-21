@@ -12,10 +12,10 @@ public sealed class WebSocketInboundOptions
     public int MaxConcurrentMessages { get; init; } = 100;   // admission control (bounded, P4), mirrors Tcp
     public int ReceiveBufferSize { get; init; } = 8192;
 
-    // Same story as HttpInboundOptions.Ssl: HttpListener performs the TLS handshake itself (server
-    // certificate bound to the port out-of-process); Ssl.Mode still governs client-certificate
+    // Same story as HttpInboundOptions.Tls: HttpListener performs the TLS handshake itself (server
+    // certificate bound to the port out-of-process); Tls.Mode still governs client-certificate
     // enforcement (Mutual = mTLS) and drives the composition root to require a wss/https Prefix.
-    public SslOptions Ssl { get; init; } = new();
+    public TlsOptions Tls { get; init; } = new();
 }
 
 public sealed class WebSocketOutboundOptions
@@ -32,6 +32,6 @@ public sealed class WebSocketOutboundOptions
     public TimeSpan ConnectRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
     public int PoolSize { get; init; } = 8;                   // pooled persistent connections (parity with TCP PoolSize)
     public int ReceiveBufferSize { get; init; } = 8192;
-    public SslOptions Ssl { get; init; } = new();             // Plain (default) | OneWay | Mutual (mTLS via client cert)
+    public TlsOptions Tls { get; init; } = new();             // Plain (default) | OneWay | Mutual (mTLS via client cert)
     public ProxyOptions Proxy { get; init; } = new();         // forward proxy, with/without credentials
 }

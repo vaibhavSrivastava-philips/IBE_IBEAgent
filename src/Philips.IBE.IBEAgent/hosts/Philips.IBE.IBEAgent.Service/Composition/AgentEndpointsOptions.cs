@@ -20,7 +20,7 @@ public sealed class TcpOutboundEndpointConfig
     public required int Port { get; init; }
     public int PoolSize { get; init; } = 8;
     public bool ExpectReply { get; init; } = true;
-    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS)
+    public TlsOptions Tls { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy (HTTP CONNECT tunnel), with/without credentials
 }
 
@@ -40,11 +40,11 @@ public sealed class HttpOutboundEndpointConfig
     public int PooledConnectionIdleTimeoutSeconds { get; init; } = 120;          // 2 min
     public int ConnectRetryCount { get; init; } = 2;
     public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
-    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
+    public TlsOptions Tls { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy, with/without credentials
 }
 
-// Host-level config wrapper — a WebSocket outbound endpoint config carries an OutputId (leg
+// Host-level config wrapper — a WebSocket outbound endpoint config
 // identity) that WebSocketOutboundOptions itself doesn't need to know about.
 public sealed class WebSocketOutboundEndpointConfig
 {
@@ -61,7 +61,7 @@ public sealed class WebSocketOutboundEndpointConfig
     public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
     public int PoolSize { get; init; } = 8;                   // ~ TCP PoolSize
     public int ReceiveBufferSize { get; init; } = 8192;
-    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
+    public TlsOptions Tls { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy, with/without credentials
 }
 

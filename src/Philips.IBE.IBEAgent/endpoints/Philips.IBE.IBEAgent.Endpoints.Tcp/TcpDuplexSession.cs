@@ -6,6 +6,10 @@ namespace Philips.IBE.IBEAgent.Endpoints.Tcp;
 internal sealed class TcpDuplexSession(int sourceEndpointId, Stream stream, SemaphoreSlim writeLock) : IDisposable
 {
     private TaskCompletionSource<ReadOnlyMemory<byte>>? _pendingReply;
+    // Serializes the entire send+reply cycle so a second concurrent sender cannot stomp
+    // _pendingReply before the first caller receives its reply.  WriteLock is released
+    // before the reply wait so inbound ACK writes on the same stream never deadlock.
+    private readonly SemaphoreSlim _sendGate = new(1, 1);
 
     public int SourceEndpointId { get; } = sourceEndpointId;
     public Stream Stream { get; } = stream;
@@ -28,49 +32,51 @@ internal sealed class TcpDuplexSession(int sourceEndpointId, Stream stream, Sema
         string responseFormat,
         CancellationToken cancellationToken)
     {
-        TaskCompletionSource<ReadOnlyMemory<byte>>? pending = null;
-        if (expectReply)
-        {
-            pending = new TaskCompletionSource<ReadOnlyMemory<byte>>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var previous = Interlocked.Exchange(ref _pendingReply, pending);
-            previous?.TrySetCanceled(cancellationToken);
-        }
-
+        await _sendGate.WaitAsync(cancellationToken);
         try
         {
-            await WriteLock.WaitAsync(cancellationToken);
+            TaskCompletionSource<ReadOnlyMemory<byte>>? pending = null;
+            if (expectReply)
+                pending = new TaskCompletionSource<ReadOnlyMemory<byte>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            Interlocked.Exchange(ref _pendingReply, pending);
+
             try
             {
-                await Stream.WriteAsync(framed, cancellationToken);
-                await Stream.FlushAsync(cancellationToken);
+                await WriteLock.WaitAsync(cancellationToken);
+                try
+                {
+                    await Stream.WriteAsync(framed, cancellationToken);
+                    await Stream.FlushAsync(cancellationToken);
+                }
+                finally { WriteLock.Release(); }
+
+                if (pending is null)
+                    return new DeliveryResult(DeliveryOutcome.Delivered);
+
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(replyTimeout);
+                var replyBytes = await pending.Task.WaitAsync(timeoutCts.Token);
+                return new DeliveryResult(DeliveryOutcome.Delivered, ResponsePayload: replyBytes, ResponseFormat: responseFormat);
             }
-            finally { WriteLock.Release(); }
-
-            if (pending is null)
-                return new DeliveryResult(DeliveryOutcome.Delivered);
-
-            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeoutCts.CancelAfter(replyTimeout);
-            var replyBytes = await pending.Task.WaitAsync(timeoutCts.Token);
-            return new DeliveryResult(DeliveryOutcome.Delivered, ResponsePayload: replyBytes, ResponseFormat: responseFormat);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            if (pending is not null)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
                 Interlocked.CompareExchange(ref _pendingReply, null, pending);
-            return new DeliveryResult(DeliveryOutcome.Failed, "no MLLP ack received");
-        }
-        catch (Exception ex) when (ex is IOException or OperationCanceledException)
-        {
-            if (pending is not null)
+                return new DeliveryResult(DeliveryOutcome.Failed, "no MLLP ack received");
+            }
+            catch (Exception ex) when (ex is IOException or OperationCanceledException)
+            {
                 Interlocked.CompareExchange(ref _pendingReply, null, pending);
-            return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
+                return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
+            }
         }
+        finally { _sendGate.Release(); }
     }
 
     public void Dispose()
     {
         var pending = Interlocked.Exchange(ref _pendingReply, null);
         pending?.TrySetCanceled();
+        _sendGate.Dispose();
     }
 }

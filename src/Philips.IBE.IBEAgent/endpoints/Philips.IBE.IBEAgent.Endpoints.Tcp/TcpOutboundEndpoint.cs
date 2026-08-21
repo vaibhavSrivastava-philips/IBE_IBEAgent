@@ -5,6 +5,7 @@ using System.Security.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Philips.IBE.IBEAgent.Abstractions;
+using Philips.IBE.IBEAgent.Security;
 namespace Philips.IBE.IBEAgent.Endpoints.Tcp;
 
 public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle, IRequiresInboundDispatch, IAsyncDisposable
@@ -28,8 +29,9 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
         TcpOutboundOptions options,
         IMessageCodec? codec,
         ILogger<TcpOutboundEndpoint>? logger = null,
-        TcpDuplexSessionRegistry? duplexSessions = null)
-        : this(options, codec, logger, duplexSessions, connectRetryPolicy: null) { }
+        TcpDuplexSessionRegistry? duplexSessions = null,
+        ICertificateProvider? certificateProvider = null)
+        : this(options, codec, logger, duplexSessions, connectRetryPolicy: null, certificateProvider) { }
 
     // Internal constructor used by tests and DI to inject custom retry policy / pool.
     internal TcpOutboundEndpoint(
@@ -37,7 +39,8 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
         IMessageCodec? codec,
         ILogger<TcpOutboundEndpoint>? logger,
         TcpDuplexSessionRegistry? duplexSessions,
-        ITcpConnectRetryPolicy? connectRetryPolicy)
+        ITcpConnectRetryPolicy? connectRetryPolicy,
+        ICertificateProvider? certificateProvider = null)
     {
         _options = options;
         _codec = codec;
@@ -46,7 +49,7 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
         _connectRetryPolicy = connectRetryPolicy ?? new TcpConnectRetryPolicy();
         _pool = new TcpConnectionPool(options.Host, options.Port,
             options.Mode == CommunicationMode.DuplexOutbound ? 1 : options.PoolSize,
-            options.Ssl, options.Proxy);
+            options.Tls, options.Proxy, certificateProvider);
     }
 
     public void ConfigureInboundDispatch(IMessageDispatcher dispatcher, IReplyContextFactory replyFactory)
@@ -126,52 +129,58 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
     private async Task<DeliveryResult> SendDuplexOutboundAsync(
         ReadOnlyMemory<byte> framed, MessageContext context, CancellationToken cancellationToken)
     {
-        TaskCompletionSource<ReadOnlyMemory<byte>>? pending = null;
-        if (_options.ExpectReply)
-        {
-            pending = new TaskCompletionSource<ReadOnlyMemory<byte>>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var previous = Interlocked.Exchange(ref _pendingDuplexReply, pending);
-            previous?.TrySetCanceled(cancellationToken);
-        }
-
+        // Serialize the full send+reply cycle: prevents a concurrent sender from stomping
+        // _pendingDuplexReply before the first caller receives its reply.
+        await _duplexWriteLock.WaitAsync(cancellationToken);
         try
         {
-            await _duplexWriteLock.WaitAsync(cancellationToken);
+            TaskCompletionSource<ReadOnlyMemory<byte>>? pending = null;
+            if (_options.ExpectReply)
+            {
+                pending = new TaskCompletionSource<ReadOnlyMemory<byte>>(TaskCreationOptions.RunContinuationsAsynchronously);
+                Interlocked.Exchange(ref _pendingDuplexReply, pending);
+            }
+
             try
             {
                 var stream = await GetDuplexStreamAsync(cancellationToken);
                 await stream.WriteAsync(framed, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
+
+                if (pending is null)
+                    return new DeliveryResult(DeliveryOutcome.Delivered);
             }
             finally { _duplexWriteLock.Release(); }
 
-            if (pending is null)
-                return new DeliveryResult(DeliveryOutcome.Delivered);
-
+            // Wait for reply outside the write lock so inbound frames can be dispatched freely.
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(_options.ReplyCorrelationTimeout);
-            var replyBytes = await pending.Task.WaitAsync(timeoutCts.Token);
-            return new DeliveryResult(DeliveryOutcome.Delivered, ResponsePayload: replyBytes, ResponseFormat: context.Format);
+            try
+            {
+                var replyBytes = await _pendingDuplexReply!.Task.WaitAsync(timeoutCts.Token);
+                return new DeliveryResult(DeliveryOutcome.Delivered, ResponsePayload: replyBytes, ResponseFormat: context.Format);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                Interlocked.CompareExchange(ref _pendingDuplexReply, null, _pendingDuplexReply);
+                _logger.LogWarning(
+                    "TCP DuplexOutbound to {Host}:{Port} timed out waiting for reply after {TimeoutMs} ms.",
+                    _options.Host, _options.Port, _options.ReplyCorrelationTimeout.TotalMilliseconds);
+                return new DeliveryResult(DeliveryOutcome.Failed, "no MLLP ack received");
+            }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            if (pending is not null)
-                Interlocked.CompareExchange(ref _pendingDuplexReply, null, pending);
+            Interlocked.Exchange(ref _pendingDuplexReply, null);
             _logger.LogWarning(
                 "TCP DuplexOutbound to {Host}:{Port} timed out waiting for reply after {TimeoutMs} ms.",
-                _options.Host,
-                _options.Port,
-                _options.ReplyCorrelationTimeout.TotalMilliseconds);
+                _options.Host, _options.Port, _options.ReplyCorrelationTimeout.TotalMilliseconds);
             return new DeliveryResult(DeliveryOutcome.Failed, "no MLLP ack received");
         }
         catch (Exception ex) when (ex is SocketException or IOException or OperationCanceledException or AuthenticationException)
         {
-            if (pending is not null)
-                Interlocked.CompareExchange(ref _pendingDuplexReply, null, pending);
-            _logger.LogWarning(ex,
-                "TCP DuplexOutbound send to {Host}:{Port} failed.",
-                _options.Host,
-                _options.Port);
+            Interlocked.Exchange(ref _pendingDuplexReply, null);
+            _logger.LogWarning(ex, "TCP DuplexOutbound send to {Host}:{Port} failed.", _options.Host, _options.Port);
             return new DeliveryResult(DeliveryOutcome.Failed, ex.Message);
         }
     }
@@ -224,13 +233,15 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { break; }
-            catch (Exception ex) when (ex is SocketException or IOException or AuthenticationException)
+            catch (Exception ex) when (ex is SocketException or IOException or AuthenticationException or ObjectDisposedException)
             {
-                _logger.LogDebug(ex, "TCP DuplexOutbound reader disconnected from {Host}:{Port}; reconnecting.", _options.Host, _options.Port);
+                // Expected: peer closed, network drop, or local dispose during shutdown.
+                if (!cancellationToken.IsCancellationRequested)
+                    _logger.LogDebug(ex, "TCP DuplexOutbound reader disconnected from {Host}:{Port}; will reconnect.", _options.Host, _options.Port);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
+                _logger.LogWarning(ex,
                     "Unexpected error in TCP DuplexOutbound reader for {Host}:{Port}; reconnecting.",
                     _options.Host, _options.Port);
             }
@@ -291,10 +302,9 @@ public sealed class TcpOutboundEndpoint : IOutboundEndpoint, IEndpointLifecycle,
         catch (Exception ex) when (ex is SocketException or IOException or AuthenticationException)
         {
             _logger.LogWarning(ex,
-                "TCP outbound connection to {Host}:{Port} failed after {AttemptCount} attempt(s).",
+                "TCP outbound connection to {Host}:{Port} failed.",
                 _options.Host,
-                _options.Port,
-                Math.Max(1, _options.ConnectRetryCount + 1));
+                _options.Port);
             return (new DeliveryResult(DeliveryOutcome.Failed, ex.Message), false);   // dial failed -> downstream unreachable
         }
 

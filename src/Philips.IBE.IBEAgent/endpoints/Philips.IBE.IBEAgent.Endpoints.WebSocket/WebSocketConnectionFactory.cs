@@ -11,23 +11,23 @@ internal interface IWebSocketConnectionFactory
     Task<ClientWebSocket> CreateAsync(CancellationToken ct);
 }
 
-// Default production factory: configures SSL and proxy on a new ClientWebSocket then connects it.
-internal sealed class WebSocketConnectionFactory(Uri endpoint, SslOptions ssl, ProxyOptions proxy)
+// Default production factory: configures TLS and proxy on a new ClientWebSocket then connects it.
+internal sealed class WebSocketConnectionFactory(Uri endpoint, TlsOptions tls, ProxyOptions proxy)
     : IWebSocketConnectionFactory
 {
     public async Task<ClientWebSocket> CreateAsync(CancellationToken ct)
     {
         var socket = new ClientWebSocket();
 
-        if (ssl.IsEnabled)
+        if (tls.IsEnabled)
         {
-            socket.Options.RemoteCertificateValidationCallback = ssl.CreateRemoteCertificateValidator();
+            socket.Options.RemoteCertificateValidationCallback = tls.CreateRemoteCertificateValidator();
 
-            if (ssl.RequiresRemoteCertificate)
+            if (tls.RequiresRemoteCertificate)
             {
-                var clientCertificate = ssl.LoadLocalCertificate()
+                var clientCertificate = tls.LoadCertificate()
                     ?? throw new InvalidOperationException(
-                        $"WebSocket outbound endpoint ({endpoint}) has SSL mode Mutual but no client certificate is configured.");
+                        $"WebSocket outbound endpoint ({endpoint}) has TLS mode Mutual but no client certificate is configured.");
                 socket.Options.ClientCertificates.Add(clientCertificate);
             }
         }

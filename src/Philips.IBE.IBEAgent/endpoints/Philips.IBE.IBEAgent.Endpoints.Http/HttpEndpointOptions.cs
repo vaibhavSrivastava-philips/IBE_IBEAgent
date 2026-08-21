@@ -11,12 +11,13 @@ public sealed class HttpInboundOptions
     public required string Prefix { get; init; }             // e.g. "http://localhost:8080/ibe/" or "https://..." when Ssl is enabled
     public string Format { get; init; } = "hl7v2";
     public int MaxConcurrentRequests { get; init; } = 200;
-    public TimeSpan ReplyTimeout { get; init; } = TimeSpan.FromSeconds(30); // §6.1 held-connection bound
+    public int ReplyTimeoutInMs { get; init; } = 30_000;       // §6.1 held-connection bound (milliseconds)
+    public TimeSpan ReplyTimeout => TimeSpan.FromMilliseconds(ReplyTimeoutInMs);
 
     // HttpListener itself does not perform the TLS handshake (Windows binds the certificate to the
-    // port via netsh/httpcfg); Ssl.Mode still governs *client certificate* enforcement (Mutual = mTLS)
+    // port via netsh/httpcfg); Tls.Mode still governs *client certificate* enforcement (Mutual = mTLS)
     // and drives the composition root to require an https:// Prefix.
-    public SslOptions Ssl { get; init; } = new();
+    public TlsOptions Tls { get; init; } = new();
 
     // When true, the inbound request's Content-Type is captured into the content.type header so a
     // header-capable output (HTTP) can relay it verbatim (transparent content-type passthrough).
@@ -36,6 +37,6 @@ public sealed class HttpOutboundOptions
     public TimeSpan PooledConnectionIdleTimeout { get; init; } = TimeSpan.FromMinutes(2);
     public int ConnectRetryCount { get; init; } = 2;                              // additional attempts after first call
     public TimeSpan ConnectRetryDelay { get; init; } = TimeSpan.FromSeconds(1);
-    public SslOptions Ssl { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
+    public TlsOptions Tls { get; init; } = new();            // Plain (default) | OneWay | Mutual (mTLS via client cert)
     public ProxyOptions Proxy { get; init; } = new();        // forward proxy, with/without credentials
 }

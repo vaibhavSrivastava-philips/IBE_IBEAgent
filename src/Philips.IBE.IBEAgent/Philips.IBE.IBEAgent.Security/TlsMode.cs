@@ -1,10 +1,10 @@
 namespace Philips.IBE.IBEAgent.Security;
 
-// Transport-neutral SSL/TLS posture, configurable per endpoint (inbound or outbound):
+// Transport-neutral TLS posture, configurable per endpoint (inbound or outbound):
 //   Plain   - plaintext, no TLS.
 //   OneWay  - TLS with server authentication only (client trusts the server certificate).
 //   Mutual  - mutual TLS: both peers authenticate with certificates.
-public enum SslMode
+public enum TlsMode
 {
     Plain = 0,
     OneWay = 1,

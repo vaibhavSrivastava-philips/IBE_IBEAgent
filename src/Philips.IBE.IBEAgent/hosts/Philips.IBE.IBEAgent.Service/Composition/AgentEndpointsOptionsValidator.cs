@@ -14,17 +14,17 @@ public static class AgentEndpointsOptionsValidator
         foreach (var endpoint in endpoints.TcpInbound)
         {
             ValidateInbound("TcpInbound", endpoint.SourceEndpointId, endpoint.Mode, result);
-            ValidateTcpInboundTls("TcpInbound", endpoint.SourceEndpointId, endpoint.Ssl, result);
+            ValidateTcpInboundTls("TcpInbound", endpoint.SourceEndpointId, endpoint.Tls, result);
         }
         foreach (var endpoint in endpoints.HttpInbound)
         {
             ValidateInbound("HttpInbound", endpoint.SourceEndpointId, endpoint.Mode, result);
-            ValidateHttpListenerTls("HttpInbound", endpoint.SourceEndpointId, endpoint.Prefix, endpoint.Ssl, result);
+            ValidateHttpListenerTls("HttpInbound", endpoint.SourceEndpointId, endpoint.Prefix, endpoint.Tls, result);
         }
         foreach (var endpoint in endpoints.WebSocketInbound)
         {
             ValidateInbound("WebSocketInbound", endpoint.SourceEndpointId, endpoint.Mode, result);
-            ValidateHttpListenerTls("WebSocketInbound", endpoint.SourceEndpointId, endpoint.Prefix, endpoint.Ssl, result);
+            ValidateHttpListenerTls("WebSocketInbound", endpoint.SourceEndpointId, endpoint.Prefix, endpoint.Tls, result);
         }
         foreach (var endpoint in endpoints.FileInbound)
             ValidateInbound("FileInbound", endpoint.SourceEndpointId, endpoint.Mode, result);
@@ -36,13 +36,13 @@ public static class AgentEndpointsOptionsValidator
                 result.AddError($"TcpOutbound OutputId {endpoint.OutputId} uses DuplexOutbound but has no SourceEndpointId configured.");
             if (endpoint.Mode == CommunicationMode.DuplexInbound && endpoint.DuplexInboundSourceEndpointId is null or <= 0)
                 result.AddError($"TcpOutbound OutputId {endpoint.OutputId} uses DuplexInbound but has no DuplexInboundSourceEndpointId configured.");
-            ValidateOutboundTls("TcpOutbound", endpoint.OutputId, endpoint.Ssl, result);
+            ValidateOutboundTls("TcpOutbound", endpoint.OutputId, endpoint.Tls, result);
         }
         foreach (var endpoint in endpoints.HttpOutbound)
         {
             ValidateOutbound("HttpOutbound", endpoint.OutputId, endpoint.Mode, result);
             ValidateHttpLogicalPair(endpoint, endpoints.HttpInbound, result);
-            ValidateOutboundTls("HttpOutbound", endpoint.OutputId, endpoint.Ssl, result);
+            ValidateOutboundTls("HttpOutbound", endpoint.OutputId, endpoint.Tls, result);
             ValidateHttpOutboundTlsUri(endpoint, result);
         }
         foreach (var endpoint in endpoints.WebSocketOutbound)
@@ -52,7 +52,7 @@ public static class AgentEndpointsOptionsValidator
                 result.AddError($"WebSocketOutbound OutputId {endpoint.OutputId} uses DuplexOutbound but has no SourceEndpointId configured.");
             if (endpoint.Mode == CommunicationMode.DuplexInbound && endpoint.DuplexInboundSourceEndpointId is null or <= 0)
                 result.AddError($"WebSocketOutbound OutputId {endpoint.OutputId} uses DuplexInbound but has no DuplexInboundSourceEndpointId configured.");
-            ValidateOutboundTls("WebSocketOutbound", endpoint.OutputId, endpoint.Ssl, result);
+            ValidateOutboundTls("WebSocketOutbound", endpoint.OutputId, endpoint.Tls, result);
             ValidateWebSocketOutboundTlsUri(endpoint, result);
         }
         foreach (var endpoint in endpoints.FileOutbound)
@@ -160,32 +160,32 @@ public static class AgentEndpointsOptionsValidator
         }
     }
 
-    private static void ValidateTcpInboundTls(string sectionName, int sourceEndpointId, SslOptions ssl, ValidationResult result)
+    private static void ValidateTcpInboundTls(string sectionName, int sourceEndpointId, TlsOptions tls, ValidationResult result)
     {
-        ValidateCommonTls(sectionName, sourceEndpointId, ssl, result);
-        if (ssl.IsEnabled && !ssl.HasLocalCertificate())
+        ValidateCommonTls(sectionName, sourceEndpointId, tls, result);
+        if (tls.IsEnabled && !tls.HasCertificate())
         {
             result.AddError($"{sectionName} SourceEndpointId {sourceEndpointId} enables TLS but has no local/server certificate reference.");
         }
     }
 
-    private static void ValidateHttpListenerTls(string sectionName, int sourceEndpointId, string prefix, SslOptions ssl, ValidationResult result)
+    private static void ValidateHttpListenerTls(string sectionName, int sourceEndpointId, string prefix, TlsOptions tls, ValidationResult result)
     {
-        ValidateCommonTls(sectionName, sourceEndpointId, ssl, result);
-        if (ssl.IsEnabled && !prefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        ValidateCommonTls(sectionName, sourceEndpointId, tls, result);
+        if (tls.IsEnabled && !prefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             result.AddError($"{sectionName} SourceEndpointId {sourceEndpointId} enables TLS but Prefix '{prefix}' is not https://.");
         }
     }
 
-    private static void ValidateOutboundTls(string sectionName, int outputId, SslOptions ssl, ValidationResult result)
+    private static void ValidateOutboundTls(string sectionName, int outputId, TlsOptions tls, ValidationResult result)
     {
-        ValidateCommonTls(sectionName, outputId, ssl, result);
+        ValidateCommonTls(sectionName, outputId, tls, result);
     }
 
     private static void ValidateHttpOutboundTlsUri(HttpOutboundEndpointConfig endpoint, ValidationResult result)
     {
-        if (endpoint.Ssl.IsEnabled && !string.Equals(endpoint.Endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        if (endpoint.Tls.IsEnabled && !string.Equals(endpoint.Endpoint.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
         {
             result.AddError($"HttpOutbound OutputId {endpoint.OutputId} enables TLS but Endpoint '{endpoint.Endpoint}' is not https://.");
         }
@@ -193,30 +193,30 @@ public static class AgentEndpointsOptionsValidator
 
     private static void ValidateWebSocketOutboundTlsUri(WebSocketOutboundEndpointConfig endpoint, ValidationResult result)
     {
-        if (endpoint.Ssl.IsEnabled && !string.Equals(endpoint.Endpoint.Scheme, "wss", StringComparison.OrdinalIgnoreCase))
+        if (endpoint.Tls.IsEnabled && !string.Equals(endpoint.Endpoint.Scheme, "wss", StringComparison.OrdinalIgnoreCase))
         {
             result.AddError($"WebSocketOutbound OutputId {endpoint.OutputId} enables TLS but Endpoint '{endpoint.Endpoint}' is not wss://.");
         }
     }
 
-    private static void ValidateCommonTls(string sectionName, int endpointId, SslOptions ssl, ValidationResult result)
+    private static void ValidateCommonTls(string sectionName, int endpointId, TlsOptions tls, ValidationResult result)
     {
-        ValidateCertificateReference(sectionName, endpointId, "local certificate", ssl.LocalCertificate, result);
-        ValidateCertificateReference(sectionName, endpointId, "trusted certificate authority", ssl.TrustedCertificateAuthority, result);
+        ValidateCertificateReference(sectionName, endpointId, "Certificate", tls.Certificate, result);
+        ValidateCertificateReference(sectionName, endpointId, "RootCertificate", tls.RootCertificate, result);
 
-        if (ssl.Enabled == false && (ssl.HasLocalCertificate() || ssl.RequireClientCertificate || ssl.TrustedCertificateAuthority is not null))
+        if (tls.Enabled == false && (tls.HasCertificate() || tls.RequireClientCertificate || tls.RootCertificate is not null))
         {
             result.AddError($"{sectionName} endpoint {endpointId} disables TLS but also configures certificate/trust material.");
         }
 
-        if (ssl.AllowUntrustedCertificate)
+        if (tls.SkipCertificateValidation)
         {
-            result.AddError($"{sectionName} endpoint {endpointId} enables AllowUntrustedCertificate, which is not permitted for production-safe TLS configuration.");
+            result.AddError($"{sectionName} endpoint {endpointId} enables SkipCertificateValidation, which is not permitted for production-safe TLS configuration.");
         }
 
-        if (ssl.RequiresClientCertificate() && !ssl.AllowUntrustedCertificate && !ssl.HasTrustedAuthority())
+        if (tls.RequiresClientCertificate() && !tls.SkipCertificateValidation && !tls.HasRootCertificate())
         {
-            result.AddError($"{sectionName} endpoint {endpointId} requires client certificates but has no trusted certificate authority/reference configured.");
+            result.AddError($"{sectionName} endpoint {endpointId} requires client certificates but has no trusted root certificate authority configured.");
         }
     }
 
@@ -225,31 +225,9 @@ public static class AgentEndpointsOptionsValidator
         if (reference is null)
             return;
 
-        switch (reference.Kind)
-        {
-            case CertificateReferenceKind.File:
-                if (string.IsNullOrWhiteSpace(reference.Path) && string.IsNullOrWhiteSpace(reference.CertificatePath))
-                    result.AddError($"{sectionName} endpoint {endpointId} {role} uses File reference but no Path or CertificatePath is configured.");
-                if (!string.IsNullOrWhiteSpace(reference.PrivateKeyPath) && string.IsNullOrWhiteSpace(reference.CertificatePath))
-                    result.AddError($"{sectionName} endpoint {endpointId} {role} configures PrivateKeyPath but no CertificatePath.");
-                break;
-
-            case CertificateReferenceKind.WindowsStore:
-                if (string.IsNullOrWhiteSpace(reference.Thumbprint)
-                    && string.IsNullOrWhiteSpace(reference.Subject)
-                    && string.IsNullOrWhiteSpace(reference.FriendlyName))
-                    result.AddError($"{sectionName} endpoint {endpointId} {role} uses WindowsStore reference but no Thumbprint, Subject, or FriendlyName selector is configured.");
-                break;
-
-            case CertificateReferenceKind.LinuxStore:
-            case CertificateReferenceKind.MountedSecret:
-                if (string.IsNullOrWhiteSpace(reference.Path) && string.IsNullOrWhiteSpace(reference.CertificatePath))
-                    result.AddError($"{sectionName} endpoint {endpointId} {role} uses {reference.Kind} reference but no Path or CertificatePath is configured.");
-                break;
-
-            default:
-                result.AddError($"{sectionName} endpoint {endpointId} {role} uses unsupported certificate reference kind '{reference.Kind}'.");
-                break;
-        }
+        if (string.IsNullOrWhiteSpace(reference.Thumbprint)
+            && string.IsNullOrWhiteSpace(reference.Subject)
+            && string.IsNullOrWhiteSpace(reference.FriendlyName))
+            result.AddError($"{sectionName} endpoint {endpointId} {role} certificate reference must specify at least one of: Subject, Thumbprint, or FriendlyName.");
     }
 }

@@ -20,7 +20,7 @@ public sealed class HttpProxyEndpointTests
         var dispatcher = new FakeMessageDispatcher();
         var destinationOptions = new HttpInboundOptions
         {
-            SourceEndpointId = 5, Prefix = destinationPrefix, ReplyTimeout = TimeSpan.FromSeconds(10),
+            SourceEndpointId = 5, Prefix = destinationPrefix, ReplyTimeoutInMs = 10_000,
         };
         await using var destination = new HttpInboundEndpoint(destinationOptions, dispatcher, new FakeReplyContextFactory());
         await destination.StartAsync(CancellationToken.None);
@@ -52,7 +52,7 @@ public sealed class HttpProxyEndpointTests
         var dispatcher = new FakeMessageDispatcher();
         var destinationOptions = new HttpInboundOptions
         {
-            SourceEndpointId = 6, Prefix = destinationPrefix, ReplyTimeout = TimeSpan.FromSeconds(10),
+            SourceEndpointId = 6, Prefix = destinationPrefix, ReplyTimeoutInMs = 10_000,
         };
         await using var destination = new HttpInboundEndpoint(destinationOptions, dispatcher, new FakeReplyContextFactory());
         await destination.StartAsync(CancellationToken.None);

@@ -12,12 +12,15 @@ internal interface ITcpConnectionFactory
 }
 
 // Default production factory: dials TCP, optionally tunnels through an HTTP CONNECT proxy,
-// and performs the TLS handshake when SSL is configured.
+// and performs the TLS handshake when configured.
 internal sealed class TcpConnectionFactory(
-    string host, int port, SslOptions ssl, ProxyOptions proxy) : ITcpConnectionFactory
+    string host, int port, TlsOptions tls, ProxyOptions proxy,
+    ICertificateProvider? certificateProvider = null) : ITcpConnectionFactory
 {
     private readonly X509Certificate2? _clientCertificate =
-        ssl.HasLocalCertificate() ? ssl.LoadLocalCertificate() : null;
+        tls.HasCertificate()
+            ? (certificateProvider != null ? tls.LoadCertificate(certificateProvider) : tls.LoadCertificate())
+            : null;
 
     public async Task<TcpPooledConnection> CreateAsync(bool forceFresh, CancellationToken ct)
     {
@@ -35,10 +38,10 @@ internal sealed class TcpConnectionFactory(
 
         Stream stream = client.GetStream();
 
-        if (ssl.IsEnabled)
+        if (tls.IsEnabled)
         {
             var sslStream = new SslStream(stream, leaveInnerStreamOpen: false,
-                ssl.CreateRemoteCertificateValidator());
+                tls.CreateRemoteCertificateValidator());
 
             var clientCertificates = _clientCertificate is not null
                 ? new X509CertificateCollection { _clientCertificate }
@@ -48,8 +51,8 @@ internal sealed class TcpConnectionFactory(
             {
                 TargetHost = host,
                 ClientCertificates = clientCertificates,
-                EnabledSslProtocols = ssl.Protocols,
-                CertificateRevocationCheckMode = ssl.CheckCertificateRevocation
+                EnabledSslProtocols = tls.Protocols,
+                CertificateRevocationCheckMode = tls.CheckCertificateRevocation
                     ? X509RevocationMode.Online
                     : X509RevocationMode.NoCheck,
             }, ct);

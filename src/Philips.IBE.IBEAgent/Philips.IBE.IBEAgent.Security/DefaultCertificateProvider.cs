@@ -1,76 +1,30 @@
-using System.Collections.Frozen;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Philips.IBE.IBEAgent.Security;
 
-// OCP: add support for a new CertificateReferenceKind by registering an ICertificateLoader
-// in the loaders dictionary — no modification to this class required.
 public sealed class DefaultCertificateProvider : ICertificateProvider
 {
-    private readonly FrozenDictionary<CertificateReferenceKind, ICertificateLoader> _loaders;
+    private readonly ICertificateLoader _loader;
 
-    // Default constructor: registers the built-in loaders for all supported kinds.
-    public DefaultCertificateProvider()
-        : this(new Dictionary<CertificateReferenceKind, ICertificateLoader>
-        {
-            [CertificateReferenceKind.File]          = new FileCertificateLoader(),
-            [CertificateReferenceKind.MountedSecret] = new FileCertificateLoader(),
-            [CertificateReferenceKind.WindowsStore]  = new WindowsStoreCertificateLoader(),
-            [CertificateReferenceKind.LinuxStore]    = new LinuxStoreCertificateLoader(),
-        })
-    { }
+    public DefaultCertificateProvider() : this(new WindowsStoreCertificateLoader()) { }
 
-    // Extensibility constructor: supply a custom loader map (e.g. add CloudKeyVault without modifying this class).
-    public DefaultCertificateProvider(IReadOnlyDictionary<CertificateReferenceKind, ICertificateLoader> loaders)
+    public DefaultCertificateProvider(ICertificateLoader loader)
     {
-        ArgumentNullException.ThrowIfNull(loaders);
-        _loaders = loaders.ToFrozenDictionary();
+        ArgumentNullException.ThrowIfNull(loader);
+        _loader = loader;
     }
 
     public X509Certificate2? LoadCertificate(CertificateReference? reference, bool requirePrivateKey = false)
     {
         if (reference is null) return null;
 
-        if (!_loaders.TryGetValue(reference.Kind, out var loader))
-            throw new InvalidOperationException($"Unsupported certificate reference kind '{reference.Kind}'. " +
-                "Register a custom ICertificateLoader to support it.");
-
-        var certificate = loader.Load(reference);
+        var certificate = _loader.Load(reference);
 
         if (certificate is not null && requirePrivateKey && !certificate.HasPrivateKey)
             throw new InvalidOperationException("Configured certificate does not include a private key.");
 
         return certificate;
-    }
-}
-
-// -- Built-in loaders --------------------------------------------------------------------------
-
-internal sealed class FileCertificateLoader : ICertificateLoader
-{
-    public X509Certificate2? Load(CertificateReference reference)
-    {
-        var path = reference.Path ?? reference.CertificatePath;
-        if (string.IsNullOrWhiteSpace(path)) return null;
-
-        var extension = Path.GetExtension(path);
-        var isPkcs12 = extension.Equals(".pfx", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".p12", StringComparison.OrdinalIgnoreCase);
-
-        return isPkcs12 || !string.IsNullOrEmpty(reference.Password)
-            ? X509CertificateLoader.LoadPkcs12FromFile(path, reference.Password)
-            : X509CertificateLoader.LoadCertificateFromFile(path);
-    }
-}
-
-internal sealed class LinuxStoreCertificateLoader : ICertificateLoader
-{
-    public X509Certificate2? Load(CertificateReference reference)
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            throw new PlatformNotSupportedException("LinuxStore certificate references are only supported on Linux.");
-        return new FileCertificateLoader().Load(reference);
     }
 }
 

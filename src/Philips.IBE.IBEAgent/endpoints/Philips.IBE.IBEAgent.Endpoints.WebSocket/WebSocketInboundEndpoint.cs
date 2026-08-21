@@ -18,7 +18,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     private readonly RemoteCertificateValidationCallback? _clientCertValidator;
     private readonly WebSocketDuplexSessionRegistry? _duplexSessions;
     private readonly string _listenerPrefix;
-    private readonly HttpSslPortBinding? _sslBinding;
+    private readonly HttpTlsPortBinding? _tlsBinding;
     private CancellationTokenSource? _cts;
     private Task? _acceptLoop;
 
@@ -36,10 +36,10 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         _admission = new SemaphoreSlim(options.MaxConcurrentMessages);
         _duplexSessions = duplexSessions;
 
-        _sslBinding = HttpSslPortBinding.Create(options.Ssl, options.Prefix, options.SourceEndpointId, "WebSocket");
+        _tlsBinding = HttpTlsPortBinding.Create(options.Tls, options.Prefix, options.SourceEndpointId, "WebSocket");
 
-        if (options.Ssl.RequiresClientCertificate())
-            _clientCertValidator = options.Ssl.CreateRemoteCertificateValidator();
+        if (options.Tls.RequiresClientCertificate())
+            _clientCertValidator = options.Tls.CreateRemoteCertificateValidator();
 
         _listenerPrefix = NormalizeHttpListenerPrefix(options.Prefix);
         _listener.Prefixes.Add(_listenerPrefix);
@@ -47,12 +47,12 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (_sslBinding is not null)
+        if (_tlsBinding is not null)
         {
-            _sslBinding.Bind();
+            _tlsBinding.Bind();
             _logger.LogInformation(
-                "WS inbound endpoint (source {SourceEndpointId}): SSL certificate bound to port {Port}.",
-                _options.SourceEndpointId, _sslBinding.Port);
+                "WS inbound endpoint (source {SourceEndpointId}): TLS certificate bound to port {Port}.",
+                _options.SourceEndpointId, _tlsBinding.Port);
         }
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -72,12 +72,12 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
         if (_acceptLoop is not null)
             try { await _acceptLoop.WaitAsync(cancellationToken); } catch (OperationCanceledException) { }
 
-        if (_sslBinding is not null)
+        if (_tlsBinding is not null)
         {
-            _sslBinding.Unbind();
+            _tlsBinding.Unbind();
             _logger.LogInformation(
-                "WS inbound endpoint (source {SourceEndpointId}): SSL certificate unbound from port {Port}.",
-                _options.SourceEndpointId, _sslBinding.Port);
+                "WS inbound endpoint (source {SourceEndpointId}): TLS certificate unbound from port {Port}.",
+                _options.SourceEndpointId, _tlsBinding.Port);
         }
 
         _logger.LogInformation("WS inbound endpoint (source {SourceEndpointId}) stopped.", _options.SourceEndpointId);
@@ -115,7 +115,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
             return;
         }
 
-        if (_options.Ssl.RequiresClientCertificate() && !await ValidateClientCertificateAsync(http, ct))
+        if (_options.Tls.RequiresClientCertificate() && !await ValidateClientCertificateAsync(http, ct))
         {
             http.Response.StatusCode = 403;
             http.Response.Close();
@@ -288,7 +288,7 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     {
         await StopAsync(CancellationToken.None);
         _cts?.Dispose();
-        _sslBinding?.Dispose();
+        _tlsBinding?.Dispose();
         _admission.Dispose();
         ((IDisposable)_listener).Dispose();
     }

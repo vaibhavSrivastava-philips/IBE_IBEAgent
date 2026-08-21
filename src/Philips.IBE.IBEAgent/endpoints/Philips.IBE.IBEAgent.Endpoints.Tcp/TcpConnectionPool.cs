@@ -27,8 +27,8 @@ internal sealed class TcpConnectionPool : IAsyncDisposable
     private readonly ITcpConnectionFactory _factory;
 
     // Production constructor: creates the default TcpConnectionFactory internally.
-    public TcpConnectionPool(string host, int port, int size, SslOptions? ssl = null, ProxyOptions? proxy = null)
-        : this(size, new TcpConnectionFactory(host, port, ssl ?? new SslOptions(), proxy ?? new ProxyOptions()))
+    public TcpConnectionPool(string host, int port, int size, TlsOptions? tls = null, ProxyOptions? proxy = null, ICertificateProvider? certificateProvider = null)
+        : this(size, new TcpConnectionFactory(host, port, tls ?? new TlsOptions(), proxy ?? new ProxyOptions(), certificateProvider))
     { }
 
     // DIP constructor: accept any ITcpConnectionFactory (e.g. a test double).

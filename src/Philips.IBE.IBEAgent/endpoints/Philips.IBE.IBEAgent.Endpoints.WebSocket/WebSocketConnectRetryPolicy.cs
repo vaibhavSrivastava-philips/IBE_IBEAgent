@@ -38,8 +38,8 @@ internal sealed class WebSocketConnectRetryPolicy : IWebSocketConnectRetryPolicy
                 if (attempt == attempts)
                     break;
 
-                logger.LogWarning(ex,
-                    "WebSocket outbound connect attempt {Attempt}/{TotalAttempts} to {Endpoint} failed. Retrying in {DelayMs} ms.",
+                logger.LogDebug(ex,
+                    "WebSocket outbound connect attempt {Attempt}/{TotalAttempts} to {Endpoint} failed; retrying in {DelayMs} ms.",
                     attempt,
                     attempts,
                     options.Endpoint,

@@ -16,7 +16,7 @@ public sealed class TcpOutboundEndpointConfig
     public bool ExpectReply { get; init; } = true;
     public int ConnectRetryCount { get; init; } = 2;
     public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
-    public SslOptions Ssl { get; init; } = new();
+    public TlsOptions Tls { get; init; } = new();
     public ProxyOptions Proxy { get; init; } = new();
     public string Encoding { get; init; } = "hl7v2";
 }
@@ -33,7 +33,7 @@ public sealed class HttpOutboundEndpointConfig
     public int PooledConnectionIdleTimeoutSeconds { get; init; } = 120;
     public int ConnectRetryCount { get; init; } = 2;
     public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
-    public SslOptions Ssl { get; init; } = new();
+    public TlsOptions Tls { get; init; } = new();
     public ProxyOptions Proxy { get; init; } = new();
     public string Encoding { get; init; } = "hl7v2";
 }
@@ -48,7 +48,7 @@ public sealed class WebSocketOutboundEndpointConfig
     public int ConnectRetryDelayMilliseconds { get; init; } = 1000;
     public int PoolSize { get; init; } = 8;
     public int ReceiveBufferSize { get; init; } = 8192;
-    public SslOptions Ssl { get; init; } = new();
+    public TlsOptions Tls { get; init; } = new();
     public ProxyOptions Proxy { get; init; } = new();
     public string Encoding { get; init; } = "hl7v2";
 }

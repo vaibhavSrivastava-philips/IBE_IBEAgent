@@ -3,182 +3,181 @@
 
     "TcpInbound": [
       {
-        "Comment": "Mutual TLS — server presents Server.pfx, requires client cert validated against Root.pfx",
         "SourceEndpointId": 1,
         "Port": 5101,
         "Format": "hl7v2",
-        "Ssl": {
+        "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-            "Password": "1"
-          },
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
         }
       },
       {
-        "Comment": "OneWay TLS — server presents Server.pfx only, no client cert required",
         "SourceEndpointId": 11,
         "Port": 5301,
+        "Format": "hl7v2"
+      },
+      {
+        "SourceEndpointId": 21,
+        "Port": 5501,
+        "Format": "hl7v2"
+      },
+      {
+        "SourceEndpointId": 31,
+        "Port": 5701,
         "Format": "hl7v2",
-        "Ssl": {
+        "Tls": {
           "Mode": "OneWay",
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
         }
       },
       {
-        "Comment": "Plain (no SSL) — plaintext TCP",
-        "SourceEndpointId": 21,
-        "Port": 5501,
+        "SourceEndpointId": 41,
+        "Port": 5801,
+        "Mode": "DuplexInbound",
         "Format": "hl7v2"
       }
     ],
 
     "HttpInbound": [
       {
-        "Comment": "Mutual TLS — https, server cert + require client cert",
         "SourceEndpointId": 2,
         "Prefix": "https://localhost:5102/ibe/mutual/",
         "Format": "hl7v2",
-        "ReplyTimeout": "00:00:15",
-        "Ssl": {
+        "ReplyTimeoutInMs": 15000,
+        "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-            "Password": "1"
-          },
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
         }
       },
       {
-        "Comment": "OneWay TLS — https, server cert only",
         "SourceEndpointId": 12,
         "Prefix": "https://localhost:5302/ibe/oneway/",
         "Format": "hl7v2",
-        "ReplyTimeout": "00:00:15",
-        "Ssl": {
+        "ReplyTimeoutInMs": 15000,
+        "Tls": {
           "Mode": "OneWay",
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
         }
       },
       {
-        "Comment": "Plain (no SSL) — http plaintext",
         "SourceEndpointId": 22,
         "Prefix": "http://localhost:5502/ibe/plain/",
         "Format": "hl7v2",
-        "ReplyTimeout": "00:00:15"
+        "ReplyTimeoutInMs": 15000
+      },
+      {
+        "SourceEndpointId": 32,
+        "Prefix": "https://localhost:5702/ibe/rr/",
+        "Format": "hl7v2",
+        "ReplyTimeoutInMs": 15000,
+        "Tls": {
+          "Mode": "OneWay",
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+        }
       }
     ],
 
     "WebSocketInbound": [
       {
-        "Comment": "Mutual TLS — wss, server cert + require client cert",
         "SourceEndpointId": 3,
         "Prefix": "https://localhost:5103/ibe/ws/mutual/",
         "Format": "hl7v2",
-        "Ssl": {
+        "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-            "Password": "1"
-          },
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
         }
       },
       {
-        "Comment": "OneWay TLS — wss, server cert only",
         "SourceEndpointId": 13,
-        "Prefix": "https://localhost:5303/ibe/ws/oneway/",
-        "Format": "hl7v2",
-        "Ssl": {
-          "Mode": "OneWay",
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Server.pfx",
-            "Password": "1"
-          }
-        }
+        "Prefix": "http://localhost:5303/ibe/ws/ff/",
+        "Format": "hl7v2"
       },
       {
-        "Comment": "Plain (no SSL) — ws plaintext",
         "SourceEndpointId": 23,
         "Prefix": "http://localhost:5503/ibe/ws/plain/",
+        "Format": "hl7v2"
+      },
+      {
+        "SourceEndpointId": 33,
+        "Prefix": "https://localhost:5703/ibe/ws/rr/",
+        "Format": "hl7v2",
+        "Tls": {
+          "Mode": "OneWay",
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+        }
+      },
+      {
+        "SourceEndpointId": 43,
+        "Prefix": "http://localhost:5803/ibe/ws/duplex/",
+        "Mode": "DuplexInbound",
         "Format": "hl7v2"
       }
     ],
 
     "TcpOutbound": [
       {
-        "Comment": "Mutual TLS — presents Client.pfx, validates server against Root.pfx",
         "OutputId": 101,
         "Host": "127.0.0.1",
         "Port": 5201,
         "ExpectReply": true,
         "ConnectRetryCount": 2,
         "ConnectRetryDelay": "00:00:01",
-        "Ssl": {
+        "Tls": {
           "Mode": "Mutual",
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-            "Password": "1"
-          },
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
         }
       },
       {
-        "Comment": "OneWay TLS — validates server against Root.pfx, no client cert",
         "OutputId": 111,
         "Host": "127.0.0.1",
         "Port": 5401,
-        "ExpectReply": true,
+        "ExpectReply": false,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelay": "00:00:01",
-        "Ssl": {
-          "Mode": "OneWay",
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
-        }
+        "ConnectRetryDelay": "00:00:01"
       },
       {
-        "Comment": "Plain (no SSL) — plaintext TCP",
         "OutputId": 121,
         "Host": "127.0.0.1",
         "Port": 5601,
         "ExpectReply": true,
+        "ConnectRetryCount": 2,
+        "ConnectRetryDelay": "00:00:01"
+      },
+      {
+        "OutputId": 131,
+        "Host": "127.0.0.1",
+        "Port": 5711,
+        "ExpectReply": true,
+        "ConnectRetryCount": 2,
+        "ConnectRetryDelay": "00:00:01",
+        "Tls": {
+          "Mode": "OneWay",
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+        }
+      },
+      {
+        "OutputId": 141,
+        "Host": "127.0.0.1",
+        "Port": 5801,
+        "Mode": "DuplexInbound",
+        "SourceEndpointId": 41,
+        "DuplexInboundSourceEndpointId": 41,
+        "ExpectReply": true,
+        "ConnectRetryCount": 2,
+        "ConnectRetryDelay": "00:00:01"
+      },
+      {
+        "OutputId": 151,
+        "Host": "127.0.0.1",
+        "Port": 5901,
+        "ExpectReply": false,
         "ConnectRetryCount": 2,
         "ConnectRetryDelay": "00:00:01"
       }
@@ -186,87 +185,82 @@
 
     "HttpOutbound": [
       {
-        "Comment": "Mutual TLS — presents Client.pfx, validates server against Root.pfx",
         "OutputId": 102,
         "Endpoint": "https://localhost:5202/ibe/inbound",
         "ContentType": "application/octet-stream",
         "TimeoutSeconds": 30,
-        "Ssl": {
+        "Tls": {
           "Mode": "Mutual",
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-            "Password": "1"
-          },
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
         }
       },
       {
-        "Comment": "OneWay TLS — validates server against Root.pfx, no client cert",
         "OutputId": 112,
         "Endpoint": "https://localhost:5402/ibe/inbound",
         "ContentType": "application/octet-stream",
         "TimeoutSeconds": 30,
-        "Ssl": {
+        "Tls": {
           "Mode": "OneWay",
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
         }
       },
       {
-        "Comment": "Plain (no SSL) — http plaintext",
         "OutputId": 122,
         "Endpoint": "http://localhost:5602/ibe/inbound",
         "ContentType": "application/octet-stream",
         "TimeoutSeconds": 30
+      },
+      {
+        "OutputId": 132,
+        "Endpoint": "https://localhost:5712/ibe/inbound",
+        "ContentType": "application/octet-stream",
+        "TimeoutSeconds": 30,
+        "Tls": {
+          "Mode": "OneWay",
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+        }
       }
     ],
 
     "WebSocketOutbound": [
       {
-        "Comment": "Mutual TLS — wss, presents Client.pfx, validates server against Root.pfx",
         "OutputId": 103,
         "Endpoint": "wss://localhost:5203/ibe/ws",
+        "Mode": "DuplexOutbound",
+        "SourceEndpointId": 50,
         "ExpectReply": true,
-        "Ssl": {
+        "Tls": {
           "Mode": "Mutual",
-          "LocalCertificate": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Client.pfx",
-            "Password": "1"
-          },
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
+          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
         }
       },
       {
-        "Comment": "OneWay TLS — wss, validates server against Root.pfx, no client cert",
         "OutputId": 113,
-        "Endpoint": "wss://localhost:5403/ibe/ws",
-        "ExpectReply": true,
-        "Ssl": {
-          "Mode": "OneWay",
-          "TrustedCertificateAuthority": {
-            "Kind": "File",
-            "Path": "C:\\New\\IBE_IBEAgent\\testcerts\\Root.pfx",
-            "Password": "1"
-          }
-        }
+        "Endpoint": "ws://localhost:5401/ibe/ws",
+        "ExpectReply": false
       },
       {
-        "Comment": "Plain (no SSL) — ws plaintext",
         "OutputId": 123,
         "Endpoint": "ws://localhost:5603/ibe/ws",
+        "ExpectReply": true
+      },
+      {
+        "OutputId": 133,
+        "Endpoint": "wss://localhost:5713/ibe/ws",
+        "ExpectReply": true,
+        "Tls": {
+          "Mode": "OneWay",
+          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+        }
+      },
+      {
+        "OutputId": 143,
+        "Endpoint": "ws://localhost:5803/ibe/ws",
+        "Mode": "DuplexInbound",
+        "SourceEndpointId": 43,
+        "DuplexInboundSourceEndpointId": 43,
         "ExpectReply": true
       }
     ]
@@ -276,47 +270,45 @@
     {
       "Name": "Contract-MutualTLS",
       "Workflow": { "Use": "adt" },
-      "Inputs": [
-        { "InputId": 1 },
-        { "InputId": 2 },
-        { "InputId": 3 }
-      ],
+      "Inputs":  [ { "InputId": 1 }, { "InputId": 2 }, { "InputId": 3 } ],
       "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [
-        { "OutputId": 101 },
-        { "OutputId": 102 },
-        { "OutputId": 103 }
-      ]
+      "Outputs": [ { "OutputId": 101 }, { "OutputId": 102 }, { "OutputId": 103 } ]
     },
     {
-      "Name": "Contract-OneWayTLS",
+      "Name": "Contract-FireAndForget",
       "Workflow": { "Use": "adt" },
-      "Inputs": [
-        { "InputId": 11 },
-        { "InputId": 12 },
-        { "InputId": 13 }
-      ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [
-        { "OutputId": 111 },
-        { "OutputId": 112 },
-        { "OutputId": 113 }
-      ]
+      "Inputs":  [ { "InputId": 11 }, { "InputId": 13 } ],
+      "Acknowledgement": { "IsEnabled": false },
+      "Outputs": [ { "OutputId": 111 }, { "OutputId": 113 } ]
     },
     {
-      "Name": "Contract-Plain",
+      "Name": "Contract-Plain-NormalACK",
       "Workflow": { "Use": "adt" },
-      "Inputs": [
-        { "InputId": 21 },
-        { "InputId": 22 },
-        { "InputId": 23 }
-      ],
+      "Inputs":  [ { "InputId": 21 }, { "InputId": 22 }, { "InputId": 23 } ],
       "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false, "Shape": "Single" },
-      "Outputs": [
-        { "OutputId": 121 },
-        { "OutputId": 122 },
-        { "OutputId": 123 }
-      ]
+      "Outputs": [ { "OutputId": 121 }, { "OutputId": 122 }, { "OutputId": 123 } ]
+    },
+    {
+      "Name": "Contract-RequestReply",
+      "Workflow": { "Use": "adt" },
+      "Inputs":  [ { "InputId": 31 }, { "InputId": 32 }, { "InputId": 33 } ],
+      "Acknowledgement": { "IsEnabled": false },
+      "Response": { "IsEnabled": true, "FromOutputId": 131, "TimeoutMs": 15000 },
+      "Outputs": [ { "OutputId": 131 }, { "OutputId": 132 }, { "OutputId": 133 } ]
+    },
+    {
+      "Name": "Contract-FullDuplex",
+      "Workflow": { "Use": "adt" },
+      "Inputs":  [ { "InputId": 41 }, { "InputId": 43 } ],
+      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
+      "Outputs": [ { "OutputId": 141 }, { "OutputId": 143 } ]
+    },
+    {
+      "Name": "Contract-WsChainToTcp",
+      "Workflow": { "Use": "adt" },
+      "Inputs":  [ { "InputId": 50 } ],
+      "Acknowledgement": { "IsEnabled": false },
+      "Outputs": [ { "OutputId": 151 } ]
     }
   ]
 }
