@@ -294,5 +294,15 @@ public sealed class WebSocketInboundEndpoint : IInboundEndpoint, IAsyncDisposabl
     }
 
     private static string NormalizeHttpListenerPrefix(string prefix)
-        => prefix.EndsWith("/", StringComparison.Ordinal) ? prefix : prefix + "/";
+    {
+        // HttpListener only accepts http:// or https:// prefixes.
+        // WebSocket inbound uses ws:// / wss:// in config (matches the outbound Uri scheme),
+        // so translate them here before registering with HttpListener.
+        if (prefix.StartsWith("ws://", StringComparison.OrdinalIgnoreCase))
+            prefix = "http://" + prefix["ws://".Length..];
+        else if (prefix.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+            prefix = "https://" + prefix["wss://".Length..];
+
+        return prefix.EndsWith("/", StringComparison.Ordinal) ? prefix : prefix + "/";
+    }
 }

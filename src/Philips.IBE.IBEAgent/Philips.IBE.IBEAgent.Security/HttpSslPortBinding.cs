@@ -43,9 +43,13 @@ public sealed class HttpTlsPortBinding : IDisposable
         if (!tls.IsEnabled)
             return null;
 
-        if (!prefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        // TLS-enabled inbound prefixes are expressed with a secure scheme: HTTP endpoints use
+        // https://, WebSocket endpoints use wss://. Both terminate TLS on the same http.sys port
+        // binding, so accept either here — only the port is used for the actual binding.
+        if (!prefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            && !prefix.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
-                $"{endpointLabel} inbound endpoint (source {sourceEndpointId}): TLS is enabled but Prefix '{prefix}' is not https://.");
+                $"{endpointLabel} inbound endpoint (source {sourceEndpointId}): TLS is enabled but Prefix '{prefix}' is not https:// or wss://.");
 
         var cert = tls.LoadCertificate()
             ?? throw new InvalidOperationException(
