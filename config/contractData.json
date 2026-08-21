@@ -1,6 +1,5 @@
 {
   "Endpoints": {
-
     "TcpInbound": [
       {
         "SourceEndpointId": 1,
@@ -9,8 +8,16 @@
         "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -29,7 +36,11 @@
         "Format": "hl7v2",
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -39,7 +50,6 @@
         "Format": "hl7v2"
       }
     ],
-
     "HttpInbound": [
       {
         "SourceEndpointId": 2,
@@ -49,8 +59,16 @@
         "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -60,7 +78,11 @@
         "ReplyTimeoutInMs": 15000,
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -76,12 +98,20 @@
         "ReplyTimeoutInMs": 15000,
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       }
     ],
-
     "WebSocketInbound": [
+      {
+        "SourceEndpointId": 50,
+        "Prefix": "ws://localhost:5203/ibe/ws/chain/",
+        "Format": "hl7v2"
+      },
       {
         "SourceEndpointId": 3,
         "Prefix": "https://localhost:5103/ibe/ws/mutual/",
@@ -89,8 +119,16 @@
         "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -109,7 +147,11 @@
         "Format": "hl7v2",
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -119,7 +161,6 @@
         "Format": "hl7v2"
       }
     ],
-
     "TcpOutbound": [
       {
         "OutputId": 101,
@@ -127,11 +168,19 @@
         "Port": 5201,
         "ExpectReply": true,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelay": "00:00:01",
+        "ConnectRetryDelayMilliseconds": 1000,
         "Tls": {
           "Mode": "Mutual",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=CLI, OU=CLI, O=CLI, L=CLI, S=CLI, C=IN"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -140,7 +189,7 @@
         "Port": 5401,
         "ExpectReply": false,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelay": "00:00:01"
+        "ConnectRetryDelayMilliseconds": 1000
       },
       {
         "OutputId": 121,
@@ -148,7 +197,7 @@
         "Port": 5601,
         "ExpectReply": true,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelay": "00:00:01"
+        "ConnectRetryDelayMilliseconds": 1000
       },
       {
         "OutputId": 131,
@@ -156,10 +205,14 @@
         "Port": 5711,
         "ExpectReply": true,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelay": "00:00:01",
+        "ConnectRetryDelayMilliseconds": 1000,
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -171,7 +224,7 @@
         "DuplexInboundSourceEndpointId": 41,
         "ExpectReply": true,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelay": "00:00:01"
+        "ConnectRetryDelayMilliseconds": 1000
       },
       {
         "OutputId": 151,
@@ -179,10 +232,9 @@
         "Port": 5901,
         "ExpectReply": false,
         "ConnectRetryCount": 2,
-        "ConnectRetryDelay": "00:00:01"
+        "ConnectRetryDelayMilliseconds": 1000
       }
     ],
-
     "HttpOutbound": [
       {
         "OutputId": 102,
@@ -191,8 +243,16 @@
         "TimeoutSeconds": 30,
         "Tls": {
           "Mode": "Mutual",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=CLI, OU=CLI, O=CLI, L=CLI, S=CLI, C=IN"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -202,7 +262,11 @@
         "TimeoutSeconds": 30,
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -218,27 +282,25 @@
         "TimeoutSeconds": 30,
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       }
     ],
-
     "WebSocketOutbound": [
       {
         "OutputId": 103,
-        "Endpoint": "wss://localhost:5203/ibe/ws",
+        "Endpoint": "ws://localhost:5203/ibe/ws/chain/",
         "Mode": "DuplexOutbound",
         "SourceEndpointId": 50,
-        "ExpectReply": true,
-        "Tls": {
-          "Mode": "Mutual",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
-        }
+        "ExpectReply": false
       },
       {
         "OutputId": 113,
-        "Endpoint": "ws://localhost:5401/ibe/ws",
+        "Endpoint": "ws://localhost:5403/ibe/ws/ff",
         "ExpectReply": false
       },
       {
@@ -252,7 +314,11 @@
         "ExpectReply": true,
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
         }
       },
       {
@@ -265,50 +331,124 @@
       }
     ]
   },
-
   "Contracts": [
     {
       "Name": "Contract-MutualTLS",
-      "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 1 }, { "InputId": 2 }, { "InputId": 3 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [ { "OutputId": 101 }, { "OutputId": 102 }, { "OutputId": 103 } ]
+      "Workflow": {
+        "Use": "adt"
+      },
+      "Inputs": [
+        { "InputId": 1 },
+        { "InputId": 2 },
+        { "InputId": 3 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": true,
+        "IsEnhanced": true,
+        "Shape": "Single"
+      },
+      "Outputs": [
+        { "OutputId": 101 },
+        { "OutputId": 102 }
+      ]
     },
     {
       "Name": "Contract-FireAndForget",
-      "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 11 }, { "InputId": 13 } ],
-      "Acknowledgement": { "IsEnabled": false },
-      "Outputs": [ { "OutputId": 111 }, { "OutputId": 113 } ]
+      "Workflow": {
+        "Use": "adt"
+      },
+      "Inputs": [
+        { "InputId": 11 },
+        { "InputId": 13 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": false
+      },
+      "Outputs": [
+        { "OutputId": 111 },
+        { "OutputId": 113 }
+      ]
     },
     {
       "Name": "Contract-Plain-NormalACK",
-      "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 21 }, { "InputId": 22 }, { "InputId": 23 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false, "Shape": "Single" },
-      "Outputs": [ { "OutputId": 121 }, { "OutputId": 122 }, { "OutputId": 123 } ]
+      "Workflow": {
+        "Use": "adt"
+      },
+      "Inputs": [
+        { "InputId": 21 },
+        { "InputId": 22 },
+        { "InputId": 23 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": true,
+        "IsEnhanced": false,
+        "Shape": "Single"
+      },
+      "Outputs": [
+        { "OutputId": 121 },
+        { "OutputId": 122 },
+        { "OutputId": 123 }
+      ]
     },
     {
       "Name": "Contract-RequestReply",
-      "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 31 }, { "InputId": 32 }, { "InputId": 33 } ],
-      "Acknowledgement": { "IsEnabled": false },
-      "Response": { "IsEnabled": true, "FromOutputId": 131, "TimeoutMs": 15000 },
-      "Outputs": [ { "OutputId": 131 }, { "OutputId": 132 }, { "OutputId": 133 } ]
+      "Workflow": {
+        "Use": "adt"
+      },
+      "Inputs": [
+        { "InputId": 31 },
+        { "InputId": 32 },
+        { "InputId": 33 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": false
+      },
+      "Response": {
+        "IsEnabled": true,
+        "FromOutputId": 131,
+        "TimeoutMs": 15000
+      },
+      "Outputs": [
+        { "OutputId": 131 },
+        { "OutputId": 132 },
+        { "OutputId": 133 }
+      ]
     },
     {
       "Name": "Contract-FullDuplex",
-      "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 41 }, { "InputId": 43 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [ { "OutputId": 141 }, { "OutputId": 143 } ]
+      "Workflow": {
+        "Use": "adt"
+      },
+      "Inputs": [
+        { "InputId": 41 },
+        { "InputId": 43 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": true,
+        "IsEnhanced": true,
+        "Shape": "Single"
+      },
+      "Outputs": [
+        { "OutputId": 141 },
+        { "OutputId": 143 }
+      ]
     },
     {
       "Name": "Contract-WsChainToTcp",
-      "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 50 } ],
-      "Acknowledgement": { "IsEnabled": false },
-      "Outputs": [ { "OutputId": 151 } ]
+      "Workflow": {
+        "Use": "adt"
+      },
+      "Inputs": [
+        { "InputId": 50 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": false
+      },
+      "Outputs": [
+        { "OutputId": 151 }
+      ]
     }
   ]
 }
+
+

@@ -35,4 +35,8 @@
     <Content Include="..\..\..\..\config\nlog.config" Link="nlog.config" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="config\" />
+  </ItemGroup>
+
 </Project>
