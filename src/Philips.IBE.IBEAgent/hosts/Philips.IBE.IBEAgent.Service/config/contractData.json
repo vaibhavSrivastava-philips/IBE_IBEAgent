@@ -9,8 +9,16 @@
         "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Server"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -29,7 +37,11 @@
         "Format": "hl7v2",
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Server"
+          }
         }
       },
       {
@@ -49,8 +61,16 @@
         "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Server"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -60,7 +80,11 @@
         "ReplyTimeoutInMs": 15000,
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Server"
+          }
         }
       },
       {
@@ -76,7 +100,11 @@
         "ReplyTimeoutInMs": 15000,
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Server"
+          }
         }
       }
     ],
@@ -89,8 +117,16 @@
         "Tls": {
           "Mode": "Mutual",
           "RequireClientCertificate": true,
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Server"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -109,7 +145,11 @@
         "Format": "hl7v2",
         "Tls": {
           "Mode": "OneWay",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Server" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Server"
+          }
         }
       },
       {
@@ -130,8 +170,16 @@
         "ConnectRetryDelay": "00:00:01",
         "Tls": {
           "Mode": "Mutual",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Client"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -159,7 +207,11 @@
         "ConnectRetryDelay": "00:00:01",
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -191,8 +243,16 @@
         "TimeoutSeconds": 30,
         "Tls": {
           "Mode": "Mutual",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Client"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -202,7 +262,11 @@
         "TimeoutSeconds": 30,
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -218,7 +282,11 @@
         "TimeoutSeconds": 30,
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       }
     ],
@@ -232,8 +300,16 @@
         "ExpectReply": true,
         "Tls": {
           "Mode": "Mutual",
-          "Certificate": { "StoreName": "My", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Client" },
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Client"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -252,7 +328,11 @@
         "ExpectReply": true,
         "Tls": {
           "Mode": "OneWay",
-          "RootCertificate": { "StoreName": "Root", "StoreLocation": "LocalMachine", "Subject": "IBEAgent-Root" }
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "IBEAgent-Root"
+          }
         }
       },
       {
@@ -270,43 +350,95 @@
     {
       "Name": "Contract-MutualTLS",
       "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 1 }, { "InputId": 2 }, { "InputId": 3 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [ { "OutputId": 101 }, { "OutputId": 102 }, { "OutputId": 103 } ]
+      "Inputs": [
+        { "InputId": 1 },
+        { "InputId": 2 },
+        { "InputId": 3 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": true,
+        "IsEnhanced": true,
+        "Shape": "Single"
+      },
+      "Outputs": [
+        { "OutputId": 101 },
+        { "OutputId": 102 },
+        { "OutputId": 103 }
+      ]
     },
     {
       "Name": "Contract-FireAndForget",
       "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 11 }, { "InputId": 13 } ],
+      "Inputs": [
+        { "InputId": 11 },
+        { "InputId": 13 }
+      ],
       "Acknowledgement": { "IsEnabled": false },
-      "Outputs": [ { "OutputId": 111 }, { "OutputId": 113 } ]
+      "Outputs": [
+        { "OutputId": 111 },
+        { "OutputId": 113 }
+      ]
     },
     {
       "Name": "Contract-Plain-NormalACK",
       "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 21 }, { "InputId": 22 }, { "InputId": 23 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": false, "Shape": "Single" },
-      "Outputs": [ { "OutputId": 121 }, { "OutputId": 122 }, { "OutputId": 123 } ]
+      "Inputs": [
+        { "InputId": 21 },
+        { "InputId": 22 },
+        { "InputId": 23 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": true,
+        "IsEnhanced": false,
+        "Shape": "Single"
+      },
+      "Outputs": [
+        { "OutputId": 121 },
+        { "OutputId": 122 },
+        { "OutputId": 123 }
+      ]
     },
     {
       "Name": "Contract-RequestReply",
       "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 31 }, { "InputId": 32 }, { "InputId": 33 } ],
+      "Inputs": [
+        { "InputId": 31 },
+        { "InputId": 32 },
+        { "InputId": 33 }
+      ],
       "Acknowledgement": { "IsEnabled": false },
-      "Response": { "IsEnabled": true, "FromOutputId": 131, "TimeoutMs": 15000 },
-      "Outputs": [ { "OutputId": 131 }, { "OutputId": 132 }, { "OutputId": 133 } ]
+      "Response": {
+        "IsEnabled": true,
+        "FromOutputId": 131,
+        "TimeoutMs": 15000
+      },
+      "Outputs": [
+        { "OutputId": 131 },
+        { "OutputId": 132 },
+        { "OutputId": 133 }
+      ]
     },
     {
       "Name": "Contract-FullDuplex",
       "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 41 }, { "InputId": 43 } ],
-      "Acknowledgement": { "IsEnabled": true, "IsEnhanced": true, "Shape": "Single" },
-      "Outputs": [ { "OutputId": 141 }, { "OutputId": 143 } ]
+      "Inputs": [
+        { "InputId": 41 },
+        { "InputId": 43 }
+      ],
+      "Acknowledgement": {
+        "IsEnabled": true,
+        "IsEnhanced": true,
+        "Shape": "Single"
+      },
+      "Outputs": [
+        { "OutputId": 141 },
+        { "OutputId": 143 }
+      ]
     },
     {
       "Name": "Contract-WsChainToTcp",
       "Workflow": { "Use": "adt" },
-      "Inputs":  [ { "InputId": 50 } ],
+      "Inputs": [ { "InputId": 50 } ],
       "Acknowledgement": { "IsEnabled": false },
       "Outputs": [ { "OutputId": 151 } ]
     }
