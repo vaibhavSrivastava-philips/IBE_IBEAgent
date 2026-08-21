@@ -509,6 +509,28 @@ public sealed class AgentEndpointsOptionsTests
     }
 
     [Fact]
+    public void Endpoint_validator_rejects_websocket_inbound_tls_when_prefix_is_not_wss()
+    {
+        var endpoints = new AgentEndpointsOptions
+        {
+            WebSocketInbound =
+            [
+                new Philips.IBE.IBEAgent.Endpoints.WebSocket.WebSocketInboundOptions
+                {
+                    SourceEndpointId = 1,
+                    Prefix = "https://localhost:6006/ws/",
+                    Tls = new TlsOptions { Enabled = true },
+                },
+            ],
+        };
+
+        var result = AgentEndpointsOptionsValidator.Validate(endpoints);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("WebSocketInbound SourceEndpointId 1 enables TLS but Prefix 'https://localhost:6006/ws/' is not wss://."));
+    }
+
+    [Fact]
     public void Endpoint_validator_rejects_skip_certificate_validation_for_production_safe_tls()
     {
         var endpoints = new AgentEndpointsOptions

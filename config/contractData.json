@@ -109,12 +109,26 @@
     "WebSocketInbound": [
       {
         "SourceEndpointId": 50,
-        "Prefix": "ws://localhost:5203/ibe/ws/chain/",
-        "Format": "hl7v2"
+        "Prefix": "wss://localhost:5203/ibe/ws/chain/",
+        "Format": "hl7v2",
+        "Tls": {
+          "Mode": "Mutual",
+          "RequireClientCertificate": true,
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=144.54.99.232, OU=i, O=i, L=i, S=i, C=IN"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
+        }
       },
       {
         "SourceEndpointId": 3,
-        "Prefix": "https://localhost:5103/ibe/ws/mutual/",
+        "Prefix": "wss://localhost:5103/ibe/ws/mutual/",
         "Format": "hl7v2",
         "Tls": {
           "Mode": "Mutual",
@@ -143,7 +157,7 @@
       },
       {
         "SourceEndpointId": 33,
-        "Prefix": "https://localhost:5703/ibe/ws/rr/",
+        "Prefix": "wss://localhost:5703/ibe/ws/rr/",
         "Format": "hl7v2",
         "Tls": {
           "Mode": "OneWay",
@@ -293,10 +307,23 @@
     "WebSocketOutbound": [
       {
         "OutputId": 103,
-        "Endpoint": "ws://localhost:5203/ibe/ws/chain/",
+        "Endpoint": "wss://localhost:5203/ibe/ws/chain/",
         "Mode": "DuplexOutbound",
         "SourceEndpointId": 50,
-        "ExpectReply": false
+        "ExpectReply": false,
+        "Tls": {
+          "Mode": "Mutual",
+          "Certificate": {
+            "StoreName": "My",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=CLI, OU=CLI, O=CLI, L=CLI, S=CLI, C=IN"
+          },
+          "RootCertificate": {
+            "StoreName": "Root",
+            "StoreLocation": "LocalMachine",
+            "Subject": "CN=i, OU=i, O=i, L=i, S=i, C=IN"
+          }
+        }
       },
       {
         "OutputId": 113,
@@ -349,7 +376,8 @@
       },
       "Outputs": [
         { "OutputId": 101 },
-        { "OutputId": 102 }
+        { "OutputId": 102 },
+        { "OutputId": 103 }
       ]
     },
     {

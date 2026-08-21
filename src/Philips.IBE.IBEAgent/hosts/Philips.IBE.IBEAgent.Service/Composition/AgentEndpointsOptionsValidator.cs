@@ -24,7 +24,7 @@ public static class AgentEndpointsOptionsValidator
         foreach (var endpoint in endpoints.WebSocketInbound)
         {
             ValidateInbound("WebSocketInbound", endpoint.SourceEndpointId, endpoint.Mode, result);
-            ValidateHttpListenerTls("WebSocketInbound", endpoint.SourceEndpointId, endpoint.Prefix, endpoint.Tls, result);
+            ValidateWebSocketListenerTls("WebSocketInbound", endpoint.SourceEndpointId, endpoint.Prefix, endpoint.Tls, result);
         }
         foreach (var endpoint in endpoints.FileInbound)
             ValidateInbound("FileInbound", endpoint.SourceEndpointId, endpoint.Mode, result);
@@ -181,6 +181,18 @@ public static class AgentEndpointsOptionsValidator
     private static void ValidateOutboundTls(string sectionName, int outputId, TlsOptions tls, ValidationResult result)
     {
         ValidateCommonTls(sectionName, outputId, tls, result);
+    }
+
+    // WebSocket inbound uses the ws:// / wss:// scheme in config (matching the outbound Uri scheme).
+    // The endpoint itself translates ws://→http:// and wss://→https:// before registering with
+    // HttpListener, so a TLS-enabled WebSocket inbound must be expressed as wss://.
+    private static void ValidateWebSocketListenerTls(string sectionName, int sourceEndpointId, string prefix, TlsOptions tls, ValidationResult result)
+    {
+        ValidateCommonTls(sectionName, sourceEndpointId, tls, result);
+        if (tls.IsEnabled && !prefix.StartsWith("wss://", StringComparison.OrdinalIgnoreCase))
+        {
+            result.AddError($"{sectionName} SourceEndpointId {sourceEndpointId} enables TLS but Prefix '{prefix}' is not wss://.");
+        }
     }
 
     private static void ValidateHttpOutboundTlsUri(HttpOutboundEndpointConfig endpoint, ValidationResult result)
